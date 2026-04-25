@@ -14,6 +14,7 @@ Required env vars:
     GH_PAT             GitHub PAT with repo + read:user scopes
     NOTION_TOKEN       Notion internal integration token (ntn_...)
     NOTION_DATABASE_ID Database UUID (the parent of the rows we upsert)
+    ANTHROPIC_API_KEY  Anthropic API key for description generation (Claude Haiku)
 """
 
 from __future__ import annotations
@@ -32,6 +33,9 @@ from urllib import error, parse, request
 GITHUB_API = "https://api.github.com"
 NOTION_API = "https://api.notion.com/v1"
 NOTION_VERSION = "2022-06-28"
+ANTHROPIC_API = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_MODEL = "claude-haiku-4-5"
+ANTHROPIC_VERSION = "2023-06-01"
 
 STALE_AFTER_DAYS = 180
 
@@ -300,36 +304,97 @@ def detect_runtimes(repo: Repo) -> str:
     return ", ".join(notes) if notes else ""
 
 
-def make_description(repo: Repo) -> str:
+def clean_readme_excerpt(readme: str, max_chars: int = 1500) -> str:
+    if not readme:
+        return ""
+    text = re.sub(r"^---.*?---\s*", "", readme, flags=re.S)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = re.sub(r"\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)", "", text)
+    text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", text)
+    text = re.sub(r"```.*?```", "", text, flags=re.S)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()[:max_chars]
+
+
+def describe_with_claude(api_key: str, repo: Repo, stack: list[str]) -> str:
+    file_sample = sorted(repo.files)[:40]
+    readme_excerpt = clean_readme_excerpt(repo.readme)
+
+    user_content = f"""Write a 1-2 sentence description (max 200 chars) of what this GitHub repo DOES, in plain factual prose. Focus on the project's purpose and what it accomplishes — not its README structure, badges, or "getting started" boilerplate.
+
+Repo name: {repo.name}
+GitHub description: {repo.description or "(none)"}
+Primary language: {repo.language}
+Detected stack: {", ".join(stack) if stack else "(none)"}
+Visibility: {"private" if repo.is_private else "public"}
+
+File list (sample):
+{chr(10).join(file_sample) if file_sample else "(empty)"}
+
+README excerpt:
+{readme_excerpt or "(no README)"}
+
+Output ONLY the description. No quotes, no labels, no preface. If you genuinely cannot tell what it does, write a description based on the repo name and stack — don't say "no description available"."""
+
+    body = {
+        "model": ANTHROPIC_MODEL,
+        "max_tokens": 200,
+        "messages": [{"role": "user", "content": user_content}],
+    }
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": ANTHROPIC_VERSION,
+        "content-type": "application/json",
+    }
+    try:
+        status, data = http("POST", ANTHROPIC_API, headers, body)
+    except Exception as e:
+        print(f"    Claude error for {repo.name}: {e}", file=sys.stderr)
+        return ""
+    if status != 200:
+        print(f"    Claude {status} for {repo.name}: {data}", file=sys.stderr)
+        return ""
+    try:
+        text = data["content"][0]["text"].strip()
+    except (KeyError, IndexError, TypeError):
+        return ""
+    text = text.strip().strip('"').strip("'")
+    text = re.sub(r"\s+", " ", text)
+    if len(text) > 350:
+        text = text[:347].rstrip() + "..."
+    return text
+
+
+def make_description(repo: Repo, stack: list[str], anthropic_key: str | None) -> str:
+    if anthropic_key:
+        desc = describe_with_claude(anthropic_key, repo, stack)
+        if desc:
+            return desc
+
     if repo.description:
         base = repo.description.strip()
     else:
         base = ""
-    if repo.readme:
-        text = re.sub(r"^---.*?---\s*", "", repo.readme, flags=re.S)
-        text = re.sub(r"<[^>]+>", "", text)
-        text = re.sub(r"\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)", "", text)
-        text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", text)
-        lines = [l.strip() for l in text.splitlines()]
+    if repo.readme and not base:
+        cleaned = clean_readme_excerpt(repo.readme, 600)
+        lines = [l.strip() for l in cleaned.splitlines()]
         body_lines: list[str] = []
         for l in lines:
-            if not l or l.startswith("#") or l.startswith("```") or l.startswith("|") or l.startswith("---"):
+            if not l or l.startswith("#") or l.startswith("|"):
                 if body_lines:
                     break
                 continue
             body_lines.append(l)
-            joined = " ".join(body_lines)
-            if len(joined) > 240:
+            if len(" ".join(body_lines)) > 240:
                 break
-        readme_blurb = " ".join(body_lines).strip()
-        if readme_blurb and not base:
-            base = readme_blurb
-        elif readme_blurb and len(base) < 60 and readme_blurb.lower() not in base.lower():
-            base = f"{base}. {readme_blurb}"
+        base = " ".join(body_lines).strip()
     base = re.sub(r"\s+", " ", base).strip()
     if len(base) > 350:
         base = base[:347].rstrip() + "..."
-    return base or "(no description)"
+    if not base:
+        stack_str = ", ".join(stack) if stack else "project"
+        base = f"{repo.name} ({stack_str})"
+    return base
 
 
 def compute_status(repo: Repo) -> str:
@@ -447,9 +512,12 @@ def main() -> int:
     gh_token = os.environ.get("GH_PAT") or os.environ.get("GITHUB_TOKEN")
     notion_token = os.environ.get("NOTION_TOKEN")
     database_id = os.environ.get("NOTION_DATABASE_ID") or os.environ.get("NOTION_DATA_SOURCE_ID")
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
     if not gh_token or not notion_token or not database_id:
         print("Missing GH_PAT, NOTION_TOKEN, or NOTION_DATABASE_ID", file=sys.stderr)
         return 1
+    if not anthropic_key:
+        print("WARN: ANTHROPIC_API_KEY not set — falling back to heuristic descriptions", file=sys.stderr)
 
     print("Listing GitHub repos...", flush=True)
     repos = list_user_repos(gh_token, include_archived=False)
@@ -483,7 +551,7 @@ def main() -> int:
         stack = detect_stack(repo)
         runtimes = detect_runtimes(repo)
         status = compute_status(repo)
-        description = make_description(repo)
+        description = make_description(repo, stack, anthropic_key)
         props = build_props(repo, stack, runtimes, status, description)
         action = upsert_page(notion_token, database_id, existing, repo, props)
         if action == "created":
