@@ -1,0 +1,32 @@
+name: Sync GitHub repos to Notion
+
+on:
+  schedule:
+    # 1st of every month at 13:00 UTC = 9am ET (8am during EST)
+    - cron: '0 13 1 * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run sync
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+        run: python sync.py
