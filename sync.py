@@ -166,6 +166,21 @@ def fetch_file(token: str, repo: Repo, path: str) -> str:
     return ""
 
 
+def fetch_last_actions_run(token: str, repo: Repo) -> str | None:
+    """Return ISO timestamp of the most recent successful Actions run, or None."""
+    status, data = http(
+        "GET",
+        f"{GITHUB_API}/repos/{repo.full_name}/actions/runs?per_page=1&status=success",
+        gh_headers(token),
+    )
+    if status != 200 or not isinstance(data, dict):
+        return None
+    runs = data.get("workflow_runs") or []
+    if not runs:
+        return None
+    return runs[0].get("updated_at") or runs[0].get("created_at")
+
+
 def fetch_readme(token: str, repo: Repo) -> str:
     status, data = http(
         "GET",
@@ -397,11 +412,20 @@ def make_description(repo: Repo, stack: list[str], anthropic_key: str | None) ->
     return base
 
 
-def compute_status(repo: Repo) -> str:
+def compute_status(repo: Repo, last_actions_run: str | None = None) -> str:
     if repo.is_archived:
         return "Archived"
+    now = datetime.now(tz=timezone.utc)
     pushed = datetime.fromisoformat(repo.pushed_at.replace("Z", "+00:00"))
-    age_days = (datetime.now(tz=timezone.utc) - pushed).days
+    most_recent = pushed
+    if last_actions_run:
+        try:
+            run_dt = datetime.fromisoformat(last_actions_run.replace("Z", "+00:00"))
+            if run_dt > most_recent:
+                most_recent = run_dt
+        except ValueError:
+            pass
+    age_days = (now - most_recent).days
     return "Stale" if age_days > STALE_AFTER_DAYS else "Active"
 
 
@@ -523,10 +547,12 @@ def main() -> int:
     repos = list_user_repos(gh_token, include_archived=False)
     print(f"  Found {len(repos)} repos", flush=True)
 
+    last_actions: dict[str, str | None] = {}
     for repo in repos:
         print(f"  Scanning {repo.full_name}...", flush=True)
         repo.files = fetch_tree(gh_token, repo)
         repo.readme = fetch_readme(gh_token, repo)
+        last_actions[repo.url] = fetch_last_actions_run(gh_token, repo)
         wanted_files = [
             "package.json", ".nvmrc", "pyproject.toml", "setup.py", "runtime.txt",
             ".python-version", "serverless.yml", "serverless.yaml",
@@ -550,7 +576,7 @@ def main() -> int:
         seen_urls.add(repo.url)
         stack = detect_stack(repo)
         runtimes = detect_runtimes(repo)
-        status = compute_status(repo)
+        status = compute_status(repo, last_actions.get(repo.url))
         description = make_description(repo, stack, anthropic_key)
         props = build_props(repo, stack, runtimes, status, description)
         action = upsert_page(notion_token, database_id, existing, repo, props)
