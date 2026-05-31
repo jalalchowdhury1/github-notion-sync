@@ -1,0 +1,56 @@
+name: Keepalive
+
+# Why this exists:
+# GitHub auto-disables a repo's scheduled (cron) workflows after 60 days with
+# no commits. The Daily/Historical scrapers only push to Google Sheets +
+# Telegram, never back to this repo, so without this the crons get suspended.
+# This job makes a tiny empty commit when the repo has been idle for ~40 days,
+# resetting GitHub's inactivity timer so the scrapers keep running indefinitely.
+
+on:
+  schedule:
+    # 03:17 UTC on the 1st and 15th of every month — frequent enough that the
+    # idle counter can never reach 60 days, but the commit itself only happens
+    # when actually needed (see the >=40 day guard below).
+    - cron: '17 3 1,15 * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force a keepalive commit even if the repo was recently active'
+        type: boolean
+        default: false
+
+# Grant write only to this workflow; the repo-wide default stays read-only.
+permissions:
+  contents: write
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  keepalive:
+    name: Keep scheduled workflows alive
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Empty keepalive commit if repo idle >= 40 days
+        env:
+          FORCE: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+          last=$(git log -1 --format=%ct)
+          now=$(date -u +%s)
+          days=$(( (now - last) / 86400 ))
+          echo "Days since last commit: $days (force=${FORCE:-false})"
+          if [ "$days" -ge 40 ] || [ "${FORCE:-false}" = "true" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "chore: keepalive [skip ci]"
+            git push
+            echo "Keepalive commit pushed — inactivity timer reset."
+          else
+            echo "Repo committed to recently; no keepalive needed."
+          fi
