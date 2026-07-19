@@ -1,0 +1,83 @@
+{
+ "checked": "2026-07-19 10:19",
+ "results": [
+  {
+   "name": "dhaka-flights (nightly trip tracker)",
+   "repo": "dhaka-flights",
+   "ok": true,
+   "detail": "data 10h old"
+  },
+  {
+   "name": "carmax-scraper (nightly car picks)",
+   "repo": "carmax-scraper",
+   "ok": true,
+   "detail": "last success 2026-07-19"
+  },
+  {
+   "name": "leasehackr-scraper (daily deals)",
+   "repo": "leasehackr-scraper",
+   "ok": false,
+   "detail": "no runs found"
+  },
+  {
+   "name": "sentiment-scraper (AAII weekly data)",
+   "repo": "sentiment-scraper",
+   "ok": true,
+   "detail": "success 5h ago"
+  },
+  {
+   "name": "ynab-budget-brief (7am budget brief)",
+   "repo": "ynab-budget-brief",
+   "ok": true,
+   "detail": "success 2h ago"
+  },
+  {
+   "name": "financial-dashboard-history (2x-daily snapshots)",
+   "repo": "financial-dashboard-history",
+   "ok": true,
+   "detail": "success 9h ago"
+  },
+  {
+   "name": "vix-fear-greed (daily tag)",
+   "repo": "vix-fear-greed",
+   "ok": true,
+   "detail": "success 24h ago"
+  },
+  {
+   "name": "T7 Google-Drive backup (4am rsync)",
+   "repo": null,
+   "ok": false,
+   "detail": "last exit 1"
+  },
+  {
+   "name": "zinger-bot (Telegram bot on Vercel)",
+   "repo": "zinger-bot",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "name": "aoife-math (daily game site)",
+   "repo": "aoife-math",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "name": "aoife-columns (site)",
+   "repo": "aoife-columns",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "name": "aoife-frameworks (site)",
+   "repo": "aoife-frameworks",
+   "ok": true,
+   "detail": "HTTP 200"
+  },
+  {
+   "name": "nafis-mortgage (site)",
+   "repo": "nafis-mortgage",
+   "ok": true,
+   "detail": "HTTP 200"
+  }
+ ]
+}
