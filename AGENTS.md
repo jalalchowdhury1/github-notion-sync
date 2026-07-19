@@ -9,6 +9,23 @@
 
 ## 1. What this is
 
+**This repo now has TWO jobs** (2026-07-19): the original monthly repo→Notion
+sync, and the WEEKLY FLEET HEALTH system:
+- `fleet_health.py` — runs on Jalal's Mac (launchd `com.jalal.fleet-health`,
+  Sundays 5:00 AM, wrapper `run_health.sh`, log `health.log` gitignored).
+  13 data-level probes (local launchd stamps/exit codes, `gh` runs with
+  log-grep data markers, live-site checks). Telegrams a ✅/❌ digest and
+  commits+pushes `health.json`. Probes live in the `FLEET` list — add new
+  automations there. A probe crash counts as a failure, never skips.
+- `notion_health.py` + `.github/workflows/health.yml` (Sundays 13:07 UTC) —
+  stamps Health / Health checked / Health note onto each repo's row in the
+  same Notion DB (keyed by Repo URL, same secrets as sync.py; auto-creates
+  the three properties). Exits nonzero if health.json is >8 days stale so a
+  dead Mac-side checker fails loudly in Actions.
+Born from the 2026-07 CarMax incident: 17 days of green CI with zero rows —
+hence data-level markers, not conclusions, wherever possible.
+
+
 A single-file Python script (`sync.py`, stdlib-only — no third-party packages) that
 **mirrors the owner's GitHub repos into a Notion database**. On each run it:
 
