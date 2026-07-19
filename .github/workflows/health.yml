@@ -1,0 +1,23 @@
+name: Weekly health to Notion
+on:
+  schedule:
+    # Sundays 13:07 UTC = 9:07 AM ET — hours after the Mac's 5:00 AM
+    # fleet_health.py run pushes health.json. :07 dodges the contended
+    # top-of-hour scheduler queue.
+    - cron: '7 13 * * 0'
+  workflow_dispatch:
+jobs:
+  stamp:
+    name: Stamp health.json into the Notion repos table
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Update Notion
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+        run: python notion_health.py
