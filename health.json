@@ -1,5 +1,5 @@
 {
- "checked": "2026-07-19 10:19",
+ "checked": "2026-07-19 10:21",
  "results": [
   {
    "name": "dhaka-flights (nightly trip tracker)",
@@ -16,8 +16,8 @@
   {
    "name": "leasehackr-scraper (daily deals)",
    "repo": "leasehackr-scraper",
-   "ok": false,
-   "detail": "no runs found"
+   "ok": true,
+   "detail": "success 5h ago, data confirmed"
   },
   {
    "name": "sentiment-scraper (AAII weekly data)",
