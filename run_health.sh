@@ -7,3 +7,6 @@ cd /Users/jalalchowdhury/PycharmProjects/github-notion-sync
 # Telegram creds shared with the trip tracker (same chat)
 set -a; source "/Users/jalalchowdhury/PycharmProjects/Dhaka flights/.env" 2>/dev/null; set +a
 python3 fleet_health.py
+# Snapshot the Mac's actual job schedule (launchd/cron/Time Machine) →
+# schedule.json; commits+pushes only when the job list changed.
+python3 schedule_snapshot.py

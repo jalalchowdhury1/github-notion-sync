@@ -22,6 +22,25 @@ sync, and the WEEKLY FLEET HEALTH system:
   same Notion DB (keyed by Repo URL, same secrets as sync.py; auto-creates
   the three properties). Exits nonzero if health.json is >8 days stale so a
   dead Mac-side checker fails loudly in Actions.
+
+**Plus a third job (2026-07-20): the self-maintaining "Mac Mini Schedule" Notion table.**
+- `schedule_snapshot.py` — runs on the Mac right after `fleet_health.py`
+  (same `run_health.sh` wrapper). Reads GROUND TRUTH — every
+  `~/Library/LaunchAgents/com.jalal.*.plist` (via plistlib), `crontab -l`,
+  and Time Machine's AutoBackup flag — and writes `schedule.json`
+  (commits+pushes ONLY when the job list changed; quiet weeks make no
+  commits). Human text for known jobs lives in its `CATALOG` /
+  `CRON_CATALOG` dicts; unknown jobs still get a row, flagged
+  "🆕 needs description", so nothing new can hide. `STATIC_JOBS` holds
+  cloud-side rows (the health.yml stamping job itself).
+- `notion_schedule.py` — runs in `health.yml` after `notion_health.py`.
+  Mirrors schedule.json into the Notion **Mac Mini Schedule** database
+  (secret `NOTION_SCHEDULE_DB_ID` — separate from the repos table's
+  `NOTION_DATABASE_ID`). Upserts keyed by hidden `Key` rich_text column
+  (launchd label / `cron:<line>` / `timemachine` / `gh:…`); pre-existing
+  rows are matched by Job title once, then stamped with a Key. **`Notes`
+  is written only on row creation** (manual edits survive — same sacred-Notes
+  rule as sync.py). Vanished jobs get `Frequency = Removed` (soft delete).
 Born from the 2026-07 CarMax incident: 17 days of green CI with zero rows —
 hence data-level markers, not conclusions, wherever possible.
 
@@ -113,6 +132,7 @@ Actions). Never hardcode any of them — the repo is **public**.
 | `NOTION_TOKEN` | yes | Notion internal integration token (`ntn_…`); the integration must be shared with the target database. |
 | `NOTION_DATABASE_ID` | yes | UUID of the Notion database (parent of the rows). Falls back to `NOTION_DATA_SOURCE_ID` if unset. |
 | `ANTHROPIC_API_KEY` | optional | Anthropic API key for Claude-generated descriptions. If absent, descriptions fall back to README/GitHub-description heuristics. |
+| `NOTION_SCHEDULE_DB_ID` | yes (health.yml only) | UUID of the **Mac Mini Schedule** Notion database (under 💻 Tech & Automation). Used only by `notion_schedule.py`. |
 
 ---
 
@@ -248,6 +268,12 @@ Frontend (React); `express`/`fastify`/`@hono/node-server` → API/Backend;
   - `notion_headers` / `notion_query_all` / `text_chunks` / `build_props` / `upsert_page` /
     `mark_deleted` — Notion reads/writes (upsert by Repo URL; soft-delete).
   - `main()` — orchestrates the run; reads env vars (incl. fallback names); returns exit code.
+- `fleet_health.py` / `run_health.sh` — Mac-side weekly fleet health check (see §1).
+- `schedule_snapshot.py` — Mac-side ground-truth snapshot of launchd/cron/Time
+  Machine schedules → `schedule.json` (see §1). **Add a `CATALOG` entry whenever
+  adding a launchd job**, or the Notion row will carry a 🆕 placeholder.
+- `notion_health.py` / `notion_schedule.py` — cloud-side Notion stamping, run by
+  `.github/workflows/health.yml` (Sundays 13:07 UTC).
 - `.github/workflows/sync.yml` — monthly cron + manual dispatch; runs `python sync.py`.
 - `.github/workflows/keepalive.yml` — biweekly empty-commit keepalive to prevent 60-day
   cron auto-disable (only runs the commit when idle ≥ 40 days; `contents: write`).
