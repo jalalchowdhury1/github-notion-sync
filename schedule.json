@@ -1,0 +1,95 @@
+{
+ "updated": "2026-07-20 00:04",
+ "jobs": [
+  {
+   "key": "com.jalal.carmax",
+   "title": "CarMax scraper",
+   "when": "12:00 AM (retries 2:00 AM, 4:00 AM)",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.carmax → ~/PycharmProjects/carmax-scraper/run_daily.sh",
+   "what": "Best-value top-trim ICE-SUV finder (11–16k mi) with live KBB/Edmunds valuation of top 3",
+   "logs": "~/PycharmProjects/carmax-scraper/cron.log",
+   "notes": "Runs in parallel with Dhaka scraper (isolated browse sessions); same stamp-based retry no-op"
+  },
+  {
+   "key": "com.jalal.dhaka-flights",
+   "title": "Dhaka flights scraper",
+   "when": "12:00 AM (retries 2:00 AM, 4:00 AM)",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.dhaka-flights → ~/PycharmProjects/Dhaka flights/run_daily.sh",
+   "what": "Scrapes Google Flights (BOS→DAC/BKK + Singapore-detour variant), publishes results site, Telegrams on crash",
+   "logs": "~/PycharmProjects/Dhaka flights/cron.log",
+   "notes": "Retry slots no-op after success via .last_run_date stamp; refuses to start after 5:30 AM"
+  },
+  {
+   "key": "com.jalal.fleet-health",
+   "title": "Fleet health check (all repos)",
+   "when": "Sunday 5:00 AM",
+   "frequency": "Weekly",
+   "mechanism": "launchd com.jalal.fleet-health → ~/PycharmProjects/github-notion-sync/run_health.sh",
+   "what": "13 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
+   "logs": "~/PycharmProjects/github-notion-sync/health.log",
+   "notes": "The weekly \"is everything working\" check. Companion GitHub Action stamps results onto the GitHub Repos table."
+  },
+  {
+   "key": "com.jalal.keepawake",
+   "title": "Keep-awake",
+   "when": "—",
+   "frequency": "Always on",
+   "mechanism": "launchd com.jalal.keepawake → /usr/bin/caffeinate",
+   "what": "Prevents system sleep (display may still sleep) so the midnight jobs always fire",
+   "logs": "—",
+   "notes": "KeepAlive restarts it if it dies; starts on login/reboot"
+  },
+  {
+   "key": "com.jalal.supervisor",
+   "title": "Supervisor (mission watcher)",
+   "when": "—",
+   "frequency": "Always on",
+   "mechanism": "launchd com.jalal.supervisor → ~/supervisor/supervisor.py",
+   "what": "Watches Google Drive supervisor/inbox for MISSION.md files and runs an autonomous aider build loop; pings Telegram",
+   "logs": "~/supervisor/logs/supervisor.log",
+   "notes": "Idle unless a mission file is dropped in the inbox"
+  },
+  {
+   "key": "com.jalal.t7-drive-sync",
+   "title": "T7 drive sync",
+   "when": "4:00 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.t7-drive-sync → ~/bin/t7sync",
+   "what": "Syncs files to the T7Files volume on the Samsung T7 drive",
+   "logs": "/tmp/t7-drive-sync.log",
+   "notes": "Fleet health probes its launchd exit code weekly"
+  },
+  {
+   "key": "cron:0 8 * * * cd \"/Users/jalalchowdhury/PycharmProjects/Dhaka flights\" && /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3 run_daily.py >> \"/Users/jalalchowdhury/PycharmProjects/Dhaka flights/cron.log\" 2>&1",
+   "title": "Legacy Dhaka cron (8 AM)",
+   "when": "8:00 AM",
+   "frequency": "Legacy",
+   "mechanism": "crontab → cd \"~/PycharmProjects/Dhaka flights\" && /Library/Developer/CommandLineTools/Library/Frameworks/Pytho",
+   "what": "Pre-launchd leftover of the Dhaka scraper schedule",
+   "logs": "~/PycharmProjects/Dhaka flights/cron.log",
+   "notes": "Harmless — .last_run_date stamp makes it log \"Already ran today, skipping\" — but it bypasses run_daily.sh's 5:30 AM guard on failure days. Candidate for removal (crontab -e)."
+  },
+  {
+   "key": "timemachine",
+   "title": "Time Machine backup",
+   "when": "Every hour",
+   "frequency": "Hourly",
+   "mechanism": "macOS backupd (AutoBackup on)",
+   "what": "Backs up the Mac to the encrypted T7Backup volume on the Samsung T7",
+   "logs": "tmutil latestbackup / System Settings",
+   "notes": "T7 must stay plugged in. TM cannot back up the T7 itself — photos' 2nd copy is iCloud only."
+  },
+  {
+   "key": "gh:health.yml",
+   "title": "Notion health stamping",
+   "when": "Sunday 9:07 AM (13:07 UTC)",
+   "frequency": "Weekly",
+   "mechanism": "GitHub Actions health.yml in github-notion-sync (cloud, not the Mac)",
+   "what": "Reads health.json + schedule.json pushed by the 5 AM fleet check; stamps the GitHub Repos table and rebuilds the Mac Mini Schedule table",
+   "logs": "gh run list -w health.yml",
+   "notes": "Fails loudly if health.json is >8 days stale (i.e., the Mac-side check stopped running)"
+  }
+ ]
+}
