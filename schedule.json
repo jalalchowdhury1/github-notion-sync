@@ -1,5 +1,5 @@
 {
- "updated": "2026-07-20 00:04",
+ "updated": "2026-07-26 17:09",
  "jobs": [
   {
    "key": "com.jalal.carmax",
@@ -24,12 +24,12 @@
   {
    "key": "com.jalal.fleet-health",
    "title": "Fleet health check (all repos)",
-   "when": "Sunday 5:00 AM",
-   "frequency": "Weekly",
+   "when": "5:00 AM (retries 11:00 AM)",
+   "frequency": "Daily",
    "mechanism": "launchd com.jalal.fleet-health → ~/PycharmProjects/github-notion-sync/run_health.sh",
    "what": "13 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
    "logs": "~/PycharmProjects/github-notion-sync/health.log",
-   "notes": "The weekly \"is everything working\" check. Companion GitHub Action stamps results onto the GitHub Repos table."
+   "notes": "The daily \"is everything working\" check (11 AM slot is a no-op retry). One-line ✅ when all healthy; full paste-to-Claude diagnostics when not. Companion daily GitHub Action stamps results onto the GitHub Repos table."
   },
   {
    "key": "com.jalal.keepawake",
@@ -59,7 +59,7 @@
    "mechanism": "launchd com.jalal.t7-drive-sync → ~/bin/t7sync",
    "what": "Syncs files to the T7Files volume on the Samsung T7 drive",
    "logs": "/tmp/t7-drive-sync.log",
-   "notes": "Fleet health probes its launchd exit code weekly"
+   "notes": "Fleet health probes its launchd exit code daily"
   },
   {
    "key": "cron:0 8 * * * cd \"/Users/jalalchowdhury/PycharmProjects/Dhaka flights\" && /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3 run_daily.py >> \"/Users/jalalchowdhury/PycharmProjects/Dhaka flights/cron.log\" 2>&1",
