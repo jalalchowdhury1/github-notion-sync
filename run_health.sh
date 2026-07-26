@@ -1,6 +1,7 @@
 #!/bin/bash
-# launchd wrapper for the DAILY fleet health check (5:00 AM, plus an 11:00 AM
-# retry slot that no-ops once today's digest has been delivered).
+# launchd wrapper for the DAILY fleet health check (5:00 AM, plus a 6:30 AM
+# retry slot that no-ops once today's digest has been delivered — everything
+# settled before the 7 AM YNAB brief / wake-up).
 source /Users/jalalchowdhury/.bash_profile 2>/dev/null || true
 export HOME=/Users/jalalchowdhury USER=jalalchowdhury
 export PATH="/opt/homebrew/bin:/usr/local/bin:/Library/Developer/CommandLineTools/usr/bin:$PATH"
@@ -16,11 +17,12 @@ fi
 # Telegram creds shared with the trip tracker (same chat)
 set -a; source "/Users/jalalchowdhury/PycharmProjects/Dhaka flights/.env" 2>/dev/null; set +a
 
-# From 7 AM on this invocation is the retry slot: fleet_health.py exits early
-# if the 5 AM run already sent today's digest. (Manual runs: call
-# `python3 fleet_health.py` directly — no flag, always runs.)
+# From 6 AM on this invocation is the retry slot: fleet_health.py exits early
+# if the 5 AM run already sent today's digest, or backs off if that run is
+# still going (lock file). (Manual runs: call `python3 fleet_health.py`
+# directly — no flag, always runs.)
 EXTRA=""
-if (( 10#$(date +%H) >= 7 )); then EXTRA="--retry-slot"; fi
+if (( 10#$(date +%H) >= 6 )); then EXTRA="--retry-slot"; fi
 python3 fleet_health.py $EXTRA
 # Snapshot the Mac's actual job schedule (launchd/cron/Time Machine) →
 # schedule.json; commits+pushes only when the job list changed.

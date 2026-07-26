@@ -8,3 +8,4 @@ venv/
 .idea/
 .vscode/
 health.log
+.fleet_health.lock

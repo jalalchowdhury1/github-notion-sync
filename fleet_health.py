@@ -3,9 +3,10 @@
 produced data (not just green checkmarks — the 2026-07 CarMax incident ran
 green for 17 days while writing nothing).
 
-Runs ON THE MAC (launchd com.jalal.fleet-health, daily 5:00 AM with an 11:00 AM
-retry slot) because only the Mac can see all three worlds: local launchd
-stamps, GitHub Actions (gh CLI), and the live sites. Outputs:
+Runs ON THE MAC (launchd com.jalal.fleet-health, daily 5:00 AM with a 6:30 AM
+retry slot — everything settled before wake-up) because only the Mac can see
+all three worlds: local launchd stamps, GitHub Actions (gh CLI), and the live
+sites. Outputs:
   1. Telegram digest — ONE line when everything is healthy; when anything
      fails, a full diagnostic block per failure (probe config, run URL,
      failed-log tail) meant to be pasted verbatim into Claude to debug.
@@ -22,8 +23,11 @@ Reliability rules:
     used to be able to 400 the whole digest) and retried 3x.
   - If this script itself crashes, a 🚨 panic Telegram is sent before exiting
     nonzero; the cloud watchdog catches a fully dead Mac within 2 days.
-  - --retry-slot (the 11 AM run) exits early if today's digest already went
-    out, so a healthy day gets exactly one message.
+  - --retry-slot (the 6:30 AM run) exits early if today's digest already went
+    out, so a healthy day gets exactly one message; a lock file makes it back
+    off if the 5 AM run is somehow still going.
+  - Failures carry a failing_since date across days (new breakage vs ongoing
+    saga), and the first healthy digest after a failure says what recovered.
 
 Stdlib only (+ the gh CLI and git, both already on the Mac).
 """
@@ -39,9 +43,11 @@ import urllib.request
 
 REPO_DIR = os.path.dirname(os.path.abspath(__file__))
 HEALTH_FILE = os.path.join(REPO_DIR, "health.json")
+LOCK_FILE = os.path.join(REPO_DIR, ".fleet_health.lock")
 GH_USER = "jalalchowdhury1"
 PROBE_ATTEMPTS = 3          # total tries for probes that raise (infra errors)
 PROBE_RETRY_PAUSE_S = 20
+LOCK_STALE_S = 2 * 3600     # a lock older than this is a crashed run, ignore
 
 # ── probe implementations ───────────────────────────────────────────────────
 # Contract: return (ok, detail). Raise on infrastructure trouble (gets
@@ -215,18 +221,44 @@ def run_checks() -> list:
 
 # ── reporting ───────────────────────────────────────────────────────────────
 
-def format_digest(results) -> str:
+def annotate_history(results) -> list:
+    """Carry failing_since across days (before health.json is overwritten) and
+    return the systems that failed last run but are healthy now."""
+    try:
+        prev = json.load(open(HEALTH_FILE))
+    except Exception:                        # noqa: BLE001 — first run ever
+        return []
+    prev_date = prev.get("checked", "")[:10]
+    prev_bad = {r["name"]: r.get("failing_since") or prev_date
+                for r in prev.get("results", []) if not r.get("ok")}
+    today = datetime.date.today().isoformat()
+    for r in results:
+        if not r["ok"]:
+            r["failing_since"] = prev_bad.get(r["name"], today)
+    return sorted(n.split(" (")[0] for n in prev_bad
+                  if any(r["name"] == n and r["ok"] for r in results))
+
+
+def format_digest(results, recovered=()) -> str:
     """One line when all healthy; full paste-to-Claude blocks when not."""
     today = datetime.date.today().isoformat()
     bad = [r for r in results if not r["ok"]]
     if not bad:
-        return f"✅ Fleet check {today} — all {len(results)} systems healthy"
+        text = f"✅ Fleet check {today} — all {len(results)} systems healthy"
+        if recovered:
+            text += f" · recovered: {', '.join(recovered)}"
+        return text
     lines = [f"🚨 FLEET CHECK {today}: {len(bad)} of {len(results)} FAILING", ""]
     for r in bad:
         lines.append(f"❌ {r['name']}")
+        since = r.get("failing_since")
+        if since and since != today:
+            lines.append(f"   ⏳ failing since {since}")
         lines.append(f"   [{r['cfg']}]")
         lines.extend(f"   {dl}" for dl in r["detail"].splitlines())
         lines.append("")
+    if recovered:
+        lines.append(f"💚 recovered today: {', '.join(recovered)}")
     ok_names = [r["name"].split(" (")[0] for r in results if r["ok"]]
     if ok_names:
         lines.append(f"✅ the other {len(ok_names)} healthy: {', '.join(ok_names)}")
@@ -294,15 +326,36 @@ def already_ran_today() -> bool:
         return False
 
 
+def _lock_is_fresh() -> bool:
+    try:
+        return time.time() - os.path.getmtime(LOCK_FILE) < LOCK_STALE_S
+    except OSError:
+        return False
+
+
 def main(argv=()) -> None:
     now = datetime.datetime.now()
-    if "--retry-slot" in argv and already_ran_today():
-        print(f"=== {now:%Y-%m-%d %H:%M} retry slot: already ran today — skipping ===")
-        return
+    if "--retry-slot" in argv:
+        if already_ran_today():
+            print(f"=== {now:%Y-%m-%d %H:%M} retry slot: already ran today — skipping ===")
+            return
+        if _lock_is_fresh():
+            print(f"=== {now:%Y-%m-%d %H:%M} retry slot: earlier run still in "
+                  f"progress (lock) — backing off ===")
+            return
     print(f"=== Fleet health check {now:%Y-%m-%d %H:%M} ===")
-    results = run_checks()
-    sent = _telegram_send(format_digest(results))
-    publish(results, sent)
+    with open(LOCK_FILE, "w") as f:
+        f.write(str(os.getpid()))
+    try:
+        results = run_checks()
+        recovered = annotate_history(results)
+        sent = _telegram_send(format_digest(results, recovered))
+        publish(results, sent)
+    finally:
+        try:
+            os.remove(LOCK_FILE)
+        except OSError:
+            pass
     print("=== Done ===")
 
 
