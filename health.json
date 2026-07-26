@@ -1,17 +1,17 @@
 {
- "checked": "2026-07-19 10:21",
+ "checked": "2026-07-26 05:00",
  "results": [
   {
    "name": "dhaka-flights (nightly trip tracker)",
    "repo": "dhaka-flights",
    "ok": true,
-   "detail": "data 10h old"
+   "detail": "data 5h old"
   },
   {
    "name": "carmax-scraper (nightly car picks)",
    "repo": "carmax-scraper",
    "ok": true,
-   "detail": "last success 2026-07-19"
+   "detail": "last success 2026-07-26"
   },
   {
    "name": "leasehackr-scraper (daily deals)",
@@ -23,31 +23,31 @@
    "name": "sentiment-scraper (AAII weekly data)",
    "repo": "sentiment-scraper",
    "ok": true,
-   "detail": "success 5h ago"
+   "detail": "success 23h ago"
   },
   {
    "name": "ynab-budget-brief (7am budget brief)",
    "repo": "ynab-budget-brief",
    "ok": true,
-   "detail": "success 2h ago"
+   "detail": "success 21h ago"
   },
   {
    "name": "financial-dashboard-history (2x-daily snapshots)",
    "repo": "financial-dashboard-history",
    "ok": true,
-   "detail": "success 9h ago"
+   "detail": "success 4h ago"
   },
   {
    "name": "vix-fear-greed (daily tag)",
    "repo": "vix-fear-greed",
    "ok": true,
-   "detail": "success 24h ago"
+   "detail": "success 18h ago"
   },
   {
    "name": "T7 Google-Drive backup (4am rsync)",
    "repo": null,
-   "ok": false,
-   "detail": "last exit 1"
+   "ok": true,
+   "detail": "last exit 0"
   },
   {
    "name": "zinger-bot (Telegram bot on Vercel)",
