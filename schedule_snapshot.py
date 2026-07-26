@@ -85,12 +85,12 @@ CRON_CATALOG = [
 STATIC_JOBS = [
     {"key": "gh:health.yml",
      "title": "Notion health stamping",
-     "when": "Sunday 9:07 AM (13:07 UTC)",
-     "frequency": "Weekly",
+     "when": "9:07 AM (13:07 UTC)",
+     "frequency": "Daily",
      "mechanism": "GitHub Actions health.yml in github-notion-sync (cloud, not the Mac)",
      "what": "Reads health.json + schedule.json pushed by the 5 AM fleet check; stamps the GitHub Repos table and rebuilds the Mac Mini Schedule table",
      "logs": "gh run list -w health.yml",
-     "notes": "Fails loudly if health.json is >8 days stale (i.e., the Mac-side check stopped running)"},
+     "notes": "Dead-Mac watchdog: fails loudly if health.json is >2 days stale (i.e., the Mac-side check stopped running)"},
 ]
 
 
