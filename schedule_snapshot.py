@@ -54,6 +54,11 @@ CATALOG = {
         "what": "13 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
         "logs": "~/PycharmProjects/github-notion-sync/health.log",
         "notes": 'The daily "is everything working" check (6:30 AM slot is a no-op retry; all settled before wake-up). One-line ✅ when all healthy; full paste-to-Claude diagnostics when not. Companion daily GitHub Action stamps results onto the GitHub Repos table.'},
+    "com.jalal.notebooklm-drip": {
+        "title": "Gemini Notebook podcast drip",
+        "what": "Fires Audio+Video Overview generation (3+3/day free-tier quota) for book notebooks in ~/PycharmProjects/notebooklm-library/index.tsv until all 39 have podcasts",
+        "logs": "~/PycharmProjects/notebooklm-library/drip.log",
+        "notes": "Kaiser burner account via notebooklm-py CLI; idempotent so the 4 PM slot is a free retry (Google quota reset time uncertain). Self no-ops once backlog clears (~Aug 7 2026); auto-covers new books added to index.tsv"},
     "com.jalal.keepawake": {
         "title": "Keep-awake",
         "what": "Prevents system sleep (display may still sleep) so the midnight jobs always fire",
