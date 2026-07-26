@@ -1,14 +1,29 @@
 #!/usr/bin/env python3
-"""Weekly fleet health check — verifies every scheduled automation ACTUALLY
+"""Daily fleet health check — verifies every scheduled automation ACTUALLY
 produced data (not just green checkmarks — the 2026-07 CarMax incident ran
 green for 17 days while writing nothing).
 
-Runs ON THE MAC (launchd com.jalal.fleet-health, Sundays 5:00 AM) because only
-the Mac can see all three worlds: local launchd stamps, GitHub Actions (gh CLI),
-and the live sites. Outputs:
-  1. Telegram digest (one ✅/⚠️ line per system)
-  2. health.json committed+pushed to this repo — a weekly GitHub Action
-     (health-to-notion.yml) then stamps the results into the Notion repos table.
+Runs ON THE MAC (launchd com.jalal.fleet-health, daily 5:00 AM with an 11:00 AM
+retry slot) because only the Mac can see all three worlds: local launchd
+stamps, GitHub Actions (gh CLI), and the live sites. Outputs:
+  1. Telegram digest — ONE line when everything is healthy; when anything
+     fails, a full diagnostic block per failure (probe config, run URL,
+     failed-log tail) meant to be pasted verbatim into Claude to debug.
+  2. health.json committed+pushed to this repo — the daily GitHub Action
+     (health.yml) then stamps the results into the Notion repos table and
+     fails loudly if health.json goes stale (dead-Mac watchdog).
+
+Reliability rules:
+  - Probes RAISE on infrastructure errors (network blips, gh/launchctl
+    failures) and those get retried 3x with a pause — a transient hiccup at
+    5 AM must not page as a fake ❌. A probe that RETURNS False is real
+    signal (stale data, red run) and is never retried.
+  - Telegram sends are plain text (no Markdown — log excerpts full of _*[
+    used to be able to 400 the whole digest) and retried 3x.
+  - If this script itself crashes, a 🚨 panic Telegram is sent before exiting
+    nonzero; the cloud watchdog catches a fully dead Mac within 2 days.
+  - --retry-slot (the 11 AM run) exits early if today's digest already went
+    out, so a healthy day gets exactly one message.
 
 Stdlib only (+ the gh CLI and git, both already on the Mac).
 """
@@ -16,14 +31,21 @@ Stdlib only (+ the gh CLI and git, both already on the Mac).
 import datetime
 import json
 import os
+import re
 import subprocess
+import sys
+import time
 import urllib.request
 
 REPO_DIR = os.path.dirname(os.path.abspath(__file__))
 HEALTH_FILE = os.path.join(REPO_DIR, "health.json")
 GH_USER = "jalalchowdhury1"
+PROBE_ATTEMPTS = 3          # total tries for probes that raise (infra errors)
+PROBE_RETRY_PAUSE_S = 20
 
 # ── probe implementations ───────────────────────────────────────────────────
+# Contract: return (ok, detail). Raise on infrastructure trouble (gets
+# retried); return False only for genuine data-level failure.
 
 def _age_hours(ts: float) -> float:
     return (datetime.datetime.now().timestamp() - ts) / 3600
@@ -37,7 +59,8 @@ def probe_web_fresh(url, json_key, max_age_h, **_):
     ts = datetime.datetime.strptime(raw[:16], "%Y-%m-%d %H:%M").timestamp()
     age = _age_hours(ts)
     ok = age <= max_age_h
-    return ok, f"data {age:.0f}h old" + ("" if ok else f" (limit {max_age_h}h)")
+    return ok, f"data {age:.0f}h old" + ("" if ok else
+                                         f" (limit {max_age_h}h, raw {json_key}={raw!r})")
 
 
 def probe_web_200(url, **_):
@@ -58,9 +81,11 @@ def probe_local_stamp(path, max_age_h, **_):
 
 def probe_launchd_exit(label, **_):
     """launchctl list: second column = last exit status (0 = clean)."""
-    out = subprocess.run(["launchctl", "list"], capture_output=True, text=True,
-                         timeout=15).stdout
-    for line in out.splitlines():
+    p = subprocess.run(["launchctl", "list"], capture_output=True, text=True,
+                       timeout=15)
+    if p.returncode != 0:
+        raise RuntimeError(f"launchctl list failed: {p.stderr.strip()[:120]}")
+    for line in p.stdout.splitlines():
         parts = line.split()
         if len(parts) >= 3 and parts[2] == label:
             code = parts[1]
@@ -68,31 +93,54 @@ def probe_launchd_exit(label, **_):
     return False, "job not loaded"
 
 
+def _failed_log_tail(repo, run_id, max_chars=700):
+    """Last few lines of the failed step's log — bounded, best-effort."""
+    try:
+        p = subprocess.run(
+            ["gh", "run", "view", str(run_id), "-R", f"{GH_USER}/{repo}",
+             "--log-failed"],
+            capture_output=True, text=True, timeout=120)
+        lines = [l.split("\t")[-1].strip() for l in p.stdout.splitlines()
+                 if l.strip()]
+        tail = "\n".join(lines[-8:])
+        return tail[-max_chars:]
+    except Exception:                        # noqa: BLE001 — log tail is a bonus
+        return ""
+
+
 def probe_gh_run(repo, workflow, max_age_h, log_grep=None, **_):
     """Latest workflow run: recent + successful; optionally grep the log for a
     data-level marker (e.g. 'Scraped [1-9]' proves rows actually moved)."""
-    out = subprocess.run(
+    p = subprocess.run(
         ["gh", "run", "list", "-R", f"{GH_USER}/{repo}", "--workflow", workflow,
          "--limit", "1", "--json", "conclusion,createdAt,databaseId"],
-        capture_output=True, text=True, timeout=60).stdout
-    runs = json.loads(out or "[]")
+        capture_output=True, text=True, timeout=60)
+    if p.returncode != 0:
+        raise RuntimeError(f"gh run list failed: {p.stderr.strip()[:150]}")
+    runs = json.loads(p.stdout or "[]")
     if not runs:
         return False, "no runs found"
     run = runs[0]
+    run_url = f"https://github.com/{GH_USER}/{repo}/actions/runs/{run['databaseId']}"
     ts = datetime.datetime.strptime(run["createdAt"][:16], "%Y-%m-%dT%H:%M")
     age = _age_hours(ts.replace(tzinfo=datetime.timezone.utc).timestamp())
     if run["conclusion"] != "success":
-        return False, f"last run {run['conclusion']} ({age:.0f}h ago)"
+        detail = f"last run {run['conclusion']} ({age:.0f}h ago)\nrun: {run_url}"
+        tail = _failed_log_tail(repo, run["databaseId"])
+        if tail:
+            detail += f"\nlog tail:\n{tail}"
+        return False, detail
     if age > max_age_h:
-        return False, f"no run in {age/24:.1f}d (limit {max_age_h}h)"
+        return False, (f"no run in {age/24:.1f}d (limit {max_age_h}h)"
+                       f"\nlast run: {run_url}")
     if log_grep:
         log = subprocess.run(
             ["gh", "run", "view", str(run["databaseId"]), "-R",
              f"{GH_USER}/{repo}", "--log"],
             capture_output=True, text=True, timeout=120).stdout
-        import re
         if not re.search(log_grep, log):
-            return False, f"run green but data marker missing ({log_grep!r})"
+            return False, (f"run green but data marker missing ({log_grep!r})"
+                           f"\nrun: {run_url}")
         return True, f"success {age:.0f}h ago, data confirmed"
     return True, f"success {age:.0f}h ago"
 
@@ -136,48 +184,89 @@ FLEET = [
 ]
 
 
+def _cfg_line(item) -> str:
+    """One-line probe config so a failure block is self-describing."""
+    keys = ("probe", "repo", "workflow", "url", "path", "label",
+            "json_key", "max_age_h", "log_grep")
+    return " · ".join(f"{k}={item[k]}" for k in keys if item.get(k) is not None)
+
+
 def run_checks() -> list:
     results = []
     for item in FLEET:
         fn = PROBE_FNS[item["probe"]]
-        try:
-            ok, detail = fn(**item)
-        except Exception as e:               # noqa: BLE001 — a probe crash IS a failure
-            ok, detail = False, f"probe error: {type(e).__name__}: {e}"[:160]
+        err = ""
+        for attempt in range(1, PROBE_ATTEMPTS + 1):
+            try:
+                ok, detail = fn(**item)
+                break
+            except Exception as e:           # noqa: BLE001 — infra error: retry
+                err = f"probe error: {type(e).__name__}: {e}"[:300]
+                if attempt < PROBE_ATTEMPTS:
+                    print(f"  … {item['name']}: {err} (attempt {attempt}, retrying)")
+                    time.sleep(PROBE_RETRY_PAUSE_S)
+        else:                                # all attempts raised
+            ok, detail = False, f"{err} (after {PROBE_ATTEMPTS} attempts)"
         results.append({"name": item["name"], "repo": item.get("repo"),
-                        "ok": ok, "detail": detail})
-        print(f"  {'✅' if ok else '❌'} {item['name']} — {detail}")
+                        "ok": ok, "detail": detail, "cfg": _cfg_line(item)})
+        print(f"  {'✅' if ok else '❌'} {item['name']} — {detail.splitlines()[0]}")
     return results
 
 
-def send_telegram(results) -> None:
+# ── reporting ───────────────────────────────────────────────────────────────
+
+def format_digest(results) -> str:
+    """One line when all healthy; full paste-to-Claude blocks when not."""
+    today = datetime.date.today().isoformat()
+    bad = [r for r in results if not r["ok"]]
+    if not bad:
+        return f"✅ Fleet check {today} — all {len(results)} systems healthy"
+    lines = [f"🚨 FLEET CHECK {today}: {len(bad)} of {len(results)} FAILING", ""]
+    for r in bad:
+        lines.append(f"❌ {r['name']}")
+        lines.append(f"   [{r['cfg']}]")
+        lines.extend(f"   {dl}" for dl in r["detail"].splitlines())
+        lines.append("")
+    ok_names = [r["name"].split(" (")[0] for r in results if r["ok"]]
+    if ok_names:
+        lines.append(f"✅ the other {len(ok_names)} healthy: {', '.join(ok_names)}")
+    lines.append("")
+    lines.append("Paste this whole message to Claude to debug "
+                 "(fleet_health.py in github-notion-sync).")
+    text = "\n".join(lines)
+    if len(text) > 4000:                     # Telegram hard limit is 4096
+        text = text[:3960] + "\n…(truncated — full details in health.json)"
+    return text
+
+
+def _telegram_send(text) -> bool:
+    """Plain-text send (no parse_mode — log excerpts would break Markdown),
+    3 attempts."""
     token = os.environ.get("TELEGRAM_TOKEN")
     chat = os.environ.get("TELEGRAM_CHAT_ID")
     if not (token and chat):
         print("(no Telegram creds — digest not sent)")
-        return
-    bad = [r for r in results if not r["ok"]]
-    head = ("✅ *Weekly fleet check: all systems healthy*"
-            if not bad else
-            f"⚠️ *Weekly fleet check: {len(bad)} of {len(results)} systems need attention*")
-    lines = [head, ""]
-    for r in results:
-        lines.append(f"{'✅' if r['ok'] else '❌'} {r['name']}\n     _{r['detail']}_")
-    lines.append(f"\n_{datetime.date.today().isoformat()} · details land in the Notion repos table_")
-    body = json.dumps({"chat_id": chat, "text": "\n".join(lines),
-                       "parse_mode": "Markdown"}).encode()
-    req = urllib.request.Request(
-        f"https://api.telegram.org/bot{token}/sendMessage",
-        data=body, headers={"Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=15) as r:
-            print(f"Telegram digest: HTTP {r.status}")
-    except Exception as e:                   # noqa: BLE001
-        print(f"WARN: Telegram digest failed: {e}")
+        return False
+    for attempt in range(1, 4):
+        try:
+            body = json.dumps({"chat_id": chat, "text": text,
+                               "disable_web_page_preview": True}).encode()
+            req = urllib.request.Request(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                data=body, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                print(f"Telegram digest: HTTP {r.status}")
+                return True
+        except Exception as e:               # noqa: BLE001
+            print(f"WARN: Telegram send attempt {attempt} failed: {e}")
+            if attempt < 3:
+                time.sleep(15)
+    return False
 
 
-def publish(results) -> None:
+def publish(results, telegram_sent: bool) -> None:
     payload = {"checked": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+               "telegram": "sent" if telegram_sent else "failed",
                "results": results}
     with open(HEALTH_FILE, "w") as f:
         json.dump(payload, f, indent=1)
@@ -185,7 +274,7 @@ def publish(results) -> None:
         return subprocess.run(["git", "-C", REPO_DIR] + list(args),
                               capture_output=True, text=True, timeout=60)
     git("add", "health.json")
-    c = git("commit", "-m", f"Weekly health: {payload['checked']}")
+    c = git("commit", "-m", f"Fleet health: {payload['checked']}")
     if c.returncode == 0:
         p = git("push")
         print("health.json pushed" if p.returncode == 0
@@ -194,13 +283,37 @@ def publish(results) -> None:
         print(f"WARN: commit failed: {c.stderr.strip()[:150]}")
 
 
-def main():
-    print(f"=== Fleet health check {datetime.datetime.now():%Y-%m-%d %H:%M} ===")
+def already_ran_today() -> bool:
+    """True if today's check completed AND its digest reached Telegram —
+    an undelivered digest makes the 11 AM retry slot rerun everything."""
+    try:
+        h = json.load(open(HEALTH_FILE))
+        return (h.get("checked", "")[:10] == datetime.date.today().isoformat()
+                and h.get("telegram") == "sent")
+    except Exception:                        # noqa: BLE001
+        return False
+
+
+def main(argv=()) -> None:
+    now = datetime.datetime.now()
+    if "--retry-slot" in argv and already_ran_today():
+        print(f"=== {now:%Y-%m-%d %H:%M} retry slot: already ran today — skipping ===")
+        return
+    print(f"=== Fleet health check {now:%Y-%m-%d %H:%M} ===")
     results = run_checks()
-    send_telegram(results)
-    publish(results)
+    sent = _telegram_send(format_digest(results))
+    publish(results, sent)
     print("=== Done ===")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main(sys.argv[1:])
+    except Exception:                        # noqa: BLE001 — die LOUDLY
+        import traceback
+        tb = traceback.format_exc()
+        print(tb, file=sys.stderr)
+        _telegram_send("🚨 fleet_health.py itself CRASHED — the checker is "
+                       f"down, not the fleet:\n{tb[-1500:]}\n"
+                       "Paste this to Claude to debug.")
+        sys.exit(1)

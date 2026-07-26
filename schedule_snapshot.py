@@ -2,13 +2,14 @@
 """Snapshot the Mac mini's actual job schedule into schedule.json.
 
 Ground truth, not documentation: reads ~/Library/LaunchAgents/com.jalal.*.plist,
-`crontab -l`, and Time Machine's AutoBackup flag. A weekly GitHub Action
+`crontab -l`, and Time Machine's AutoBackup flag. A daily GitHub Action
 (notion_schedule.py in health.yml) then mirrors schedule.json into the Notion
 "Mac Mini Schedule" table, so the table can never drift from reality.
 
-Runs ON THE MAC from run_health.sh (launchd com.jalal.fleet-health, Sundays
-5:00 AM) right after fleet_health.py. Commits+pushes schedule.json ONLY when
-the job list actually changed, so quiet weeks make no commits.
+Runs ON THE MAC from run_health.sh (launchd com.jalal.fleet-health, daily
+5:00 AM + 11:00 AM retry slot) right after fleet_health.py. Commits+pushes
+schedule.json ONLY when the job list actually changed, so quiet days make no
+commits.
 
 Human-facing text (title / what-it-does / logs / notes) for KNOWN jobs lives in
 CATALOG below — add an entry when adding a launchd job. Unknown jobs still get
@@ -47,12 +48,12 @@ CATALOG = {
         "title": "T7 drive sync",
         "what": "Syncs files to the T7Files volume on the Samsung T7 drive",
         "logs": "/tmp/t7-drive-sync.log",
-        "notes": "Fleet health probes its launchd exit code weekly"},
+        "notes": "Fleet health probes its launchd exit code daily"},
     "com.jalal.fleet-health": {
         "title": "Fleet health check (all repos)",
         "what": "13 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
         "logs": "~/PycharmProjects/github-notion-sync/health.log",
-        "notes": 'The weekly "is everything working" check. Companion GitHub Action stamps results onto the GitHub Repos table.'},
+        "notes": 'The daily "is everything working" check (11 AM slot is a no-op retry). One-line ✅ when all healthy; full paste-to-Claude diagnostics when not. Companion daily GitHub Action stamps results onto the GitHub Repos table.'},
     "com.jalal.keepawake": {
         "title": "Keep-awake",
         "what": "Prevents system sleep (display may still sleep) so the midnight jobs always fire",

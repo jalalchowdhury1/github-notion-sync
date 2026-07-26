@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Stamp the weekly fleet-health results (health.json, pushed by the Mac's
-Sunday-5am fleet_health.py run) onto the Notion repos table.
+"""Stamp the daily fleet-health results (health.json, pushed by the Mac's
+5 AM fleet_health.py run) onto the Notion repos table.
 
 Adds/updates three properties per matching repo row:
   Health         (select: ✅ Healthy / ❌ Failing)
   Health checked (date)
   Health note    (rich_text — the probe detail line)
 
-Runs in GitHub Actions (health-to-notion.yml, Sundays 13:00 UTC) with the same
+Runs in GitHub Actions (health.yml, daily 13:07 UTC) with the same
 NOTION_TOKEN / NOTION_DATABASE_ID secrets sync.py already uses. Stdlib only.
-Fails loudly (nonzero exit → Actions email) if health.json is stale, so a dead
-Mac-side checker can't rot silently.
+Fails loudly (nonzero exit → Actions email) if health.json is >2 days stale,
+so a dead Mac-side checker can't rot silently — this is the dead-Mac watchdog.
 """
 
 import datetime
@@ -22,7 +22,7 @@ import urllib.request
 NOTION_API = "https://api.notion.com/v1"
 NOTION_VERSION = "2022-06-28"
 GH_USER = "jalalchowdhury1"
-STALE_DAYS = 8
+STALE_DAYS = 2   # daily runs: tolerate one missed day, then scream
 
 
 def http(method, url, token, body=None):

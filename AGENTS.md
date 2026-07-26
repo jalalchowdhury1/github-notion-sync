@@ -10,25 +10,39 @@
 ## 1. What this is
 
 **This repo now has TWO jobs** (2026-07-19): the original monthly repo→Notion
-sync, and the WEEKLY FLEET HEALTH system:
+sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
 - `fleet_health.py` — runs on Jalal's Mac (launchd `com.jalal.fleet-health`,
-  Sundays 5:00 AM, wrapper `run_health.sh`, log `health.log` gitignored).
-  13 data-level probes (local launchd stamps/exit codes, `gh` runs with
-  log-grep data markers, live-site checks). Telegrams a ✅/❌ digest and
-  commits+pushes `health.json`. Probes live in the `FLEET` list — add new
-  automations there. A probe crash counts as a failure, never skips.
-- `notion_health.py` + `.github/workflows/health.yml` (Sundays 13:07 UTC) —
+  daily 5:00 AM **plus an 11:00 AM retry slot** — run_health.sh passes
+  `--retry-slot` after 7 AM and the script no-ops if today's digest already
+  reached Telegram; manual `python3 fleet_health.py` always runs. Wrapper
+  `run_health.sh` also truncates `health.log` in place past ~400 KB —
+  gitignored). 13 data-level probes (local launchd stamps/exit codes, `gh`
+  runs with log-grep data markers, live-site checks). **Digest contract:**
+  all healthy → ONE plain-text line ("✅ Fleet check … all N systems
+  healthy"); any failure → a full diagnostic block per failure (probe
+  config line, multi-line detail incl. run URL + failed-step log tail for
+  gh_run probes) designed to be pasted verbatim into Claude to debug.
+  Telegram is plain text (NO parse_mode — log excerpts full of `_*[` used
+  to be able to 400 the Markdown digest) with 3 send attempts. Probes RAISE
+  on infra errors (network blip, gh failure) → retried 3× with 20 s pauses;
+  a returned False (stale data, red run) is real signal, never retried. If
+  the script itself crashes, a 🚨 panic Telegram goes out and it exits
+  nonzero. Commits+pushes `health.json` (now also records `telegram:
+  sent/failed` — an undelivered digest makes the 11 AM slot rerun). Probes
+  live in the `FLEET` list — add new automations there.
+- `notion_health.py` + `.github/workflows/health.yml` (daily 13:07 UTC) —
   stamps Health / Health checked / Health note onto each repo's row in the
   same Notion DB (keyed by Repo URL, same secrets as sync.py; auto-creates
-  the three properties). Exits nonzero if health.json is >8 days stale so a
-  dead Mac-side checker fails loudly in Actions.
+  the three properties). Exits nonzero if health.json is >2 days stale so a
+  dead Mac-side checker fails loudly in Actions within two days (dead-Mac
+  watchdog).
 
 **Plus a third job (2026-07-20): the self-maintaining "Mac Mini Schedule" Notion table.**
 - `schedule_snapshot.py` — runs on the Mac right after `fleet_health.py`
   (same `run_health.sh` wrapper). Reads GROUND TRUTH — every
   `~/Library/LaunchAgents/com.jalal.*.plist` (via plistlib), `crontab -l`,
   and Time Machine's AutoBackup flag — and writes `schedule.json`
-  (commits+pushes ONLY when the job list changed; quiet weeks make no
+  (commits+pushes ONLY when the job list changed; quiet days make no
   commits). Human text for known jobs lives in its `CATALOG` /
   `CRON_CATALOG` dicts; unknown jobs still get a row, flagged
   "🆕 needs description", so nothing new can hide. `STATIC_JOBS` holds
@@ -268,12 +282,12 @@ Frontend (React); `express`/`fastify`/`@hono/node-server` → API/Backend;
   - `notion_headers` / `notion_query_all` / `text_chunks` / `build_props` / `upsert_page` /
     `mark_deleted` — Notion reads/writes (upsert by Repo URL; soft-delete).
   - `main()` — orchestrates the run; reads env vars (incl. fallback names); returns exit code.
-- `fleet_health.py` / `run_health.sh` — Mac-side weekly fleet health check (see §1).
+- `fleet_health.py` / `run_health.sh` — Mac-side daily fleet health check (see §1).
 - `schedule_snapshot.py` — Mac-side ground-truth snapshot of launchd/cron/Time
   Machine schedules → `schedule.json` (see §1). **Add a `CATALOG` entry whenever
   adding a launchd job**, or the Notion row will carry a 🆕 placeholder.
 - `notion_health.py` / `notion_schedule.py` — cloud-side Notion stamping, run by
-  `.github/workflows/health.yml` (Sundays 13:07 UTC).
+  `.github/workflows/health.yml` (daily 13:07 UTC).
 - `.github/workflows/sync.yml` — monthly cron + manual dispatch; runs `python sync.py`.
 - `.github/workflows/keepalive.yml` — biweekly empty-commit keepalive to prevent 60-day
   cron auto-disable (only runs the commit when idle ≥ 40 days; `contents: write`).

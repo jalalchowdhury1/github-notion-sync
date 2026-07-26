@@ -1,10 +1,11 @@
-name: Weekly health to Notion
+name: Daily health to Notion
 on:
   schedule:
-    # Sundays 13:07 UTC = 9:07 AM ET — hours after the Mac's 5:00 AM
+    # Daily 13:07 UTC = 9:07 AM ET — hours after the Mac's 5:00 AM
     # fleet_health.py run pushes health.json. :07 dodges the contended
-    # top-of-hour scheduler queue.
-    - cron: '7 13 * * 0'
+    # top-of-hour scheduler queue. Also the dead-Mac watchdog: fails
+    # (→ Actions email) if health.json is >2 days old.
+    - cron: '7 13 * * *'
   workflow_dispatch:
 jobs:
   stamp:
