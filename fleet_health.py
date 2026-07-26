@@ -317,7 +317,7 @@ def publish(results, telegram_sent: bool) -> None:
 
 def already_ran_today() -> bool:
     """True if today's check completed AND its digest reached Telegram —
-    an undelivered digest makes the 11 AM retry slot rerun everything."""
+    an undelivered digest makes the 6:30 AM retry slot rerun everything."""
     try:
         h = json.load(open(HEALTH_FILE))
         return (h.get("checked", "")[:10] == datetime.date.today().isoformat()

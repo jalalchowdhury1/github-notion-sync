@@ -12,24 +12,30 @@
 **This repo now has TWO jobs** (2026-07-19): the original monthly repo→Notion
 sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
 - `fleet_health.py` — runs on Jalal's Mac (launchd `com.jalal.fleet-health`,
-  daily 5:00 AM **plus an 11:00 AM retry slot** — run_health.sh passes
-  `--retry-slot` after 7 AM and the script no-ops if today's digest already
-  reached Telegram; manual `python3 fleet_health.py` always runs. Wrapper
+  daily 5:00 AM **plus a 6:30 AM retry slot** so everything is settled
+  before the 7 AM YNAB brief / wake-up — run_health.sh passes
+  `--retry-slot` from 6 AM and the script no-ops if today's digest already
+  reached Telegram, or backs off if the 5 AM run still holds
+  `.fleet_health.lock` (gitignored; locks >2 h old are treated as crashed
+  and ignored); manual `python3 fleet_health.py` always runs. Wrapper
   `run_health.sh` also truncates `health.log` in place past ~400 KB —
   gitignored). 13 data-level probes (local launchd stamps/exit codes, `gh`
   runs with log-grep data markers, live-site checks). **Digest contract:**
   all healthy → ONE plain-text line ("✅ Fleet check … all N systems
-  healthy"); any failure → a full diagnostic block per failure (probe
-  config line, multi-line detail incl. run URL + failed-step log tail for
-  gh_run probes) designed to be pasted verbatim into Claude to debug.
-  Telegram is plain text (NO parse_mode — log excerpts full of `_*[` used
-  to be able to 400 the Markdown digest) with 3 send attempts. Probes RAISE
-  on infra errors (network blip, gh failure) → retried 3× with 20 s pauses;
-  a returned False (stale data, red run) is real signal, never retried. If
-  the script itself crashes, a 🚨 panic Telegram goes out and it exits
-  nonzero. Commits+pushes `health.json` (now also records `telegram:
-  sent/failed` — an undelivered digest makes the 11 AM slot rerun). Probes
-  live in the `FLEET` list — add new automations there.
+  healthy", plus "· recovered: X" the first healthy day after a failure);
+  any failure → a full diagnostic block per failure (probe config line,
+  "⏳ failing since DATE" when the failure spans days, multi-line detail
+  incl. run URL + failed-step log tail for gh_run probes) designed to be
+  pasted verbatim into Claude to debug. Telegram is plain text (NO
+  parse_mode — log excerpts full of `_*[` used to be able to 400 the
+  Markdown digest) with 3 send attempts. Probes RAISE on infra errors
+  (network blip, gh failure) → retried 3× with 20 s pauses; a returned
+  False (stale data, red run) is real signal, never retried. If the script
+  itself crashes, a 🚨 panic Telegram goes out and it exits nonzero.
+  Commits+pushes `health.json` (records `telegram: sent/failed` — an
+  undelivered digest makes the 6:30 slot rerun — and `failing_since` per
+  failing system, carried across days by `annotate_history`). Probes live
+  in the `FLEET` list — add new automations there.
 - `notion_health.py` + `.github/workflows/health.yml` (daily 13:07 UTC) —
   stamps Health / Health checked / Health note onto each repo's row in the
   same Notion DB (keyed by Repo URL, same secrets as sync.py; auto-creates

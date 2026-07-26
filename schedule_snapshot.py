@@ -7,7 +7,7 @@ Ground truth, not documentation: reads ~/Library/LaunchAgents/com.jalal.*.plist,
 "Mac Mini Schedule" table, so the table can never drift from reality.
 
 Runs ON THE MAC from run_health.sh (launchd com.jalal.fleet-health, daily
-5:00 AM + 11:00 AM retry slot) right after fleet_health.py. Commits+pushes
+5:00 AM + 6:30 AM retry slot) right after fleet_health.py. Commits+pushes
 schedule.json ONLY when the job list actually changed, so quiet days make no
 commits.
 
@@ -53,7 +53,7 @@ CATALOG = {
         "title": "Fleet health check (all repos)",
         "what": "13 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
         "logs": "~/PycharmProjects/github-notion-sync/health.log",
-        "notes": 'The daily "is everything working" check (11 AM slot is a no-op retry). One-line ✅ when all healthy; full paste-to-Claude diagnostics when not. Companion daily GitHub Action stamps results onto the GitHub Repos table.'},
+        "notes": 'The daily "is everything working" check (6:30 AM slot is a no-op retry; all settled before wake-up). One-line ✅ when all healthy; full paste-to-Claude diagnostics when not. Companion daily GitHub Action stamps results onto the GitHub Repos table.'},
     "com.jalal.keepawake": {
         "title": "Keep-awake",
         "what": "Prevents system sleep (display may still sleep) so the midnight jobs always fire",
