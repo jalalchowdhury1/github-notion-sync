@@ -1,5 +1,5 @@
 {
- "updated": "2026-07-26 17:17",
+ "updated": "2026-07-27 05:00",
  "jobs": [
   {
    "key": "com.jalal.carmax",
@@ -40,6 +40,16 @@
    "what": "Prevents system sleep (display may still sleep) so the midnight jobs always fire",
    "logs": "—",
    "notes": "KeepAlive restarts it if it dies; starts on login/reboot"
+  },
+  {
+   "key": "com.jalal.notebooklm-drip",
+   "title": "Gemini Notebook podcast drip",
+   "when": "4:00 AM (retries 4:00 PM)",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.notebooklm-drip → ~/PycharmProjects/notebooklm-library/run_drip.sh",
+   "what": "Fires Audio+Video Overview generation (3+3/day free-tier quota) for book notebooks in ~/PycharmProjects/notebooklm-library/index.tsv until all 39 have podcasts",
+   "logs": "~/PycharmProjects/notebooklm-library/drip.log",
+   "notes": "Kaiser burner account via notebooklm-py CLI; idempotent so the 4 PM slot is a free retry (Google quota reset time uncertain). Self no-ops once backlog clears (~Aug 7 2026); auto-covers new books added to index.tsv"
   },
   {
    "key": "com.jalal.supervisor",
