@@ -1,5 +1,5 @@
 {
- "checked": "2026-08-02 05:00",
+ "checked": "2026-08-03 05:00",
  "telegram": "sent",
  "results": [
   {
@@ -13,7 +13,7 @@
    "name": "carmax-scraper (nightly car picks)",
    "repo": "carmax-scraper",
    "ok": true,
-   "detail": "last success 2026-08-02",
+   "detail": "last success 2026-08-03",
    "cfg": "probe=local_stamp \u00b7 repo=carmax-scraper \u00b7 path=~/PycharmProjects/carmax-scraper/.last_success_date \u00b7 max_age_h=36"
   },
   {
@@ -41,7 +41,7 @@
    "name": "financial-dashboard-history (2x-daily snapshots)",
    "repo": "financial-dashboard-history",
    "ok": true,
-   "detail": "success 4h ago",
+   "detail": "success 3h ago",
    "cfg": "probe=gh_run \u00b7 repo=financial-dashboard-history \u00b7 workflow=scraper.yml \u00b7 max_age_h=36"
   },
   {
