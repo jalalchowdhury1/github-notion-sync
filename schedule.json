@@ -1,5 +1,5 @@
 {
- "updated": "2026-07-27 05:00",
+ "updated": "2026-08-04 05:00",
  "jobs": [
   {
    "key": "com.jalal.carmax",
@@ -20,6 +20,16 @@
    "what": "Scrapes Google Flights (BOS→DAC/BKK + Singapore-detour variant), publishes results site, Telegrams on crash",
    "logs": "~/PycharmProjects/Dhaka flights/cron.log",
    "notes": "Retry slots no-op after success via .last_run_date stamp; refuses to start after 5:30 AM"
+  },
+  {
+   "key": "com.jalal.dhaka-hotels",
+   "title": "com.jalal.dhaka-hotels",
+   "when": "5:00 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.dhaka-hotels → ~/PycharmProjects/Dhaka flights/run_hotel_rates.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/PycharmProjects/Dhaka flights/cron.log",
+   "notes": ""
   },
   {
    "key": "com.jalal.fleet-health",
