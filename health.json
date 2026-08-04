@@ -1,5 +1,5 @@
 {
- "checked": "2026-08-03 05:00",
+ "checked": "2026-08-04 05:00",
  "telegram": "sent",
  "results": [
   {
@@ -13,42 +13,42 @@
    "name": "carmax-scraper (nightly car picks)",
    "repo": "carmax-scraper",
    "ok": true,
-   "detail": "last success 2026-08-03",
+   "detail": "last success 2026-08-04",
    "cfg": "probe=local_stamp \u00b7 repo=carmax-scraper \u00b7 path=~/PycharmProjects/carmax-scraper/.last_success_date \u00b7 max_age_h=36"
   },
   {
    "name": "leasehackr-scraper (daily deals)",
    "repo": "leasehackr-scraper",
    "ok": true,
-   "detail": "success 24h ago, data confirmed",
+   "detail": "success 22h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=leasehackr-scraper \u00b7 workflow=daily_scraper.yml \u00b7 max_age_h=48 \u00b7 log_grep=Scraped [1-9]\\d* deals"
   },
   {
    "name": "sentiment-scraper (AAII weekly data)",
    "repo": "sentiment-scraper",
    "ok": true,
-   "detail": "success 23h ago",
+   "detail": "success 22h ago",
    "cfg": "probe=gh_run \u00b7 repo=sentiment-scraper \u00b7 workflow=daily-scrape.yml \u00b7 max_age_h=48"
   },
   {
    "name": "ynab-budget-brief (7am budget brief)",
    "repo": "ynab-budget-brief",
    "ok": true,
-   "detail": "success 21h ago",
+   "detail": "success 19h ago",
    "cfg": "probe=gh_run \u00b7 repo=ynab-budget-brief \u00b7 workflow=daily_brief.yml \u00b7 max_age_h=48"
   },
   {
    "name": "financial-dashboard-history (2x-daily snapshots)",
    "repo": "financial-dashboard-history",
    "ok": true,
-   "detail": "success 3h ago",
+   "detail": "success 4h ago",
    "cfg": "probe=gh_run \u00b7 repo=financial-dashboard-history \u00b7 workflow=scraper.yml \u00b7 max_age_h=36"
   },
   {
    "name": "vix-fear-greed (daily tag)",
    "repo": "vix-fear-greed",
    "ok": true,
-   "detail": "success 18h ago",
+   "detail": "success 17h ago",
    "cfg": "probe=gh_run \u00b7 repo=vix-fear-greed \u00b7 workflow=fear-greed.yml \u00b7 max_age_h=48"
   },
   {
