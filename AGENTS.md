@@ -19,13 +19,20 @@ sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
   `.fleet_health.lock` (gitignored; locks >2 h old are treated as crashed
   and ignored); manual `python3 fleet_health.py` always runs. Wrapper
   `run_health.sh` also truncates `health.log` in place past ~400 KB —
-  gitignored). 13 data-level probes (local launchd stamps/exit codes, `gh`
-  runs with log-grep data markers, live-site checks). **Digest contract:**
+  gitignored). 14 data-level probes (local launchd stamps/exit codes, `gh`
+  runs with log-grep data markers, live-site checks). `log_grep` takes one
+  regex or a list (ALL must match); assert the *pipeline ran* rather than that
+  a count was nonzero, or a legitimately quiet source false-alarms at 5 AM. One
+  repo may hold several probes (leasehackr has Daily + Historical) — the digest
+  keeps the "(qualifier)" on those so they don't read as duplicates. **Digest contract:**
   all healthy → ONE plain-text line ("✅ Fleet check … all N systems
   healthy", plus "· recovered: X" the first healthy day after a failure);
   any failure → a full diagnostic block per failure (probe config line,
   "⏳ failing since DATE" when the failure spans days, multi-line detail
-  incl. run URL + failed-step log tail for gh_run probes) designed to be
+  incl. run URL + failed-step log tail for gh_run probes — the tail drops the
+  post-job cleanup block, strips ANSI/timestamps, and prepends the first real
+  error signature, since a naive tail shows only `git config --unset` noise)
+  designed to be
   pasted verbatim into Claude to debug. Telegram is plain text (NO
   parse_mode — log excerpts full of `_*[` used to be able to 400 the
   Markdown digest) with 3 send attempts. Probes RAISE on infra errors

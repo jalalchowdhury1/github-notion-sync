@@ -99,24 +99,68 @@ def probe_launchd_exit(label, **_):
     return False, "job not loaded"
 
 
-def _failed_log_tail(repo, run_id, max_chars=700):
-    """Last few lines of the failed step's log — bounded, best-effort."""
+# `--log-failed` keeps the failed job's *housekeeping* steps too, and those run
+# last — so a naive tail shows git-credential cleanup instead of the error. This
+# bit me on 2026-08-05: the leasehackr digest tailed 8 lines of `git config
+# --unset` and hid the RuntimeError that actually explained the failure.
+_CLEANUP_MARKER = re.compile(r"Post job cleanup|Cleaning up orphan processes")
+_ERROR_SIGNATURE = re.compile(
+    r"Traceback|RuntimeError|Exception|AssertionError|\bFAILED\b|fatal:|"
+    r"Killed|OOM|No such file|Permission denied|Error:", re.I)
+# Always the last line of a failed step and never informative on its own.
+_GENERIC_ERROR = re.compile(r"##\[error\]Process completed with exit code")
+_LOG_TIMESTAMP = re.compile(r"^\d{4}-\d\d-\d\dT[\d:.]+Z\s*")
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+# GitHub renders a step's *echoed source* in cyan-bold. Those lines are the
+# script, not its output, so `echo "Error: ..."` in a step that passed must
+# never be mistaken for the cause of the failure.
+_ECHOED_CMD = re.compile(r"\x1b\[36;1m")
+
+
+def _failed_log_tail(repo, run_id, max_chars=1200, keep=14):
+    """The failed step's real error — bounded, best-effort.
+
+    Drops the post-job cleanup block, strips the ISO timestamp off each line
+    (pure noise that ate most of the character budget), and keeps the last
+    `keep` lines. If the run's first error signature scrolled off the top of
+    that window, it is prepended so the digest never loses the actual cause.
+    """
     try:
         p = subprocess.run(
             ["gh", "run", "view", str(run_id), "-R", f"{GH_USER}/{repo}",
              "--log-failed"],
             capture_output=True, text=True, timeout=120)
-        lines = [l.split("\t")[-1].strip() for l in p.stdout.splitlines()
-                 if l.strip()]
-        tail = "\n".join(lines[-8:])
+        # (is_echoed_source, cleaned_text) per line — the flag has to be read
+        # off the raw line, before the ANSI colours are stripped for display.
+        entries = [(_ECHOED_CMD.search(raw) is not None,
+                    _ANSI.sub("", _LOG_TIMESTAMP.sub("", raw)).strip())
+                   for raw in (l.split("\t")[-1].strip()
+                               for l in p.stdout.splitlines() if l.strip())]
+        cut = next((i for i, (_, l) in enumerate(entries)
+                    if _CLEANUP_MARKER.search(l)), len(entries))
+        entries = entries[:cut] or entries    # all-cleanup log → keep it anyway
+        lines = [l for _, l in entries]
+        window = lines[-keep:]
+        cause = next((l for echoed, l in entries
+                      if not echoed and _ERROR_SIGNATURE.search(l)
+                      and not _GENERIC_ERROR.search(l)), None)
+        if cause and cause not in window:
+            window = [cause, "..."] + window
+        tail = "\n".join(window)
         return tail[-max_chars:]
     except Exception:                        # noqa: BLE001 — log tail is a bonus
         return ""
 
 
 def probe_gh_run(repo, workflow, max_age_h, log_grep=None, **_):
-    """Latest workflow run: recent + successful; optionally grep the log for a
-    data-level marker (e.g. 'Scraped [1-9]' proves rows actually moved)."""
+    """Latest workflow run: recent + successful; optionally grep the log for
+    data-level markers proving real work happened, not just a green exit.
+
+    `log_grep` is one regex or a list of them — ALL must match. Prefer markers
+    that stay true on a legitimately quiet day: assert the pipeline ran ("across
+    N regions"), not that the count was nonzero, or a slow source hands you a
+    false alarm at 5 AM.
+    """
     p = subprocess.run(
         ["gh", "run", "list", "-R", f"{GH_USER}/{repo}", "--workflow", workflow,
          "--limit", "1", "--json", "conclusion,createdAt,databaseId"],
@@ -140,12 +184,15 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, **_):
         return False, (f"no run in {age/24:.1f}d (limit {max_age_h}h)"
                        f"\nlast run: {run_url}")
     if log_grep:
+        patterns = [log_grep] if isinstance(log_grep, str) else list(log_grep)
         log = subprocess.run(
             ["gh", "run", "view", str(run["databaseId"]), "-R",
              f"{GH_USER}/{repo}", "--log"],
             capture_output=True, text=True, timeout=120).stdout
-        if not re.search(log_grep, log):
-            return False, (f"run green but data marker missing ({log_grep!r})"
+        missing = [pat for pat in patterns if not re.search(pat, log)]
+        if missing:
+            return False, (f"run green but data marker missing "
+                           f"({', '.join(repr(m) for m in missing)})"
                            f"\nrun: {run_url}")
         return True, f"success {age:.0f}h ago, data confirmed"
     return True, f"success {age:.0f}h ago"
@@ -164,9 +211,19 @@ FLEET = [
     {"name": "carmax-scraper (nightly car picks)", "repo": "carmax-scraper",
      "probe": "local_stamp", "path": "~/PycharmProjects/carmax-scraper/.last_success_date",
      "max_age_h": 36},
+    # Two separate workflows against the same source — the Daily snapshot and
+    # the cumulative Historical sheet. They failed together 2026-08-04/05 but
+    # only the Daily one was rostered, so the digest under-reported it as a
+    # single failure. Both markers assert the 7-region fan-out ran rather than
+    # that deals were found: whole regions legitimately sit at zero deals.
     {"name": "leasehackr-scraper (daily deals)", "repo": "leasehackr-scraper",
      "probe": "gh_run", "workflow": "daily_scraper.yml", "max_age_h": 48,
-     "log_grep": r"Scraped [1-9]\d* deals"},
+     "log_grep": [r"unique deal cards across \d+ regions",
+                  r"Scraped \d+ deals total"]},
+    {"name": "leasehackr-scraper (historical sheet)", "repo": "leasehackr-scraper",
+     "probe": "gh_run", "workflow": "weekly_scraper.yml", "max_age_h": 48,
+     "log_grep": [r"unique deal cards across \d+ regions",
+                  r"refreshed the dashboard with [1-9]\d* sorted deals"]},
     {"name": "sentiment-scraper (AAII weekly data)", "repo": "sentiment-scraper",
      "probe": "gh_run", "workflow": "daily-scrape.yml", "max_age_h": 48},
     {"name": "ynab-budget-brief (7am budget brief)", "repo": "ynab-budget-brief",
@@ -194,7 +251,10 @@ def _cfg_line(item) -> str:
     """One-line probe config so a failure block is self-describing."""
     keys = ("probe", "repo", "workflow", "url", "path", "label",
             "json_key", "max_age_h", "log_grep")
-    return " · ".join(f"{k}={item[k]}" for k in keys if item.get(k) is not None)
+    def fmt(v):
+        return " + ".join(v) if isinstance(v, list) else v
+    return " · ".join(f"{k}={fmt(item[k])}"
+                      for k in keys if item.get(k) is not None)
 
 
 def run_checks() -> list:
@@ -259,7 +319,12 @@ def format_digest(results, recovered=()) -> str:
         lines.append("")
     if recovered:
         lines.append(f"💚 recovered today: {', '.join(recovered)}")
-    ok_names = [r["name"].split(" (")[0] for r in results if r["ok"]]
+    ok_full = [r["name"] for r in results if r["ok"]]
+    shorts = [n.split(" (")[0] for n in ok_full]
+    # Keep the qualifier when one repo has several probes, otherwise two rows
+    # collapse to "leasehackr-scraper, leasehackr-scraper" and read as a dupe.
+    ok_names = [s if shorts.count(s) == 1 else full
+                for s, full in zip(shorts, ok_full)]
     if ok_names:
         lines.append(f"✅ the other {len(ok_names)} healthy: {', '.join(ok_names)}")
     lines.append("")
