@@ -1,5 +1,5 @@
 {
- "checked": "2026-08-05 05:00",
+ "checked": "2026-08-06 05:00",
  "telegram": "sent",
  "results": [
   {
@@ -13,22 +13,28 @@
    "name": "carmax-scraper (nightly car picks)",
    "repo": "carmax-scraper",
    "ok": true,
-   "detail": "last success 2026-08-05",
+   "detail": "last success 2026-08-06",
    "cfg": "probe=local_stamp \u00b7 repo=carmax-scraper \u00b7 path=~/PycharmProjects/carmax-scraper/.last_success_date \u00b7 max_age_h=36"
   },
   {
    "name": "leasehackr-scraper (daily deals)",
    "repo": "leasehackr-scraper",
-   "ok": false,
-   "detail": "last run failure (23h ago)\nrun: https://github.com/jalalchowdhury1/leasehackr-scraper/actions/runs/30897354173\nlog tail:\n/.git/worktrees/*.path\n2026-08-04T09:41:02.4628123Z /github/runner_temp/git-credentials-0e720e7b-df2e-40e4-ae8f-c68ca93aa306.config\n2026-08-04T09:41:02.4636680Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-0e720e7b-df2e-40e4-ae8f-c68ca93aa306.config\n2026-08-04T09:41:02.4677684Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url\n2026-08-04T09:41:02.4916973Z Removing credentials config '/home/runner/work/_temp/git-credentials-0e720e7b-df2e-40e4-ae8f-c68ca93aa306.config'\n2026-08-04T09:41:02.5104842Z Cleaning up orphan processes",
-   "cfg": "probe=gh_run \u00b7 repo=leasehackr-scraper \u00b7 workflow=daily_scraper.yml \u00b7 max_age_h=48 \u00b7 log_grep=Scraped [1-9]\\d* deals",
-   "failing_since": "2026-08-05"
+   "ok": true,
+   "detail": "success 19h ago, data confirmed",
+   "cfg": "probe=gh_run \u00b7 repo=leasehackr-scraper \u00b7 workflow=daily_scraper.yml \u00b7 max_age_h=48 \u00b7 log_grep=unique deal cards across \\d+ regions + Scraped \\d+ deals total"
+  },
+  {
+   "name": "leasehackr-scraper (historical sheet)",
+   "repo": "leasehackr-scraper",
+   "ok": true,
+   "detail": "success 19h ago, data confirmed",
+   "cfg": "probe=gh_run \u00b7 repo=leasehackr-scraper \u00b7 workflow=weekly_scraper.yml \u00b7 max_age_h=48 \u00b7 log_grep=unique deal cards across \\d+ regions + refreshed the dashboard with [1-9]\\d* sorted deals"
   },
   {
    "name": "sentiment-scraper (AAII weekly data)",
    "repo": "sentiment-scraper",
    "ok": true,
-   "detail": "success 22h ago",
+   "detail": "success 23h ago",
    "cfg": "probe=gh_run \u00b7 repo=sentiment-scraper \u00b7 workflow=daily-scrape.yml \u00b7 max_age_h=48"
   },
   {
