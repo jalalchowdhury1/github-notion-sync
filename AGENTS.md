@@ -19,10 +19,18 @@ sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
   `.fleet_health.lock` (gitignored; locks >2 h old are treated as crashed
   and ignored); manual `python3 fleet_health.py` always runs. Wrapper
   `run_health.sh` also truncates `health.log` in place past ~400 KB —
-  gitignored). 19 data-level probes (local launchd stamps/exit codes, `gh`
+  gitignored). 21 data-level probes (local launchd stamps/exit codes, `gh`
   runs with log-grep data markers, live-site checks). `log_grep` takes one
   regex or a list (ALL must match); assert the *pipeline ran* rather than that
-  a count was nonzero, or a legitimately quiet source false-alarms at 5 AM. One
+  a count was nonzero, or a legitimately quiet source false-alarms at 5 AM.
+  A workflow with several legitimate shapes (reddit-scraper's real scrape vs.
+  its retry-window no-op) gets ONE pattern with an `|` covering both, not two
+  patterns that can't both hold. **Every marker must be verified against a real
+  recent log** (`gh run view <id> --log`): Actions echoes each step's *source*
+  into the log, so a naive `already updated today` matches the `echo "…($LAST)…"`
+  line on every run and can never fail — reddit-scraper's markers use `[^$\n]+`
+  precisely to exclude the echoed form. A marker that can never match is a
+  permanent false alarm; a marker that can never miss is decoration. One
   repo may hold several probes (leasehackr has Daily + Historical) — the digest
   keeps the "(qualifier)" on those so they don't read as duplicates. **Digest contract:**
   all healthy → ONE plain-text line ("✅ Fleet check … all N systems
@@ -201,6 +209,19 @@ Actions). Never hardcode any of them — the repo is **public**.
   check, and the Monday run fires *after* it — hence `hedgelab` and
   `trading-algorithm-` use **72**, not 48. Too tight = the digest cries wolf every
   Monday and the owner learns to ignore it, which is the real failure.
+
+- **…and it must catch the FIRST missed day, not the second.** The other failure
+  mode of a loose value is silence. Derive it with two numbers, both measured
+  (`gh api …/contents/.github/workflows/<file> | base64 -d | grep cron` for the
+  schedule, `gh run list` for what actually happens): **A** = the age the probe
+  sees on a *normal* day at the 09:00 UTC check, **B** = the age after ONE missed
+  day. Put `max_age_h` between them, nearer B. Runs that land *after* 09:00 UTC
+  make A ≈ 17–23 h and B ≈ 41–47 h — so the old **48** on `sentiment-scraper`,
+  `ynab-budget-brief` and `vix-fear-greed` needed **two** consecutive misses to
+  alarm; they are **36** as of 2026-08-06. `leasehackr-scraper`'s crons moved to
+  03:54/03:56 UTC that same day, putting A at 1.5–3.1 h and B at 25.5–27.1 h — so
+  36 would sleep through a missed day there and both its entries are **24**.
+  Re-derive whenever a cron moves; a stale `max_age_h` is silent, not loud.
 
 - **`com.jalal.dhaka-hotels` fires at 5:00 AM — the same minute as the fleet check
   itself.** Rostered 2026-08-06 (it had been in `schedule_snapshot` but not in

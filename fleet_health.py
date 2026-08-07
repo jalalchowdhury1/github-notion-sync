@@ -277,22 +277,47 @@ FLEET = [
     # only the Daily one was rostered, so the digest under-reported it as a
     # single failure. Both markers assert the 7-region fan-out ran rather than
     # that deals were found: whole regions legitimately sit at zero deals.
+    #
+    # max_age_h 48 -> 24 on 2026-08-06: the crons moved 07:04/07:06 -> 03:54/03:56
+    # UTC that day (commit ce56a69). This repo runs 2.0-3.6 h behind its cron
+    # (8 days measured), so runs now land ~05:54-07:30 UTC and are 1.5-3.1 h old
+    # at the 09:00 UTC check — a MISSED day shows 25.5-27.1 h, which 48 slept
+    # through. 24 catches the first miss and still tolerates 5 h of GitHub
+    # lateness beyond anything observed.
     {"name": "leasehackr-scraper (daily deals)", "repo": "leasehackr-scraper",
-     "probe": "gh_run", "workflow": "daily_scraper.yml", "max_age_h": 48,
+     "probe": "gh_run", "workflow": "daily_scraper.yml", "max_age_h": 24,
      "log_grep": [r"unique deal cards across \d+ regions",
                   r"Scraped \d+ deals total"]},
     {"name": "leasehackr-scraper (historical sheet)", "repo": "leasehackr-scraper",
-     "probe": "gh_run", "workflow": "weekly_scraper.yml", "max_age_h": 48,
+     "probe": "gh_run", "workflow": "weekly_scraper.yml", "max_age_h": 24,
      "log_grep": [r"unique deal cards across \d+ regions",
                   r"refreshed the dashboard with [1-9]\d* sorted deals"]},
+    # 48 -> 36 on the three daily entries below (2026-08-06). Their runs land
+    # AFTER the 09:00 UTC check, so the freshest run the check can ever see is
+    # yesterday's — 17-23 h old on a good day, 41-47 h after ONE missed day.
+    # 48 therefore needed TWO consecutive misses to alarm; 36 catches the first
+    # while leaving 13-19 h of slack over the worst measured run time.
+    # sentiment-scraper: cron 08:00 UTC, actually runs 09:51-11:17 (10 days).
     {"name": "sentiment-scraper (AAII weekly data)", "repo": "sentiment-scraper",
-     "probe": "gh_run", "workflow": "daily-scrape.yml", "max_age_h": 48},
+     "probe": "gh_run", "workflow": "daily-scrape.yml", "max_age_h": 36},
+    # ynab-budget-brief: cron 11:00 UTC, actually runs 12:00-13:40 (10 days).
+    # "Sent budget brief:" is printed only AFTER send_telegram() returns, and
+    # the second marker is the message's own first line — together they prove
+    # the 7 AM brief was actually delivered, not merely that Python exited 0.
     {"name": "ynab-budget-brief (7am budget brief)", "repo": "ynab-budget-brief",
-     "probe": "gh_run", "workflow": "daily_brief.yml", "max_age_h": 48},
+     "probe": "gh_run", "workflow": "daily_brief.yml", "max_age_h": 36,
+     "log_grep": [r"Sent budget brief:", r"Budget brief — .+ left"]},
     {"name": "financial-dashboard-history (2x-daily snapshots)", "repo": "financial-dashboard-history",
      "probe": "gh_run", "workflow": "scraper.yml", "max_age_h": 36},
+    # vix-fear-greed: cron 13:00 UTC, actually runs 14:36-15:46 (10 days).
+    # fear_greed.py writes the tag to stdout, which the workflow redirects into
+    # tag.txt — so the only place the value appears in the log is the "Show
+    # result" step's echoed command, where Actions has already interpolated it.
+    # Requiring WORD+DIGITS proves a real tag was computed (GREED11 / FEAR12 /
+    # NEUTRAL00); an empty tag.txt would render as "**Result:** " and miss.
     {"name": "vix-fear-greed (daily tag)", "repo": "vix-fear-greed",
-     "probe": "gh_run", "workflow": "fear-greed.yml", "max_age_h": 48},
+     "probe": "gh_run", "workflow": "fear-greed.yml", "max_age_h": 36,
+     "log_grep": [r"\*\*Result:\*\* [A-Z]+\d+"]},
     # ── added 2026-08-06 after a GitHub-wide Actions outage took down hedgelab
     # and trading-algorithm- for hours and the digest said NOTHING: neither repo
     # was rostered. Both have an `if: failure()` Telegram step, which is useless
@@ -307,8 +332,21 @@ FLEET = [
      "probe": "gh_run", "workflow": "daily.yml", "max_age_h": 72},
     {"name": "trading-algorithm- (30-min signal)", "repo": "trading-algorithm-",
      "probe": "gh_run", "workflow": "trading_alert.yml", "max_age_h": 72},
+    # reddit-scraper's commit step is `git commit … || exit 0`, so a run that
+    # scrapes nothing still exits GREEN having written nothing — conclusion-only
+    # was blind to it. The workflow has TWO legitimate shapes (03:00 scrape,
+    # 09:00 retry that dedupes itself), so each marker is an either/or:
+    #   1. the guard step actually PRINTED its decision, and
+    #   2. the scrapers actually started (or the run was the legitimate no-op).
+    # `[^$\n]+` is load-bearing: Actions echoes the step's source in the log, so
+    # a plain "already updated today" would match `echo "…($LAST)…"` on every
+    # run and never fail. Excluding `$` keeps the echoed source out.
     {"name": "reddit-scraper (daily data)", "repo": "reddit-scraper",
-     "probe": "gh_run", "workflow": "daily_scrape.yml", "max_age_h": 36},
+     "probe": "gh_run", "workflow": "daily_scrape.yml", "max_age_h": 36,
+     "log_grep": [r"last data/ commit: [^$\n]+ — proceeding"
+                  r"|data/ already updated today \([^$\n]+\) — skipping",
+                  r"Google News Aggregator"
+                  r"|data/ already updated today \([^$\n]+\) — skipping"]},
     # financial-telegram-bot is the owner's most important repo and was entirely
     # unrostered. Its own health-check Telegrams on warn/critical, but nothing
     # watched whether that health check still RUNS — a monitor that dies is
