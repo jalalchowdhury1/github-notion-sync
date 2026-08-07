@@ -232,6 +232,30 @@ FLEET = [
      "probe": "gh_run", "workflow": "scraper.yml", "max_age_h": 36},
     {"name": "vix-fear-greed (daily tag)", "repo": "vix-fear-greed",
      "probe": "gh_run", "workflow": "fear-greed.yml", "max_age_h": 48},
+    # ── added 2026-08-06 after a GitHub-wide Actions outage took down hedgelab
+    # and trading-algorithm- for hours and the digest said NOTHING: neither repo
+    # was rostered. Both have an `if: failure()` Telegram step, which is useless
+    # for exactly this failure mode — when a runner is never acquired the job
+    # never starts, so no in-workflow step can alert. Only an external probe can.
+    #
+    # max_age_h on the two weekday-only entries is deliberately 72, not 48: the
+    # last Friday run is ~60-64h old by the time the Monday 5am ET (09:00 UTC)
+    # check runs, and both repos' Monday crons fire AFTER it. 48 would page every
+    # Monday morning.
+    {"name": "hedgelab (noon hedge check)", "repo": "hedgelab",
+     "probe": "gh_run", "workflow": "daily.yml", "max_age_h": 72},
+    {"name": "trading-algorithm- (30-min signal)", "repo": "trading-algorithm-",
+     "probe": "gh_run", "workflow": "trading_alert.yml", "max_age_h": 72},
+    {"name": "reddit-scraper (daily data)", "repo": "reddit-scraper",
+     "probe": "gh_run", "workflow": "daily_scrape.yml", "max_age_h": 36},
+    # financial-telegram-bot is the owner's most important repo and was entirely
+    # unrostered. Its own health-check Telegrams on warn/critical, but nothing
+    # watched whether that health check still RUNS — a monitor that dies is
+    # indistinguishable from a healthy fleet. Roster the monitor itself.
+    {"name": "financial-telegram-bot (daily report)", "repo": "financial-telegram-bot",
+     "probe": "gh_run", "workflow": "daily_report.yml", "max_age_h": 36},
+    {"name": "financial-telegram-bot (self-health monitor)", "repo": "financial-telegram-bot",
+     "probe": "gh_run", "workflow": "health-check.yml", "max_age_h": 36},
     {"name": "T7 Google-Drive backup (4am rsync)", "repo": None,
      "probe": "launchd_exit", "label": "com.jalal.t7-drive-sync"},
     {"name": "zinger-bot (Telegram bot on Vercel)", "repo": "zinger-bot",
