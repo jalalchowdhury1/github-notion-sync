@@ -4,7 +4,8 @@ on:
     # Daily 13:07 UTC = 9:07 AM ET — hours after the Mac's 5:00 AM
     # fleet_health.py run pushes health.json. :07 dodges the contended
     # top-of-hour scheduler queue. Also the dead-Mac watchdog: fails
-    # (→ Actions email) if health.json is >2 days old.
+    # (→ Actions email AND a Telegram of its own) at the first check that
+    # finds health.json older than STALE_HOURS in notion_health.py.
     - cron: '7 13 * * *'
   workflow_dispatch:
 jobs:
@@ -21,6 +22,13 @@ jobs:
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          # The watchdog's own alert channel. A dead Mac cannot send the fleet
+          # digest, so without these the only warning is a red run + GitHub's
+          # failure email — days of silence in practice. Unset secrets render as
+          # empty strings and notion_health.py degrades to email-only rather
+          # than crashing.
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python notion_health.py
       - name: Rebuild Mac Mini Schedule table
         env:

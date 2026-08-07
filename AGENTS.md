@@ -67,9 +67,19 @@ sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
 - `notion_health.py` + `.github/workflows/health.yml` (daily 13:07 UTC) —
   stamps Health / Health checked / Health note onto each repo's row in the
   same Notion DB (keyed by Repo URL, same secrets as sync.py; auto-creates
-  the three properties). Exits nonzero if health.json is >2 days stale so a
-  dead Mac-side checker fails loudly in Actions within two days (dead-Mac
-  watchdog).
+  the three properties). **Dead-Mac watchdog:** it `die()`s — log + Telegram +
+  nonzero exit — when `health.json` is older than `STALE_HOURS = 24`, or when
+  the Mac's own digest went undelivered (`telegram != "sent"`). The Mac stamps
+  at 05:00 local and this workflow actually starts 14:38–15:49 UTC, so a normal
+  day measures 10–12 h (`checked` is Mac-local time read against a UTC runner —
+  a 4–5 h overstatement, the safe direction) and ONE missed Mac run measures
+  34–37 h: it fires at the first check after a missed stamp, ~1.4 days later.
+  That is the real "within two days" guarantee; the previous `age_days > 2` on
+  a date-only comparison did not fire until the THIRD day (~3.4 days) while the
+  docs claimed two. The Telegram is the point: a dead Mac cannot send its own
+  digest, and a red Actions run + GitHub's failure email can go unread for a
+  week. `TELEGRAM_TOKEN`/`TELEGRAM_CHAT_ID` are wired in `health.yml`; if they
+  are unset the alert degrades to email-only and never crashes.
 
 **Plus a third job (2026-07-20): the self-maintaining "Mac Mini Schedule" Notion table.**
 - `schedule_snapshot.py` — runs on the Mac right after `fleet_health.py`
@@ -181,6 +191,7 @@ Actions). Never hardcode any of them — the repo is **public**.
 | `NOTION_DATABASE_ID` | yes | UUID of the Notion database (parent of the rows). Falls back to `NOTION_DATA_SOURCE_ID` if unset. |
 | `ANTHROPIC_API_KEY` | optional | Anthropic API key for Claude-generated descriptions. If absent, descriptions fall back to README/GitHub-description heuristics. |
 | `NOTION_SCHEDULE_DB_ID` | yes (health.yml only) | UUID of the **Mac Mini Schedule** Notion database (under 💻 Tech & Automation). Used only by `notion_schedule.py`. |
+| `TELEGRAM_TOKEN` / `TELEGRAM_CHAT_ID` | strongly recommended (health.yml only) | Lets `notion_health.py` send the dead-Mac / undelivered-digest alert from the cloud. Same bot+chat the Mac uses (`~/PycharmProjects/Dhaka flights/.env`). If unset, the watchdog still fails the run but only GitHub's failure email carries it. |
 
 ---
 
