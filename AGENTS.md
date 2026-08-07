@@ -202,6 +202,28 @@ Actions). Never hardcode any of them — the repo is **public**.
   `trading-algorithm-` use **72**, not 48. Too tight = the digest cries wolf every
   Monday and the owner learns to ignore it, which is the real failure.
 
+- **`com.jalal.dhaka-hotels` fires at 5:00 AM — the same minute as the fleet check
+  itself.** Rostered 2026-08-06 (it had been in `schedule_snapshot` but not in
+  `FLEET`). The two jobs are not ordered, so the probe usually grades *yesterday's*
+  `site/hotel_rates.json`. Its `updated` field is date-only, which
+  `probe_web_fresh` parses as MIDNIGHT — ages are therefore up to a day
+  pessimistic (the safe direction, but budget for it): a normal morning measures
+  ~29 h and a genuinely missed night ~53 h, hence **36**. The probe reads the
+  *published* file on `raw.githubusercontent`, which also covers the commit+push,
+  and it is deliberately not `launchd_exit`: `run_hotel_rates.sh` `exit 0`s when a
+  flight run still holds the browser session, so standing down would look
+  identical to a refresh (the same trap as the T7 backup). **Not scheduled here —
+  flag the contention, don't "fix" it**: 5:00 AM is chosen so the hotel run lands
+  after every flight slot.
+
+- **`notion_health.py` writes ONE row per repo, last result wins.** Several FLEET
+  entries can share a repo (leasehackr Daily + Historical, financial-telegram-bot
+  report + self-health). Whichever runs *last* decides that row's ✅/❌, so a
+  healthy probe can paint over a failing sibling in Notion. Telegram carries every
+  entry independently and is the real alert channel. This is why the `dhaka-hotels`
+  entry uses `repo: None` — stamping it would let a healthy hotel refresh mark the
+  `dhaka-flights` row green while the flight tracker was down.
+
 - **The `keepalive.yml` workflow exists ONLY to dodge GitHub's 60-day cron auto-disable.**
   GitHub suspends scheduled workflows after 60 days without a commit. This repo's own
   sync never pushes commits, so `keepalive.yml` runs on the **1st and 15th** (`17 3 1,15 * *`)

@@ -39,6 +39,11 @@ CATALOG = {
         "what": "Scrapes Google Flights (BOS→DAC/BKK + Singapore-detour variant), publishes results site, Telegrams on crash",
         "logs": "~/PycharmProjects/Dhaka flights/cron.log",
         "notes": "Retry slots no-op after success via .last_run_date stamp; refuses to start after 5:30 AM"},
+    "com.jalal.dhaka-hotels": {
+        "title": "Dhaka hotel award-rate refresh",
+        "what": "Scrapes the IST/SIN card-play shortlist (8 properties) and republishes site/hotel_rates.json for the trip site's Stays table",
+        "logs": "~/PycharmProjects/Dhaka flights/cron.log",
+        "notes": "Own browser identity (BROWSE_SESSION=hotels); stands down if a flight run is still active. Fires at 5:00 AM — the same minute as the fleet check, which therefore usually grades YESTERDAY's file"},
     "com.jalal.carmax": {
         "title": "CarMax scraper",
         "what": "Best-value top-trim ICE-SUV finder (11–16k mi) with live KBB/Edmunds valuation of top 3",
@@ -51,7 +56,7 @@ CATALOG = {
         "notes": "Fleet health probes its launchd exit code daily"},
     "com.jalal.fleet-health": {
         "title": "Fleet health check (all repos)",
-        "what": "13 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
+        "what": "21 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
         "logs": "~/PycharmProjects/github-notion-sync/health.log",
         "notes": 'The daily "is everything working" check (6:30 AM slot is a no-op retry; all settled before wake-up). One-line ✅ when all healthy; full paste-to-Claude diagnostics when not. Companion daily GitHub Action stamps results onto the GitHub Repos table.'},
     "com.jalal.notebooklm-drip": {

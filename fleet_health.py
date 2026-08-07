@@ -58,12 +58,28 @@ def _age_hours(ts: float) -> float:
     return (datetime.datetime.now().timestamp() - ts) / 3600
 
 
+def _parse_stamp(raw):
+    """"YYYY-MM-DD HH:MM" (or the same with a T) — and bare "YYYY-MM-DD".
+
+    A date-only stamp parses as MIDNIGHT, so the age it reports is up to a day
+    older than the truth. That is the safe direction (stricter, never laxer),
+    but it means max_age_h for a date-only feed must budget an extra ~24 h.
+    """
+    s = str(raw).strip().replace("T", " ")
+    for fmt, n in (("%Y-%m-%d %H:%M", 16), ("%Y-%m-%d", 10)):
+        try:
+            return datetime.datetime.strptime(s[:n], fmt)
+        except ValueError:
+            continue
+    raise ValueError(f"unparseable timestamp {raw!r}")
+
+
 def probe_web_fresh(url, json_key, max_age_h, **_):
     """Fetch JSON and check a timestamp field is recent (data-level freshness)."""
     with urllib.request.urlopen(url, timeout=30) as r:
         data = json.loads(r.read().decode())
     raw = str(data.get(json_key, ""))
-    ts = datetime.datetime.strptime(raw[:16], "%Y-%m-%d %H:%M").timestamp()
+    ts = _parse_stamp(raw).timestamp()
     age = _age_hours(ts)
     ok = age <= max_age_h
     return ok, f"data {age:.0f}h old" + ("" if ok else
@@ -233,6 +249,25 @@ PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
 FLEET = [
     {"name": "dhaka-flights (nightly trip tracker)", "repo": "dhaka-flights",
      "probe": "web_fresh", "url": "https://raw.githubusercontent.com/jalalchowdhury1/dhaka-flights/main/site/data.json",
+     "json_key": "updated", "max_age_h": 36},
+    # com.jalal.dhaka-hotels (launchd, 5:00 AM, run_hotel_rates.sh) — the award
+    # -points research behind the trip site's Stays table. Rostered 2026-08-06;
+    # schedule_snapshot has always listed it, the fleet never watched it.
+    # Deliberately NOT launchd_exit: the wrapper `exit 0`s when a flight run is
+    # still holding the browser session, so standing down looks exactly like a
+    # successful refresh — the same trap as the T7 backup. Reading the PUBLISHED
+    # file instead covers the whole chain (scrape → write → commit → push).
+    # TIMING NOTE: this job fires at 5:00 AM — the SAME MINUTE as
+    # com.jalal.fleet-health — so the probe usually reads YESTERDAY's file.
+    # `updated` is date-only (parses as midnight), which puts a normal morning
+    # at ~29 h and a genuinely missed night at ~53 h; 36 sits between them.
+    # repo is None ON PURPOSE even though the job lives in dhaka-flights:
+    # notion_health.py stamps one row per repo and the LAST result wins, so a
+    # healthy hotel refresh would paint the flights row ✅ while the flight
+    # tracker was down. Telegram carries both entries independently.
+    {"name": "dhaka-hotels (nightly award-rate research)", "repo": None,
+     "probe": "web_fresh",
+     "url": "https://raw.githubusercontent.com/jalalchowdhury1/dhaka-flights/main/site/hotel_rates.json",
      "json_key": "updated", "max_age_h": 36},
     {"name": "carmax-scraper (nightly car picks)", "repo": "carmax-scraper",
      "probe": "local_stamp", "path": "~/PycharmProjects/carmax-scraper/.last_success_date",
