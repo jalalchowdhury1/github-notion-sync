@@ -33,7 +33,20 @@ sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
   post-job cleanup block, strips ANSI/timestamps, and prepends the first real
   error signature, since a naive tail shows only `git config --unset` noise)
   designed to be
-  pasted verbatim into Claude to debug. Telegram is plain text (NO
+  pasted verbatim into Claude to debug. **The digest is budgeted per failure,
+  never tail-chopped.** Telegram's cap is 4096 chars (`TELEGRAM_LIMIT = 4000`)
+  and one gh_run failure block runs ~1.5 KB, so 3+ simultaneous failures blow
+  the budget — and the old whole-message truncation dropped the LAST blocks
+  *and* the "✅ the other N healthy" line, i.e. a 4-repo outage reported as a
+  2-repo one, in exactly the scenario the digest exists for (measured: 4 synthetic
+  failures → 1 name lost + no healthy line). Now header and footer are reserved
+  first, the remainder is split evenly across failures (blocks that come in under
+  their share hand the slack back to the big ones), and each block fills to its
+  share in priority order: name → "failing since" → config line → detail → log
+  tail. **A failure name is never dropped** (past ~15 simultaneous failures the
+  body degrades to a plain roll call of names); the log tail is what goes.
+  Losing a tail costs one paste-into-Claude round trip; losing a name means the
+  owner never learns that system is down. Telegram is plain text (NO
   parse_mode — log excerpts full of `_*[` used to be able to 400 the
   Markdown digest) with 3 send attempts. Probes RAISE on infra errors
   (network blip, gh failure) → retried 3× with 20 s pauses; a returned

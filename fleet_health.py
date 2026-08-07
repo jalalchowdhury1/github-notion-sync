@@ -48,6 +48,7 @@ GH_USER = "jalalchowdhury1"
 PROBE_ATTEMPTS = 3          # total tries for probes that raise (infra errors)
 PROBE_RETRY_PAUSE_S = 20
 LOCK_STALE_S = 2 * 3600     # a lock older than this is a crashed run, ignore
+TELEGRAM_LIMIT = 4000       # hard cap is 4096; leave headroom for encoding
 
 # ── probe implementations ───────────────────────────────────────────────────
 # Contract: return (ok, detail). Raise on infrastructure trouble (gets
@@ -358,8 +359,48 @@ def annotate_history(results) -> list:
                   if any(r["name"] == n and r["ok"] for r in results))
 
 
+def _size(lines) -> int:
+    return sum(len(l) + 1 for l in lines)
+
+
+def _failure_block(r, today, budget=None) -> list:
+    """The lines for ONE failure. The name (and 'failing since') are the head
+    and are never dropped; everything after it — config line, detail, log tail —
+    is filled in until `budget` chars run out.
+
+    Trimming has to happen HERE, per failure, not on the finished digest: a
+    naive tail-chop of the whole message drops the LAST failure blocks and the
+    healthy-systems line entirely, so a 4-repo outage reads as a 2-repo one.
+    Losing a log tail costs a paste-into-Claude round trip; losing a failure
+    name means the owner never learns that system is down.
+    """
+    head = [f"❌ {r['name']}"]
+    since = r.get("failing_since")
+    if since and since != today:
+        head.append(f"   ⏳ failing since {since}")
+    rest = [f"   [{r['cfg']}]"] + [f"   {dl}" for dl in r["detail"].splitlines()]
+    if budget is None:
+        return head + rest + [""]
+    mark = "   …(detail trimmed — full text in health.json)"
+    out, used = list(head), _size(head)
+    for line in rest:
+        if used + len(line) + 1 > budget:
+            if used + len(mark) + 1 <= budget:   # the marker must fit too
+                out.append(mark)
+            break
+        out.append(line)
+        used += len(line) + 1
+    return out + [""]
+
+
 def format_digest(results, recovered=()) -> str:
-    """One line when all healthy; full paste-to-Claude blocks when not."""
+    """One line when all healthy; full paste-to-Claude blocks when not.
+
+    Every failing system is named no matter how many fail at once (a fleet-wide
+    outage is exactly when the digest must not eat its own tail), and the
+    "✅ the other N healthy" line always survives, so the message states the
+    scope of the damage even when the detail had to be cut.
+    """
     today = datetime.date.today().isoformat()
     bad = [r for r in results if not r["ok"]]
     if not bad:
@@ -367,17 +408,10 @@ def format_digest(results, recovered=()) -> str:
         if recovered:
             text += f" · recovered: {', '.join(recovered)}"
         return text
-    lines = [f"🚨 FLEET CHECK {today}: {len(bad)} of {len(results)} FAILING", ""]
-    for r in bad:
-        lines.append(f"❌ {r['name']}")
-        since = r.get("failing_since")
-        if since and since != today:
-            lines.append(f"   ⏳ failing since {since}")
-        lines.append(f"   [{r['cfg']}]")
-        lines.extend(f"   {dl}" for dl in r["detail"].splitlines())
-        lines.append("")
+    header = f"🚨 FLEET CHECK {today}: {len(bad)} of {len(results)} FAILING"
+    footer = []
     if recovered:
-        lines.append(f"💚 recovered today: {', '.join(recovered)}")
+        footer.append(f"💚 recovered today: {', '.join(recovered)}")
     ok_full = [r["name"] for r in results if r["ok"]]
     shorts = [n.split(" (")[0] for n in ok_full]
     # Keep the qualifier when one repo has several probes, otherwise two rows
@@ -385,14 +419,33 @@ def format_digest(results, recovered=()) -> str:
     ok_names = [s if shorts.count(s) == 1 else full
                 for s, full in zip(shorts, ok_full)]
     if ok_names:
-        lines.append(f"✅ the other {len(ok_names)} healthy: {', '.join(ok_names)}")
-    lines.append("")
-    lines.append("Paste this whole message to Claude to debug "
-                 "(fleet_health.py in github-notion-sync).")
-    text = "\n".join(lines)
-    if len(text) > 4000:                     # Telegram hard limit is 4096
-        text = text[:3960] + "\n…(truncated — full details in health.json)"
-    return text
+        footer.append(f"✅ the other {len(ok_names)} healthy: {', '.join(ok_names)}")
+    footer += ["", "Paste this whole message to Claude to debug "
+                   "(fleet_health.py in github-notion-sync)."]
+
+    blocks = [_failure_block(r, today) for r in bad]
+    # Header + footer are reserved first; whatever is left is split evenly
+    # across the failures, and blocks that come in under their share hand the
+    # slack back to the big ones (usually a gh_run block carrying a log tail).
+    room = TELEGRAM_LIMIT - len(header) - 1 - _size(footer)
+    if sum(_size(b) for b in blocks) > room:
+        share = max(0, room // len(bad))
+        slack = sum(share - _size(b) for b in blocks if _size(b) < share)
+        big = [i for i, b in enumerate(blocks) if _size(b) >= share]
+        budget = share + (slack // len(big) if big else 0)
+        blocks = [b if _size(b) < share else _failure_block(bad[i], today, budget)
+                  for i, b in enumerate(blocks)]
+    body = [l for b in blocks for l in b]
+    if _size(body) > room:
+        # Pathological (dozens of failures at once): fall back to the roll call
+        # of what is down. The names are the last thing to go, and the footer
+        # is never touched.
+        body = [f"❌ {r['name']}" for r in bad]
+        while body and _size(body) > room:
+            body.pop()
+            if body:
+                body[-1] = "…(+ more — full list in health.json)"
+    return "\n".join([header, ""] + body + footer)
 
 
 def _telegram_send(text) -> bool:
