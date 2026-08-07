@@ -1,5 +1,5 @@
 {
- "updated": "2026-08-04 05:00",
+ "updated": "2026-08-07 05:00",
  "jobs": [
   {
    "key": "com.jalal.carmax",
@@ -23,13 +23,13 @@
   },
   {
    "key": "com.jalal.dhaka-hotels",
-   "title": "com.jalal.dhaka-hotels",
+   "title": "Dhaka hotel award-rate refresh",
    "when": "5:00 AM",
    "frequency": "Daily",
    "mechanism": "launchd com.jalal.dhaka-hotels → ~/PycharmProjects/Dhaka flights/run_hotel_rates.sh",
-   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "what": "Scrapes the IST/SIN card-play shortlist (8 properties) and republishes site/hotel_rates.json for the trip site's Stays table",
    "logs": "~/PycharmProjects/Dhaka flights/cron.log",
-   "notes": ""
+   "notes": "Own browser identity (BROWSE_SESSION=hotels); stands down if a flight run is still active. Fires at 5:00 AM — the same minute as the fleet check, which therefore usually grades YESTERDAY's file"
   },
   {
    "key": "com.jalal.fleet-health",
@@ -37,7 +37,7 @@
    "when": "5:00 AM (retries 6:30 AM)",
    "frequency": "Daily",
    "mechanism": "launchd com.jalal.fleet-health → ~/PycharmProjects/github-notion-sync/run_health.sh",
-   "what": "13 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
+   "what": "21 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
    "logs": "~/PycharmProjects/github-notion-sync/health.log",
    "notes": "The daily \"is everything working\" check (6:30 AM slot is a no-op retry; all settled before wake-up). One-line ✅ when all healthy; full paste-to-Claude diagnostics when not. Companion daily GitHub Action stamps results onto the GitHub Repos table."
   },
