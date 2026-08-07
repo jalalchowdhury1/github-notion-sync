@@ -85,6 +85,20 @@ def probe_local_stamp(path, max_age_h, **_):
     return ok, f"last success {date}" + ("" if ok else f" ({age/24:.1f}d ago)")
 
 
+def probe_file_mtime(path, max_age_h, **_):
+    """Freshness by file mtime, for jobs that write a log rather than a date stamp.
+    Complements `launchd_exit`, which cannot see this: a job that exits 0 without
+    doing anything (e.g. t7-drive-sync's deliberate `[ -d /Volumes/T7Files ] || exit 0`
+    when the drive is unplugged) looks identical to a successful run."""
+    p = os.path.expanduser(path)
+    if not os.path.exists(p):
+        return False, f"{path} missing (volume unmounted?)"
+    age = _age_hours(os.path.getmtime(p))
+    ok = age <= max_age_h
+    return ok, (f"written {age:.0f}h ago" if ok
+                else f"stale: last written {age/24:.1f}d ago (limit {max_age_h}h)")
+
+
 def probe_launchd_exit(label, **_):
     """launchctl list: second column = last exit status (0 = clean)."""
     p = subprocess.run(["launchctl", "list"], capture_output=True, text=True,
@@ -185,10 +199,21 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, **_):
                        f"\nlast run: {run_url}")
     if log_grep:
         patterns = [log_grep] if isinstance(log_grep, str) else list(log_grep)
-        log = subprocess.run(
+        lp = subprocess.run(
             ["gh", "run", "view", str(run["databaseId"]), "-R",
              f"{GH_USER}/{repo}", "--log"],
-            capture_output=True, text=True, timeout=120).stdout
+            capture_output=True, text=True, timeout=120)
+        log = lp.stdout
+        # A log we could not FETCH is not a log with missing markers. Ignoring the
+        # return code turns any GitHub API wobble (5xx, rate limit, logs still
+        # finalising, 410 on expired logs) into an empty string, so every pattern
+        # "misses" and a perfectly healthy pipeline reports failure — which the
+        # digest treats as real signal and never retries. Raise so this takes the
+        # infra-retry path (PROBE_ATTEMPTS) instead.
+        if lp.returncode != 0 or not log.strip():
+            raise RuntimeError(
+                f"could not fetch run log (rc={lp.returncode}): "
+                f"{(lp.stderr or '').strip()[:120] or 'empty log'}")
         missing = [pat for pat in patterns if not re.search(pat, log)]
         if missing:
             return False, (f"run green but data marker missing "
@@ -200,7 +225,7 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, **_):
 
 PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
              "local_stamp": probe_local_stamp, "launchd_exit": probe_launchd_exit,
-             "gh_run": probe_gh_run}
+             "file_mtime": probe_file_mtime, "gh_run": probe_gh_run}
 
 # ── the fleet roster ────────────────────────────────────────────────────────
 # repo: GitHub repo name for the Notion row (None = not a repo, Telegram-only).
@@ -256,7 +281,17 @@ FLEET = [
      "probe": "gh_run", "workflow": "daily_report.yml", "max_age_h": 36},
     {"name": "financial-telegram-bot (self-health monitor)", "repo": "financial-telegram-bot",
      "probe": "gh_run", "workflow": "health-check.yml", "max_age_h": 36},
-    {"name": "T7 Google-Drive backup (4am rsync)", "repo": None,
+    # The BACKUP needs two probes because neither failure mode implies the other.
+    # `launchd_exit` alone was a probe that could essentially never fail: the script
+    # ends with `tail … && mv`, so it used to report mv's status and discard rsync's
+    # (fixed 2026-08-06 to `exit $rc`), AND it deliberately `exit 0`s when the T7 is
+    # unmounted — so an unplugged drive read "last exit 0 ✅" every morning while
+    # nothing was backed up. mtime catches "not running / drive gone"; exit status
+    # catches "ran but rsync errored". A silently dead backup is the worst class of
+    # failure here: it is only discovered when you need to restore.
+    {"name": "T7 Google-Drive backup (ran recently)", "repo": None,
+     "probe": "file_mtime", "path": "/Volumes/T7Files/sync.log", "max_age_h": 36},
+    {"name": "T7 Google-Drive backup (rsync exit status)", "repo": None,
      "probe": "launchd_exit", "label": "com.jalal.t7-drive-sync"},
     {"name": "zinger-bot (Telegram bot on Vercel)", "repo": "zinger-bot",
      "probe": "web_200", "url": "https://zinger-bot.vercel.app"},

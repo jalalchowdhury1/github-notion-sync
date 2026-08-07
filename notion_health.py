@@ -84,6 +84,20 @@ def main():
               f"fleet_health run has stopped. Investigate com.jalal.fleet-health.")
         sys.exit(1)
 
+    # A digest the owner never RECEIVED is indistinguishable from a healthy fleet:
+    # publish() stamps `checked` even when _telegram_send() returned False, so a
+    # dropped Telegram leaves this watchdog looking at a perfectly fresh file. The
+    # creds are sourced cross-repo (run_health.sh: `source ".../Dhaka flights/.env"`,
+    # 2>/dev/null, unchecked) — a rename there silences every digest, INCLUDING the
+    # self-crash panic message, which uses the same sender. Fail loudly instead:
+    # this is the only cloud-side check that survives a dead Mac.
+    if health.get("telegram") != "sent":
+        print(f"FATAL: fleet digest was NOT delivered (telegram={health.get('telegram')!r}) "
+              f"as of {checked}. The checks ran, but the owner heard nothing — silence "
+              f"here reads as health. Check TELEGRAM_TOKEN/TELEGRAM_CHAT_ID reaching "
+              f"run_health.sh (sourced from the Dhaka flights .env).")
+        sys.exit(1)
+
     ensure_properties(token, db_id)
     pages = pages_by_repo_url(token, db_id)
     date_iso = checked[:10]
