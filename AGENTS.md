@@ -19,7 +19,7 @@ sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
   `.fleet_health.lock` (gitignored; locks >2 h old are treated as crashed
   and ignored); manual `python3 fleet_health.py` always runs. Wrapper
   `run_health.sh` also truncates `health.log` in place past ~400 KB —
-  gitignored). 14 data-level probes (local launchd stamps/exit codes, `gh`
+  gitignored). 19 data-level probes (local launchd stamps/exit codes, `gh`
   runs with log-grep data markers, live-site checks). `log_grep` takes one
   regex or a list (ALL must match); assert the *pipeline ran* rather than that
   a count was nonzero, or a legitimately quiet source false-alarms at 5 AM. One
@@ -164,6 +164,30 @@ Actions). Never hardcode any of them — the repo is **public**.
 ---
 
 ## 4. Gotchas / hard rules
+
+- **A green check must prove the PRIMARY path ran — a fallback satisfying it is a
+  false negative.** This is the rule the fleet exists to enforce, learned the hard
+  way on 2026-08-06. `financial-telegram-bot` has two senders: a Lambda (primary)
+  and a GitHub Actions runner (backstop). Its health check asked *"did a report
+  arrive?"*, the backstop kept answering yes, and the primary stayed dead for **two
+  months** with every layer green. When adding a probe, ask: *if the primary died and
+  only the fallback ran, would this probe still pass?* If yes, the probe is wrong —
+  assert the primary specifically (or assert the artifact only the primary produces).
+
+- **Roster EVERY workflow a repo schedules, and never trust in-workflow alerting to
+  cover it.** The same 2026-08-06 outage failed `hedgelab` and `trading-algorithm-`
+  for hours in silence because neither was rostered. Both had an `if: failure()`
+  Telegram step — useless here: when GitHub can't acquire a runner the job never
+  starts, so **no step inside the workflow can ever fire**. Only an external probe
+  sees that class of failure. A repo's own alerting is never a reason to skip it.
+
+- **`max_age_h` must be derived from the real cron, including weekends and GitHub's
+  lateness.** GH cron routinely fires 30–90 min late and some repos here run 2–3 h
+  late (`financial-dashboard-history`'s "02:00 UTC" job lands ~04:57 UTC). For
+  **weekday-only** crons the Friday→Monday gap is ~60–64 h at the Monday 09:00 UTC
+  check, and the Monday run fires *after* it — hence `hedgelab` and
+  `trading-algorithm-` use **72**, not 48. Too tight = the digest cries wolf every
+  Monday and the owner learns to ignore it, which is the real failure.
 
 - **The `keepalive.yml` workflow exists ONLY to dodge GitHub's 60-day cron auto-disable.**
   GitHub suspends scheduled workflows after 60 days without a commit. This repo's own
