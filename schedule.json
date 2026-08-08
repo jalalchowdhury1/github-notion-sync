@@ -1,5 +1,5 @@
 {
- "updated": "2026-08-07 05:00",
+ "updated": "2026-08-08 05:00",
  "jobs": [
   {
    "key": "com.jalal.carmax",
@@ -40,6 +40,16 @@
    "what": "21 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
    "logs": "~/PycharmProjects/github-notion-sync/health.log",
    "notes": "The daily \"is everything working\" check (6:30 AM slot is a no-op retry; all settled before wake-up). One-line ✅ when all healthy; full paste-to-Claude diagnostics when not. Companion daily GitHub Action stamps results onto the GitHub Repos table."
+  },
+  {
+   "key": "com.jalal.hoa-auth-reminder",
+   "title": "com.jalal.hoa-auth-reminder",
+   "when": "3:46 PM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.hoa-auth-reminder → ~/PycharmProjects/HOA New Tracker/hoa_auth_reminder.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "—",
+   "notes": ""
   },
   {
    "key": "com.jalal.keepawake",
