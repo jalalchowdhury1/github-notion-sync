@@ -61,9 +61,9 @@ CATALOG = {
         "notes": 'The daily "is everything working" check (6:30 AM slot is a no-op retry; all settled before wake-up). One-line ✅ when all healthy; full paste-to-Claude diagnostics when not. Companion daily GitHub Action stamps results onto the GitHub Repos table.'},
     "com.jalal.notebooklm-drip": {
         "title": "Gemini Notebook podcast drip",
-        "what": "Fires Audio+Video Overview generation (3+3/day free-tier quota) for book notebooks in ~/PycharmProjects/notebooklm-library/index.tsv until all 39 have podcasts",
+        "what": "Fires Audio+Video Overview generation (3+3/day free-tier quota) for book notebooks in ~/PycharmProjects/notebooklm-library/index.tsv; backlog CLEARED 2026-08-09 (all 39 have podcast+video) so it now no-ops in seconds and only picks up newly added books",
         "logs": "~/PycharmProjects/notebooklm-library/drip.log",
-        "notes": "Kaiser burner account via notebooklm-py CLI; idempotent so the 4 PM slot is a free retry (Google quota reset time uncertain). Self no-ops once backlog clears (~Aug 7 2026); auto-covers new books added to index.tsv"},
+        "notes": "Kaiser burner account via notebooklm-py CLI. Second slot moved 4 PM → 11:30 PM on 2026-08-09: it was a quota hedge that never paid off (04:00 fired 71 generations in 14 runs, 16:00 fired 0 in 13 — reset always landed before 4 AM), and no jobs run in working hours. Now a transient-failure retry, not a quota retry. Idempotent, so a wasted run is free."},
     "com.jalal.keepawake": {
         "title": "Keep-awake",
         "what": "Prevents system sleep (display may still sleep) so the midnight jobs always fire",
