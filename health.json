@@ -1,5 +1,5 @@
 {
- "checked": "2026-08-11 05:00",
+ "checked": "2026-08-12 05:00",
  "telegram": "sent",
  "results": [
   {
@@ -20,7 +20,7 @@
    "name": "carmax-scraper (nightly car picks)",
    "repo": "carmax-scraper",
    "ok": true,
-   "detail": "last success 2026-08-11",
+   "detail": "last success 2026-08-12",
    "cfg": "probe=local_stamp \u00b7 repo=carmax-scraper \u00b7 path=~/PycharmProjects/carmax-scraper/.last_success_date \u00b7 max_age_h=36"
   },
   {
@@ -41,7 +41,7 @@
    "name": "sentiment-scraper (AAII weekly data)",
    "repo": "sentiment-scraper",
    "ok": true,
-   "detail": "success 0h ago",
+   "detail": "success 24h ago",
    "cfg": "probe=gh_run \u00b7 repo=sentiment-scraper \u00b7 workflow=daily-scrape.yml \u00b7 max_age_h=36"
   },
   {
@@ -55,7 +55,7 @@
    "name": "financial-dashboard-history (2x-daily snapshots)",
    "repo": "financial-dashboard-history",
    "ok": true,
-   "detail": "success 6h ago",
+   "detail": "success 5h ago",
    "cfg": "probe=gh_run \u00b7 repo=financial-dashboard-history \u00b7 workflow=scraper.yml \u00b7 max_age_h=36"
   },
   {
@@ -83,7 +83,7 @@
    "name": "reddit-scraper (daily data)",
    "repo": "reddit-scraper",
    "ok": true,
-   "detail": "success 5h ago, data confirmed",
+   "detail": "success 4h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=reddit-scraper \u00b7 workflow=daily_scrape.yml \u00b7 max_age_h=36 \u00b7 log_grep=last data/ commit: [^$\\n]+ \u2014 proceeding|data/ already updated today \\([^$\\n]+\\) \u2014 skipping + Google News Aggregator|data/ already updated today \\([^$\\n]+\\) \u2014 skipping"
   },
   {
