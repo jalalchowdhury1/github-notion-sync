@@ -1,5 +1,5 @@
 {
- "checked": "2026-08-12 05:00",
+ "checked": "2026-08-13 05:00",
  "telegram": "sent",
  "results": [
   {
@@ -20,7 +20,7 @@
    "name": "carmax-scraper (nightly car picks)",
    "repo": "carmax-scraper",
    "ok": true,
-   "detail": "last success 2026-08-12",
+   "detail": "last success 2026-08-13",
    "cfg": "probe=local_stamp \u00b7 repo=carmax-scraper \u00b7 path=~/PycharmProjects/carmax-scraper/.last_success_date \u00b7 max_age_h=36"
   },
   {
