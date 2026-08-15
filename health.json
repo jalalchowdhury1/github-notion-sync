@@ -1,5 +1,5 @@
 {
- "checked": "2026-08-14 05:00",
+ "checked": "2026-08-15 05:00",
  "telegram": "sent",
  "results": [
   {
@@ -20,28 +20,28 @@
    "name": "carmax-scraper (nightly car picks)",
    "repo": "carmax-scraper",
    "ok": true,
-   "detail": "last success 2026-08-14",
+   "detail": "last success 2026-08-15",
    "cfg": "probe=local_stamp \u00b7 repo=carmax-scraper \u00b7 path=~/PycharmProjects/carmax-scraper/.last_success_date \u00b7 max_age_h=36"
   },
   {
    "name": "leasehackr-scraper (daily deals)",
    "repo": "leasehackr-scraper",
    "ok": true,
-   "detail": "success 4h ago, data confirmed",
+   "detail": "success 5h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=leasehackr-scraper \u00b7 workflow=daily_scraper.yml \u00b7 max_age_h=24 \u00b7 log_grep=unique deal cards across \\d+ regions + Scraped \\d+ deals total"
   },
   {
    "name": "leasehackr-scraper (historical sheet)",
    "repo": "leasehackr-scraper",
    "ok": true,
-   "detail": "success 4h ago, data confirmed",
+   "detail": "success 5h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=leasehackr-scraper \u00b7 workflow=weekly_scraper.yml \u00b7 max_age_h=24 \u00b7 log_grep=unique deal cards across \\d+ regions + refreshed the dashboard with [1-9]\\d* sorted deals"
   },
   {
    "name": "sentiment-scraper (AAII weekly data)",
    "repo": "sentiment-scraper",
    "ok": true,
-   "detail": "success 24h ago",
+   "detail": "success 1h ago",
    "cfg": "probe=gh_run \u00b7 repo=sentiment-scraper \u00b7 workflow=daily-scrape.yml \u00b7 max_age_h=36"
   },
   {
@@ -55,7 +55,7 @@
    "name": "financial-dashboard-history (2x-daily snapshots)",
    "repo": "financial-dashboard-history",
    "ok": true,
-   "detail": "success 5h ago",
+   "detail": "success 6h ago",
    "cfg": "probe=gh_run \u00b7 repo=financial-dashboard-history \u00b7 workflow=scraper.yml \u00b7 max_age_h=36"
   },
   {
@@ -83,7 +83,7 @@
    "name": "reddit-scraper (daily data)",
    "repo": "reddit-scraper",
    "ok": true,
-   "detail": "success 4h ago, data confirmed",
+   "detail": "success 5h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=reddit-scraper \u00b7 workflow=daily_scrape.yml \u00b7 max_age_h=36 \u00b7 log_grep=last data/ commit: [^$\\n]+ \u2014 proceeding|data/ already updated today \\([^$\\n]+\\) \u2014 skipping + Google News Aggregator|data/ already updated today \\([^$\\n]+\\) \u2014 skipping"
   },
   {
