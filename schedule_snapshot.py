@@ -43,7 +43,7 @@ CATALOG = {
         "title": "Dhaka hotel award-rate refresh",
         "what": "Scrapes the IST/SIN card-play shortlist (8 properties) and republishes site/hotel_rates.json for the trip site's Stays table",
         "logs": "~/PycharmProjects/Dhaka flights/cron.log",
-        "notes": "Own browser identity (BROWSE_SESSION=hotels); stands down if a flight run is still active. Fires at 5:00 AM — the same minute as the fleet check, which therefore usually grades YESTERDAY's file"},
+        "notes": "5:00 AM is the WAKE time — the job then sleeps a random 0-35 min, so it actually runs 05:00-05:35 (a fixed nightly cadence is itself a bot signature; never jitter EARLIER, that walks into the 04:00 flight slot). Because of that it now ALWAYS finishes after the 5:00 fleet check, which therefore grades YESTERDAY's file — by design, and why that probe allows 96 h. Own browser identity (BROWSE_SESSION=hotels); stands down if a flight run is still active, which is also what keeps the two jobs off each other's shared git index. Uses Browserbase (60 free min/month) for ~26 nights and local Chrome for ~4 paced, scattered nights"},
     "com.jalal.carmax": {
         "title": "CarMax scraper",
         "what": "Best-value top-trim ICE-SUV finder (11–16k mi) with live KBB/Edmunds valuation of top 3",
