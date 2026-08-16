@@ -99,6 +99,21 @@ sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
   rows are matched by Job title once, then stamped with a Key. **`Notes`
   is written only on row creation** (manual edits survive — same sacred-Notes
   rule as sync.py). Vanished jobs get `Frequency = Removed` (soft delete).
+  **Two traps, both hit for real on 2026-08-16:** (1) because `Notes` is
+  create-only, editing a job's `notes` in `CATALOG` does NOT reach a row that
+  already exists — the CATALOG text is only ever a seed for NEW rows, so
+  correcting an existing row means hand-editing Notion as well (three rows had
+  silently rotted: the hotel job's Notes was empty, fleet-health still said
+  "weekly" long after it went daily, and T7 still carried a "⚠️ currently
+  failing" TCC warning that both its probes had been contradicting for weeks).
+  (2) The soft-delete had **never once executed** — no job had ever vanished
+  before — and `Removed` was not among the `Frequency` select's options, so the
+  first real removal died on `validation_error: Invalid select value`. The
+  option now exists (red); if this database is ever rebuilt, recreate it or the
+  same first-removal failure returns. `When (ET)` IS overwritten every sync
+  (it is derived from the plist), so timing caveats that are not visible to
+  launchd — e.g. the hotel job's 0-35 min in-script start jitter — belong in
+  `Notes`, never in `When (ET)`.
 Born from the 2026-07 CarMax incident: 17 days of green CI with zero rows —
 hence data-level markers, not conclusions, wherever possible.
 
