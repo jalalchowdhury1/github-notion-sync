@@ -74,16 +74,35 @@ def _parse_stamp(raw):
     raise ValueError(f"unparseable timestamp {raw!r}")
 
 
-def probe_web_fresh(url, json_key, max_age_h, **_):
-    """Fetch JSON and check a timestamp field is recent (data-level freshness)."""
+def probe_web_fresh(url, json_key, max_age_h, rows_key=None, **_):
+    """Fetch JSON and check a timestamp field is recent (data-level freshness).
+
+    rows_key: grade the OLDEST per-row stamp under data[rows_key] instead of a
+    top-level field. Use it whenever the job rewrites its output file on every
+    run regardless of outcome — a top-level `updated` then measures only that
+    the job WOKE UP, which is exactly how dhaka-hotels published a green row
+    through five nights of zero scraped rates (2026-08-11 → 08-16: `updated`
+    said today, every row's `checked` said Aug 10). The rule this file already
+    states for launchd_exit — never grade a proxy for the thing you care about
+    — applies just as much to a timestamp the job stamps unconditionally."""
     with urllib.request.urlopen(url, timeout=30) as r:
         data = json.loads(r.read().decode())
-    raw = str(data.get(json_key, ""))
+    if rows_key:
+        rows = data.get(rows_key) or []
+        stamps = [str(row.get(json_key, "")) for row in rows
+                  if isinstance(row, dict) and row.get(json_key)]
+        if not stamps:
+            return False, f"no {json_key!r} stamp on any {rows_key} row"
+        raw = min(stamps, key=lambda s: _parse_stamp(s).timestamp())
+        label = f"oldest of {len(stamps)} {rows_key}"
+    else:
+        raw = str(data.get(json_key, ""))
+        label = "data"
     ts = _parse_stamp(raw).timestamp()
     age = _age_hours(ts)
     ok = age <= max_age_h
-    return ok, f"data {age:.0f}h old" + ("" if ok else
-                                         f" (limit {max_age_h}h, raw {json_key}={raw!r})")
+    return ok, f"{label} {age:.0f}h old" + ("" if ok else
+                                            f" (limit {max_age_h}h, raw {json_key}={raw!r})")
 
 
 def probe_web_200(url, **_):
@@ -265,10 +284,20 @@ FLEET = [
     # notion_health.py stamps one row per repo and the LAST result wins, so a
     # healthy hotel refresh would paint the flights row ✅ while the flight
     # tracker was down. Telegram carries both entries independently.
+    # Graded on the OLDEST row's `checked`, NOT the top-level `updated`:
+    # run_hotel_rates.py rewrites and pushes hotel_rates.json every night even
+    # when it scraped nothing, so `updated` proves only that the job ran. That
+    # is how 2026-08-11 → 08-16 stayed ✅ while the Browserbase free tier was
+    # dry and not one rate had refreshed. `checked` is per-row and is stamped
+    # ONLY on a real scrape (tests: test_build_keeps_previous_rate_when_scrape
+    # _fails), so it is the field that actually means "we have fresh data".
+    # max_age_h 96, not 36: a MISS on one property is normal and self-heals,
+    # and both stamps are date-only (they parse as midnight, so a normal
+    # morning already reads ~29 h). 96 fires on ~3 dead nights, not on one.
     {"name": "dhaka-hotels (nightly award-rate research)", "repo": None,
      "probe": "web_fresh",
      "url": "https://raw.githubusercontent.com/jalalchowdhury1/dhaka-flights/main/site/hotel_rates.json",
-     "json_key": "updated", "max_age_h": 36},
+     "json_key": "checked", "rows_key": "rows", "max_age_h": 96},
     {"name": "carmax-scraper (nightly car picks)", "repo": "carmax-scraper",
      "probe": "local_stamp", "path": "~/PycharmProjects/carmax-scraper/.last_success_date",
      "max_age_h": 36},

@@ -234,19 +234,34 @@ Actions). Never hardcode any of them — the repo is **public**.
   36 would sleep through a missed day there and both its entries are **24**.
   Re-derive whenever a cron moves; a stale `max_age_h` is silent, not loud.
 
+- **A timestamp the job writes UNCONDITIONALLY is not evidence that the job
+  produced anything.** Same rule as the fallback one above, one level lower down:
+  there the fallback satisfied the check, here the *act of running* did.
+  `dhaka-hotels` rewrites and pushes `hotel_rates.json` every night even when it
+  scraped nothing — so its top-level `updated` measures only that the job woke up.
+  From 2026-08-11 to 08-16 the Browserbase free tier was dry, **zero** rates
+  refreshed, and this probe was ✅ every single morning: `updated` said today,
+  while every row's `checked` said Aug 10. Fixed 2026-08-16 by grading the OLDEST
+  per-row `checked` (`rows_key="rows"`), the field that is stamped *only* on a
+  real scrape. When adding a probe, ask both questions: *would a fallback satisfy
+  this?* and *would a run that did nothing satisfy this?*
+
 - **`com.jalal.dhaka-hotels` fires at 5:00 AM — the same minute as the fleet check
   itself.** Rostered 2026-08-06 (it had been in `schedule_snapshot` but not in
   `FLEET`). The two jobs are not ordered, so the probe usually grades *yesterday's*
-  `site/hotel_rates.json`. Its `updated` field is date-only, which
-  `probe_web_fresh` parses as MIDNIGHT — ages are therefore up to a day
-  pessimistic (the safe direction, but budget for it): a normal morning measures
-  ~29 h and a genuinely missed night ~53 h, hence **36**. The probe reads the
-  *published* file on `raw.githubusercontent`, which also covers the commit+push,
-  and it is deliberately not `launchd_exit`: `run_hotel_rates.sh` `exit 0`s when a
-  flight run still holds the browser session, so standing down would look
-  identical to a refresh (the same trap as the T7 backup). **Not scheduled here —
-  flag the contention, don't "fix" it**: 5:00 AM is chosen so the hotel run lands
-  after every flight slot.
+  `site/hotel_rates.json`. Both stamps are date-only, which `probe_web_fresh`
+  parses as MIDNIGHT — ages are up to a day pessimistic (the safe direction, but
+  budget for it). `max_age_h` is **96**, not 36, because the graded field changed
+  from `updated` (stamped nightly, so ~29 h normal / ~53 h after one miss) to the
+  oldest row's `checked`: a single property MISSing is routine and self-heals the
+  next night, so 36 would cry wolf constantly. 96 fires on roughly three dead
+  nights — early enough to matter, quiet enough to stay believed. The probe reads
+  the *published* file on `raw.githubusercontent`, which also covers the
+  commit+push, and it is deliberately not `launchd_exit`: `run_hotel_rates.sh`
+  `exit 0`s when a flight run still holds the browser session, so standing down
+  would look identical to a refresh (the same trap as the T7 backup). **Not
+  scheduled here — flag the contention, don't "fix" it**: 5:00 AM is chosen so the
+  hotel run lands after every flight slot.
 
 - **`notion_health.py` writes ONE row per repo, last result wins.** Several FLEET
   entries can share a repo (leasehackr Daily + Historical, financial-telegram-bot
