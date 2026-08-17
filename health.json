@@ -1,5 +1,5 @@
 {
- "checked": "2026-08-16 05:00",
+ "checked": "2026-08-17 05:00",
  "telegram": "sent",
  "results": [
   {
@@ -13,14 +13,14 @@
    "name": "dhaka-hotels (nightly award-rate research)",
    "repo": null,
    "ok": true,
-   "detail": "data 29h old",
-   "cfg": "probe=web_fresh \u00b7 url=https://raw.githubusercontent.com/jalalchowdhury1/dhaka-flights/main/site/hotel_rates.json \u00b7 json_key=updated \u00b7 max_age_h=36"
+   "detail": "oldest of 8 rows 29h old",
+   "cfg": "probe=web_fresh \u00b7 url=https://raw.githubusercontent.com/jalalchowdhury1/dhaka-flights/main/site/hotel_rates.json \u00b7 json_key=checked \u00b7 max_age_h=96"
   },
   {
    "name": "carmax-scraper (nightly car picks)",
    "repo": "carmax-scraper",
    "ok": true,
-   "detail": "last success 2026-08-16",
+   "detail": "last success 2026-08-17",
    "cfg": "probe=local_stamp \u00b7 repo=carmax-scraper \u00b7 path=~/PycharmProjects/carmax-scraper/.last_success_date \u00b7 max_age_h=36"
   },
   {
@@ -41,7 +41,7 @@
    "name": "sentiment-scraper (AAII weekly data)",
    "repo": "sentiment-scraper",
    "ok": true,
-   "detail": "success 1h ago",
+   "detail": "success 0h ago",
    "cfg": "probe=gh_run \u00b7 repo=sentiment-scraper \u00b7 workflow=daily-scrape.yml \u00b7 max_age_h=36"
   },
   {
@@ -69,14 +69,14 @@
    "name": "hedgelab (noon hedge check)",
    "repo": "hedgelab",
    "ok": true,
-   "detail": "success 39h ago",
+   "detail": "success 63h ago",
    "cfg": "probe=gh_run \u00b7 repo=hedgelab \u00b7 workflow=daily.yml \u00b7 max_age_h=72"
   },
   {
    "name": "trading-algorithm- (30-min signal)",
    "repo": "trading-algorithm-",
    "ok": true,
-   "detail": "success 35h ago",
+   "detail": "success 59h ago",
    "cfg": "probe=gh_run \u00b7 repo=trading-algorithm- \u00b7 workflow=trading_alert.yml \u00b7 max_age_h=72"
   },
   {
