@@ -259,9 +259,62 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, **_):
     return True, f"success {age:.0f}h ago"
 
 
+def _valid_json(path):
+    try:
+        json.load(open(path))
+        return True
+    except Exception:                        # noqa: BLE001 — missing/corrupt both mean "not there"
+        return False
+
+
+def probe_planner_backup(dest_dir, names, log_path, live_since=None, **_):
+    """Nightly Drive snapshot of the aoifes-schedule KV blobs (schedule +
+    plan) — scripts/planner-backup.sh in the "Aoife's Schedule" repo,
+    launchd com.jalal.aoife-planner-backup at 3:40 AM, well before this
+    5:00 AM check.
+
+    Two independent checks, same "assert the artifact, not the exit code"
+    rule as everywhere else in this file: (a) each of `names`' dated JSON
+    files under `dest_dir` exists for TODAY or YESTERDAY (a one-day buffer —
+    same pattern as dhaka-hotels — for a run that lands late) and parses,
+    and (b) the script's own "PLANNER-BACKUP OK <date>" marker for one of
+    those two dates appears in `log_path`. The marker only prints when BOTH
+    endpoints round-tripped, so a stale file left over from a prior success
+    can't pass on its own.
+
+    live_since: /api/plan-get is not deployed on the live site until this
+    date — every night before it, the script's plan half legitimately FAILs
+    and never prints OK (verified manually 2026-08-17). Alerting on that
+    would page for a known, dated, one-sided gap instead of a real failure,
+    so this probe reports healthy without checking anything before
+    `live_since`.
+    """
+    today = datetime.date.today()
+    if live_since and today.isoformat() < live_since:
+        return True, f"pre-launch grace period — alerting starts {live_since}"
+    candidates = [today, today - datetime.timedelta(days=1)]
+    dest = os.path.expanduser(dest_dir)
+    missing = [name for name in names
+               if not any(_valid_json(os.path.join(dest, f"{d.isoformat()}-{name}.json"))
+                          for d in candidates)]
+    if missing:
+        return False, (f"missing/unparseable snapshot(s): {', '.join(missing)} "
+                       f"(checked {candidates[1]} & {candidates[0]} in {dest_dir})")
+    log = os.path.expanduser(log_path)
+    try:
+        text = open(log).read()
+    except FileNotFoundError:
+        return False, f"{log_path} missing"
+    pattern = r"PLANNER-BACKUP OK (" + "|".join(d.isoformat() for d in candidates) + ")"
+    if not re.search(pattern, text):
+        return False, f"no {pattern!r} match in {log_path}"
+    return True, "snapshot files present + OK marker in log"
+
+
 PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
              "local_stamp": probe_local_stamp, "launchd_exit": probe_launchd_exit,
-             "file_mtime": probe_file_mtime, "gh_run": probe_gh_run}
+             "file_mtime": probe_file_mtime, "gh_run": probe_gh_run,
+             "planner_backup": probe_planner_backup}
 
 # ── the fleet roster ────────────────────────────────────────────────────────
 # repo: GitHub repo name for the Notion row (None = not a repo, Telegram-only).
@@ -406,13 +459,28 @@ FLEET = [
      "probe": "web_200", "url": "https://aoife-frameworks.vercel.app"},
     {"name": "nafis-mortgage (site)", "repo": "nafis-mortgage",
      "probe": "web_200", "url": "https://nafis-mortgage.vercel.app"},
+    # Added 2026-08-17 alongside the Aoife's Planner rebuild. live_since is a
+    # deliberate grace period: /api/plan-get (the plan-half endpoint the
+    # backup script fetches) only goes live 2026-08-18, so the script's plan
+    # half legitimately FAILs — and prints no OK marker — every night before
+    # that (confirmed manually 2026-08-17: schedule half wrote a valid JSON
+    # snapshot, plan half FAILed cleanly with no bogus file, script exited
+    # nonzero). Alerting on that known gap would page for nothing; see
+    # probe_planner_backup's docstring for the two independent checks.
+    {"name": "aoife-planner-backup (nightly KV snapshot)", "repo": "aoifes-schedule",
+     "probe": "planner_backup",
+     "dest_dir": "~/Library/CloudStorage/GoogleDrive-jalal.chowdhury@gmail.com/My Drive/Aoife Planner Backups",
+     "names": ["schedule", "plan"],
+     "log_path": "~/Library/Logs/aoife-planner-backup.log",
+     "live_since": "2026-08-18"},
 ]
 
 
 def _cfg_line(item) -> str:
     """One-line probe config so a failure block is self-describing."""
     keys = ("probe", "repo", "workflow", "url", "path", "label",
-            "json_key", "max_age_h", "log_grep")
+            "json_key", "max_age_h", "log_grep", "dest_dir", "names",
+            "log_path", "live_since")
     def fmt(v):
         return " + ".join(v) if isinstance(v, list) else v
     return " · ".join(f"{k}={fmt(item[k])}"

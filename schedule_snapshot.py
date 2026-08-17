@@ -74,6 +74,11 @@ CATALOG = {
         "what": "Watches Google Drive supervisor/inbox for MISSION.md files and runs an autonomous aider build loop; pings Telegram",
         "logs": "~/supervisor/logs/supervisor.log",
         "notes": "Idle unless a mission file is dropped in the inbox"},
+    "com.jalal.aoife-planner-backup": {
+        "title": "Aoife Planner nightly Drive backup",
+        "what": "Snapshots both aoifes-schedule KV blobs (weekly schedule + yearly plan) as dated JSON into Google Drive's 'Aoife Planner Backups' folder",
+        "logs": "~/Library/Logs/aoife-planner-backup.log",
+        "notes": "3:40 AM, ahead of the 5:00 AM fleet check. /api/plan-get deploys 2026-08-18 — expect a nightly 'PLANNER-BACKUP FAIL … plan' line (and no OK marker) before then; fleet_health.py's planner_backup probe has a matching grace period so it doesn't alert on that known gap"},
     "timemachine": {
         "title": "Time Machine backup",
         "what": "Backs up the Mac to the encrypted T7Backup volume on the Samsung T7",
