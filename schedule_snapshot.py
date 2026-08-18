@@ -56,7 +56,7 @@ CATALOG = {
         "notes": "Fleet health probes its launchd exit code daily"},
     "com.jalal.fleet-health": {
         "title": "Fleet health check (all repos)",
-        "what": "21 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
+        "what": "23 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
         "logs": "~/PycharmProjects/github-notion-sync/health.log",
         "notes": 'The daily "is everything working" check (6:30 AM slot is a no-op retry; all settled before wake-up). One-line ✅ when all healthy; full paste-to-Claude diagnostics when not. Companion daily GitHub Action stamps results onto the GitHub Repos table.'},
     "com.jalal.notebooklm-drip": {
@@ -79,6 +79,11 @@ CATALOG = {
         "what": "Snapshots both aoifes-schedule KV blobs (weekly schedule + yearly plan) as dated JSON into Google Drive's 'Aoife Planner Backups' folder",
         "logs": "~/Library/Logs/aoife-planner-backup.log",
         "notes": "3:40 AM, ahead of the 5:00 AM fleet check. /api/plan-get deploys 2026-08-18 — expect a nightly 'PLANNER-BACKUP FAIL … plan' line (and no OK marker) before then; fleet_health.py's planner_backup probe has a matching grace period so it doesn't alert on that known gap"},
+    "com.jalal.aoife-school-bot-tick": {
+        "title": "Aoife school-bot tick (Telegram morning preview / check-in)",
+        "what": "Curls aoife-school-bot.vercel.app/api/tick every 30 min so the family Telegram group gets its morning preview (~07:30) and, only when something is still unlogged, one dynamic evening check-in",
+        "logs": "~/Library/Logs/aoife-school-bot-tick.log",
+        "notes": "07:00–21:30 ET is DELIBERATE and is the one standing exception to the overnight-only house rule: this job exists to talk to the family during the school day, so it cannot run at 3 AM. Slots with nothing to send log 'TICK OK <date> none' and cost one HTTP call; the fleet probe greps 'TICK OK' specifically, because a tick that cannot reach the planner still answers 200 and writes 'TICK FAIL'. The TICK_SECRET is read from the repo's gitignored .env by scripts/tick.sh and passed to curl through a config file on stdin, so it appears in neither the plist nor `ps`."},
     "timemachine": {
         "title": "Time Machine backup",
         "what": "Backs up the Mac to the encrypted T7Backup volume on the Samsung T7",
@@ -125,6 +130,18 @@ def describe_calendar(interval):
     if weekdays:
         days = ", ".join(dict.fromkeys(WEEKDAYS.get(d, f"day {d}") for d in weekdays))
         return f"{days} {times[0]}", "Weekly"
+    # A job that polls (aoife-school-bot-tick: 30 slots, 07:00–21:30) would
+    # otherwise render as a 30-time "(retries …)" wall in the Notion table.
+    # Evenly spaced slots collapse to the cadence + window instead — same
+    # ground truth, one readable line. 4+ slots so a real 2-3 slot retry
+    # ladder (carmax 0:00/2:00/4:00) still reads as retries, which it is.
+    mins = sorted(s.get("Hour", 0) * 60 + s.get("Minute", 0) for s in slots)
+    gaps = {b - a for a, b in zip(mins, mins[1:])}
+    if len(mins) >= 4 and len(gaps) == 1:
+        step = gaps.pop()
+        span = f"{fmt_time(mins[0] // 60, mins[0] % 60)}–{fmt_time(mins[-1] // 60, mins[-1] % 60)}"
+        every = f"{step} min" if step < 60 else f"{step // 60} h"
+        return f"every {every}, {span}", "Daily"
     when = times[0]
     if len(times) > 1:
         when += f" (retries {', '.join(times[1:])})"

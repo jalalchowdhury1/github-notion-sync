@@ -311,10 +311,47 @@ def probe_planner_backup(dest_dir, names, log_path, live_since=None, **_):
     return True, "snapshot files present + OK marker in log"
 
 
+def probe_log_marker(log_path, log_grep, live_since=None, **_):
+    """A local (launchd) log carries the job's own dated success marker for
+    TODAY or YESTERDAY.
+
+    The Mac-side twin of `probe_gh_run`'s `log_grep`, and the same rule:
+    assert the marker the pipeline PRINTS WHEN IT WORKED, never that the job
+    woke up — a job that ran and failed still writes a line, still touches the
+    file's mtime, and still exits 0 where the wrapper swallows the status.
+
+    `log_grep` is one regex or a list (ALL must match). A `{date}` in a pattern
+    expands to an alternation of today and yesterday — the one-day buffer
+    `probe_planner_backup` uses, and load-bearing for any job whose slots do
+    not all land before this 5:00 AM check.
+
+    live_since: nothing to grade before the job's first full day; report
+    healthy rather than page for a log that does not exist yet.
+    """
+    today = datetime.date.today()
+    if live_since and today.isoformat() < live_since:
+        return True, f"pre-launch grace period — alerting starts {live_since}"
+    log = os.path.expanduser(log_path)
+    try:
+        text = open(log, errors="replace").read()
+    except FileNotFoundError:
+        return False, f"{log_path} missing"
+    dates = "|".join(d.isoformat() for d in
+                     (today, today - datetime.timedelta(days=1)))
+    patterns = [log_grep] if isinstance(log_grep, str) else list(log_grep)
+    missing = [p for p in patterns
+               if not re.search(p.replace("{date}", f"(?:{dates})"), text)]
+    if missing:
+        return False, (f"no {', '.join(repr(m) for m in missing)} match "
+                       f"in {log_path} (checked {dates})")
+    return True, f"marker present in {log_path}"
+
+
 PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
              "local_stamp": probe_local_stamp, "launchd_exit": probe_launchd_exit,
              "file_mtime": probe_file_mtime, "gh_run": probe_gh_run,
-             "planner_backup": probe_planner_backup}
+             "planner_backup": probe_planner_backup,
+             "log_marker": probe_log_marker}
 
 # ── the fleet roster ────────────────────────────────────────────────────────
 # repo: GitHub repo name for the Notion row (None = not a repo, Telegram-only).
@@ -473,6 +510,23 @@ FLEET = [
      "names": ["schedule", "plan"],
      "log_path": "~/Library/Logs/aoife-planner-backup.log",
      "live_since": "2026-08-18"},
+    # Added 2026-08-18 with the aoife-school-bot deploy (launchd
+    # com.jalal.aoife-school-bot-tick, scripts/tick.sh, every 30 min
+    # 07:00–21:30 ET — the fleet's one deliberately daytime job).
+    # A today-or-YESTERDAY window, not a max_age_h: this check runs at 5:00 AM
+    # and the tick's first slot of the day is 07:00, so the freshest marker is
+    # ALWAYS yesterday's 21:30 line. Grading age would be grading how long ago
+    # 9:30 PM was.
+    # `TICK OK` specifically, NEVER a bare `TICK`: a tick that cannot reach the
+    # planner still answers HTTP 200 (by design — a 500 would strand it until
+    # the next slot) and writes `TICK FAIL <date> planner-unreachable`, which
+    # is exactly the silent-bot failure this probe exists to catch. See the
+    # bot repo's AGENTS.md §5.
+    {"name": "aoife-school-bot (30-min Telegram tick)", "repo": "aoife-school-bot",
+     "probe": "log_marker",
+     "log_path": "~/Library/Logs/aoife-school-bot-tick.log",
+     "log_grep": r"TICK OK {date}",
+     "live_since": "2026-08-19"},
 ]
 
 

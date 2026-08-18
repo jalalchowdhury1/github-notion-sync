@@ -19,10 +19,15 @@ sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
   `.fleet_health.lock` (gitignored; locks >2 h old are treated as crashed
   and ignored); manual `python3 fleet_health.py` always runs. Wrapper
   `run_health.sh` also truncates `health.log` in place past ~400 KB —
-  gitignored). 21 data-level probes (local launchd stamps/exit codes, `gh`
+  gitignored). 23 data-level probes (local launchd stamps/exit codes, `gh`
   runs with log-grep data markers, live-site checks). `log_grep` takes one
   regex or a list (ALL must match); assert the *pipeline ran* rather than that
   a count was nonzero, or a legitimately quiet source false-alarms at 5 AM.
+  The Mac-side twin of that is the `log_marker` probe (added 2026-08-18 for
+  `aoife-school-bot`): same `log_grep` contract against a local launchd log,
+  where `{date}` in a pattern expands to today|yesterday. Use it for a job
+  whose slots do NOT all land before the 5 AM check — grading file mtime or
+  exit code there measures only that the job woke up.
   A workflow with several legitimate shapes (reddit-scraper's real scrape vs.
   its retry-window no-op) gets ONE pattern with an `|` covering both, not two
   patterns that can't both hold. **Every marker must be verified against a real
@@ -420,6 +425,10 @@ Frontend (React); `express`/`fastify`/`@hono/node-server` → API/Backend;
 - `schedule_snapshot.py` — Mac-side ground-truth snapshot of launchd/cron/Time
   Machine schedules → `schedule.json` (see §1). **Add a `CATALOG` entry whenever
   adding a launchd job**, or the Notion row will carry a 🆕 placeholder.
+  `describe_calendar` collapses 4+ evenly spaced slots to
+  `every 30 min, 7:00 AM–9:30 PM` (added 2026-08-18 for the school-bot tick,
+  whose 30 slots would otherwise render as a 30-time "(retries …)" wall);
+  2–3 slot retry ladders like carmax's 0:00/2:00/4:00 still read as retries.
 - `notion_health.py` / `notion_schedule.py` — cloud-side Notion stamping, run by
   `.github/workflows/health.yml` (daily 13:07 UTC).
 - `.github/workflows/sync.yml` — monthly cron + manual dispatch; runs `python sync.py`.
