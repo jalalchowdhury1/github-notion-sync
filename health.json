@@ -1,5 +1,5 @@
 {
- "checked": "2026-08-17 05:00",
+ "checked": "2026-08-18 05:00",
  "telegram": "sent",
  "results": [
   {
@@ -20,7 +20,7 @@
    "name": "carmax-scraper (nightly car picks)",
    "repo": "carmax-scraper",
    "ok": true,
-   "detail": "last success 2026-08-17",
+   "detail": "last success 2026-08-18",
    "cfg": "probe=local_stamp \u00b7 repo=carmax-scraper \u00b7 path=~/PycharmProjects/carmax-scraper/.last_success_date \u00b7 max_age_h=36"
   },
   {
@@ -41,7 +41,7 @@
    "name": "sentiment-scraper (AAII weekly data)",
    "repo": "sentiment-scraper",
    "ok": true,
-   "detail": "success 0h ago",
+   "detail": "success 1h ago",
    "cfg": "probe=gh_run \u00b7 repo=sentiment-scraper \u00b7 workflow=daily-scrape.yml \u00b7 max_age_h=36"
   },
   {
@@ -69,14 +69,14 @@
    "name": "hedgelab (noon hedge check)",
    "repo": "hedgelab",
    "ok": true,
-   "detail": "success 63h ago",
+   "detail": "success 15h ago",
    "cfg": "probe=gh_run \u00b7 repo=hedgelab \u00b7 workflow=daily.yml \u00b7 max_age_h=72"
   },
   {
    "name": "trading-algorithm- (30-min signal)",
    "repo": "trading-algorithm-",
    "ok": true,
-   "detail": "success 59h ago",
+   "detail": "success 11h ago",
    "cfg": "probe=gh_run \u00b7 repo=trading-algorithm- \u00b7 workflow=trading_alert.yml \u00b7 max_age_h=72"
   },
   {
@@ -148,6 +148,13 @@
    "ok": true,
    "detail": "HTTP 200",
    "cfg": "probe=web_200 \u00b7 repo=nafis-mortgage \u00b7 url=https://nafis-mortgage.vercel.app"
+  },
+  {
+   "name": "aoife-planner-backup (nightly KV snapshot)",
+   "repo": "aoifes-schedule",
+   "ok": true,
+   "detail": "snapshot files present + OK marker in log",
+   "cfg": "probe=planner_backup \u00b7 repo=aoifes-schedule \u00b7 dest_dir=~/Library/CloudStorage/GoogleDrive-jalal.chowdhury@gmail.com/My Drive/Aoife Planner Backups \u00b7 names=schedule + plan \u00b7 log_path=~/Library/Logs/aoife-planner-backup.log \u00b7 live_since=2026-08-18"
   }
  ]
 }
