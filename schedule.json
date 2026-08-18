@@ -1,6 +1,16 @@
 {
- "updated": "2026-08-16 15:32",
+ "updated": "2026-08-18 05:00",
  "jobs": [
+  {
+   "key": "com.jalal.aoife-planner-backup",
+   "title": "Aoife Planner nightly Drive backup",
+   "when": "3:40 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.aoife-planner-backup → ~/PycharmProjects/Aoife's Schedule/scripts/planner-backup.sh",
+   "what": "Snapshots both aoifes-schedule KV blobs (weekly schedule + yearly plan) as dated JSON into Google Drive's 'Aoife Planner Backups' folder",
+   "logs": "~/Library/Logs/aoife-planner-backup.log",
+   "notes": "3:40 AM, ahead of the 5:00 AM fleet check. /api/plan-get deploys 2026-08-18 — expect a nightly 'PLANNER-BACKUP FAIL … plan' line (and no OK marker) before then; fleet_health.py's planner_backup probe has a matching grace period so it doesn't alert on that known gap"
+  },
   {
    "key": "com.jalal.carmax",
    "title": "CarMax scraper",
