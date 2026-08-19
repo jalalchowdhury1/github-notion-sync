@@ -1,5 +1,5 @@
 {
- "checked": "2026-08-18 05:00",
+ "checked": "2026-08-19 05:00",
  "telegram": "sent",
  "results": [
   {
@@ -20,7 +20,7 @@
    "name": "carmax-scraper (nightly car picks)",
    "repo": "carmax-scraper",
    "ok": true,
-   "detail": "last success 2026-08-18",
+   "detail": "last success 2026-08-19",
    "cfg": "probe=local_stamp \u00b7 repo=carmax-scraper \u00b7 path=~/PycharmProjects/carmax-scraper/.last_success_date \u00b7 max_age_h=36"
   },
   {
@@ -40,16 +40,18 @@
   {
    "name": "sentiment-scraper (AAII weekly data)",
    "repo": "sentiment-scraper",
-   "ok": true,
-   "detail": "success 1h ago",
-   "cfg": "probe=gh_run \u00b7 repo=sentiment-scraper \u00b7 workflow=daily-scrape.yml \u00b7 max_age_h=36"
+   "ok": false,
+   "detail": "last run  (1h ago)\nrun: https://github.com/jalalchowdhury1/sentiment-scraper/actions/runs/32232928014",
+   "cfg": "probe=gh_run \u00b7 repo=sentiment-scraper \u00b7 workflow=daily-scrape.yml \u00b7 max_age_h=36",
+   "failing_since": "2026-08-19"
   },
   {
    "name": "ynab-budget-brief (7am budget brief)",
    "repo": "ynab-budget-brief",
-   "ok": true,
-   "detail": "success 22h ago, data confirmed",
-   "cfg": "probe=gh_run \u00b7 repo=ynab-budget-brief \u00b7 workflow=daily_brief.yml \u00b7 max_age_h=36 \u00b7 log_grep=Sent budget brief: + Budget brief \u2014 .+ left"
+   "ok": false,
+   "detail": "run green but data marker missing ('Sent eating-out brief:', 'Sent family brief:')\nrun: https://github.com/jalalchowdhury1/ynab-budget-brief/actions/runs/32131478225",
+   "cfg": "probe=gh_run \u00b7 repo=ynab-budget-brief \u00b7 workflow=daily_brief.yml \u00b7 max_age_h=36 \u00b7 log_grep=Sent eating-out brief: + Sent family brief:",
+   "failing_since": "2026-08-19"
   },
   {
    "name": "financial-dashboard-history (2x-daily snapshots)",
@@ -155,6 +157,20 @@
    "ok": true,
    "detail": "snapshot files present + OK marker in log",
    "cfg": "probe=planner_backup \u00b7 repo=aoifes-schedule \u00b7 dest_dir=~/Library/CloudStorage/GoogleDrive-jalal.chowdhury@gmail.com/My Drive/Aoife Planner Backups \u00b7 names=schedule + plan \u00b7 log_path=~/Library/Logs/aoife-planner-backup.log \u00b7 live_since=2026-08-18"
+  },
+  {
+   "name": "aoife-school-bot (30-min Telegram tick)",
+   "repo": "aoife-school-bot",
+   "ok": true,
+   "detail": "marker present in ~/Library/Logs/aoife-school-bot-tick.log",
+   "cfg": "probe=log_marker \u00b7 repo=aoife-school-bot \u00b7 log_grep=TICK OK {date} \u00b7 log_path=~/Library/Logs/aoife-school-bot-tick.log \u00b7 live_since=2026-08-19"
+  },
+  {
+   "name": "aoife-gcal-sync (nightly Google Calendar publish)",
+   "repo": null,
+   "ok": true,
+   "detail": "pre-launch grace period \u2014 alerting starts 2026-08-20",
+   "cfg": "probe=log_marker \u00b7 log_grep=GCAL-SYNC OK {date} \u00b7 log_path=~/Library/Logs/aoife-gcal-sync.log \u00b7 live_since=2026-08-20"
   }
  ]
 }
