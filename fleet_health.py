@@ -213,7 +213,7 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, **_):
     """
     p = subprocess.run(
         ["gh", "run", "list", "-R", f"{GH_USER}/{repo}", "--workflow", workflow,
-         "--limit", "1", "--json", "conclusion,createdAt,databaseId"],
+         "--limit", "1", "--json", "status,conclusion,createdAt,databaseId"],
         capture_output=True, text=True, timeout=60)
     if p.returncode != 0:
         raise RuntimeError(f"gh run list failed: {p.stderr.strip()[:150]}")
@@ -224,6 +224,14 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, **_):
     run_url = f"https://github.com/{GH_USER}/{repo}/actions/runs/{run['databaseId']}"
     ts = datetime.datetime.strptime(run["createdAt"][:16], "%Y-%m-%dT%H:%M")
     age = _age_hours(ts.replace(tzinfo=datetime.timezone.utc).timestamp())
+    # An in-progress run has conclusion "" — without this branch it rendered as
+    # "last run  (1h ago)", which reads like a failure and hides the real story.
+    # A hang needs the opposite remedy from a failure (cancel + find the wedged
+    # step, vs read the log tail), and its log is not fetchable until it ends.
+    if run.get("status") != "completed":
+        return False, (f"still running {age:.0f}h (normal runs finish in minutes)"
+                       f" — likely HUNG; cancel it to release the runner and"
+                       f" expose the wedged step's log\nrun: {run_url}")
     if run["conclusion"] != "success":
         detail = f"last run {run['conclusion']} ({age:.0f}h ago)\nrun: {run_url}"
         tail = _failed_log_tail(repo, run["databaseId"])
