@@ -420,12 +420,13 @@ FLEET = [
     {"name": "sentiment-scraper (AAII weekly data)", "repo": "sentiment-scraper",
      "probe": "gh_run", "workflow": "daily-scrape.yml", "max_age_h": 36},
     # ynab-budget-brief: cron 11:00 UTC, actually runs 12:00-13:40 (10 days).
-    # "Sent budget brief:" is printed only AFTER send_telegram() returns, and
-    # the second marker is the message's own first line — together they prove
-    # the 7 AM brief was actually delivered, not merely that Python exited 0.
+    # Since the 2026-08-19 quota redesign the run sends TWO messages (Eating
+    # Out, then Aoife+Nabila). Each marker is printed only AFTER its
+    # send_telegram() returns — together they prove both messages were
+    # actually delivered, not merely that Python exited 0.
     {"name": "ynab-budget-brief (7am budget brief)", "repo": "ynab-budget-brief",
      "probe": "gh_run", "workflow": "daily_brief.yml", "max_age_h": 36,
-     "log_grep": [r"Sent budget brief:", r"Budget brief — .+ left"]},
+     "log_grep": [r"Sent eating-out brief:", r"Sent family brief:"]},
     {"name": "financial-dashboard-history (2x-daily snapshots)", "repo": "financial-dashboard-history",
      "probe": "gh_run", "workflow": "scraper.yml", "max_age_h": 36},
     # vix-fear-greed: cron 13:00 UTC, actually runs 14:36-15:46 (10 days).
