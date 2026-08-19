@@ -532,12 +532,12 @@ FLEET = [
     # the 03:40 planner backup, before this 05:00 check, so TODAY's marker is
     # the one that should be there and the {date} alternation is just slack).
     # `GCAL-SYNC OK` specifically, NEVER a bare `GCAL-SYNC`: the job prints
-    # `GCAL-SYNC WAITING calendar-not-shared-yet` / `…-api-not-enabled` and
-    # EXITS 0 while the owner's Google-side setup is pending, so exit code and
-    # file mtime both say "healthy" for a sync that has never published a
-    # single event. That WAITING state is exactly what live_since covers: it is
-    # not an error tonight, but if it is still WAITING on 2026-08-20 the owner
-    # needs telling, and this probe is what tells him.
+    # `GCAL-SYNC WAITING <calendar-api-disabled|calendar-not-shared-yet|
+    # write-permission>` — one per owner setup step — and EXITS 0 while any of
+    # them is pending, so exit code and file mtime both say "healthy" for a sync
+    # that has never published a single event. Those WAITING states are exactly
+    # what live_since covers: not an error tonight, but if it is still WAITING
+    # on 2026-08-20 the owner needs telling, and this probe is what tells him.
     # repo is None ON PURPOSE: aoifes-schedule already owns the
     # aoife-planner-backup row, and notion_health.py stamps one row per repo
     # with the LAST result winning — a green backup would paint over a red
