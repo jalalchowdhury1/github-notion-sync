@@ -538,6 +538,13 @@ FLEET = [
     # that has never published a single event. Those WAITING states are exactly
     # what live_since covers: not an error tonight, but if it is still WAITING
     # on 2026-08-20 the owner needs telling, and this probe is what tells him.
+    # All three cleared on 2026-08-18 and the first real sync published 12
+    # events that evening, so this could have been tightened to 08-19 — it is
+    # NOT, deliberately: that evening's manual kickstart wrote an OK marker
+    # dated 08-18 into this very log, and the probe's today|yesterday window
+    # would let it satisfy an 08-19 check even if the 04:10 run had failed.
+    # Starting at 08-20 means the first graded morning can only be satisfied by
+    # a marker the scheduled job actually produced.
     # repo is None ON PURPOSE: aoifes-schedule already owns the
     # aoife-planner-backup row, and notion_health.py stamps one row per repo
     # with the LAST result winning — a green backup would paint over a red
