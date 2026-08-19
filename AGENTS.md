@@ -19,7 +19,7 @@ sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
   `.fleet_health.lock` (gitignored; locks >2 h old are treated as crashed
   and ignored); manual `python3 fleet_health.py` always runs. Wrapper
   `run_health.sh` also truncates `health.log` in place past ~400 KB —
-  gitignored). 23 data-level probes (local launchd stamps/exit codes, `gh`
+  gitignored). 24 data-level probes (local launchd stamps/exit codes, `gh`
   runs with log-grep data markers, live-site checks). `log_grep` takes one
   regex or a list (ALL must match); assert the *pipeline ran* rather than that
   a count was nonzero, or a legitimately quiet source false-alarms at 5 AM.

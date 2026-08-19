@@ -56,7 +56,7 @@ CATALOG = {
         "notes": "Fleet health probes its launchd exit code daily"},
     "com.jalal.fleet-health": {
         "title": "Fleet health check (all repos)",
-        "what": "23 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
+        "what": "24 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
         "logs": "~/PycharmProjects/github-notion-sync/health.log",
         "notes": 'The daily "is everything working" check (6:30 AM slot is a no-op retry; all settled before wake-up). One-line ✅ when all healthy; full paste-to-Claude diagnostics when not. Companion daily GitHub Action stamps results onto the GitHub Repos table.'},
     "com.jalal.notebooklm-drip": {
@@ -84,6 +84,11 @@ CATALOG = {
         "what": "Curls aoife-school-bot.vercel.app/api/tick every 30 min so the family Telegram group gets its morning preview (~07:30) and, only when something is still unlogged, one dynamic evening check-in",
         "logs": "~/Library/Logs/aoife-school-bot-tick.log",
         "notes": "07:00–21:30 ET is DELIBERATE and is the one standing exception to the overnight-only house rule: this job exists to talk to the family during the school day, so it cannot run at 3 AM. Slots with nothing to send log 'TICK OK <date> none' and cost one HTTP call; the fleet probe greps 'TICK OK' specifically, because a tick that cannot reach the planner still answers 200 and writes 'TICK FAIL'. The TICK_SECRET is read from the repo's gitignored .env by scripts/tick.sh and passed to curl through a config file on stdin, so it appears in neither the plist nor `ps`."},
+    "com.jalal.aoife-gcal-sync": {
+        "title": "Aoife school schedule → Google Calendar",
+        "what": "One-way nightly publish of the aoifes-schedule planner (weekly template, dated one-offs, travel/off periods) into the shared 'Aoife's School' Google Calendar",
+        "logs": "~/Library/Logs/aoife-gcal-sync.log",
+        "notes": "4:10 AM, between the 3:40 backup and the 5:00 fleet check. One-way only — events say 'do not edit here', and the sync overwrites anything edited in Google Calendar. It touches ONLY events carrying its own extendedProperties.private.aoifeSync=v1, so the family's own entries on that calendar are safe. Prints 'GCAL-SYNC WAITING …' and exits 0 while the Google-side setup is pending (a calendar named exactly \"Aoife's School\" shared with claude-sheets@hoa-tracker-494016.iam.gserviceaccount.com as 'Make changes to events', plus the Google Calendar API enabled in that cloud project — the service account cannot enable it itself). The fleet probe greps 'GCAL-SYNC OK' with a grace period to 2026-08-20, so a still-unshared calendar gets reported rather than sitting silent."},
     "timemachine": {
         "title": "Time Machine backup",
         "what": "Backs up the Mac to the encrypted T7Backup volume on the Samsung T7",

@@ -527,6 +527,27 @@ FLEET = [
      "log_path": "~/Library/Logs/aoife-school-bot-tick.log",
      "log_grep": r"TICK OK {date}",
      "live_since": "2026-08-19"},
+    # Added 2026-08-18 with the Google Calendar sync (launchd
+    # com.jalal.aoife-gcal-sync, scripts/gcal-sync/run.sh, 04:10 daily — after
+    # the 03:40 planner backup, before this 05:00 check, so TODAY's marker is
+    # the one that should be there and the {date} alternation is just slack).
+    # `GCAL-SYNC OK` specifically, NEVER a bare `GCAL-SYNC`: the job prints
+    # `GCAL-SYNC WAITING calendar-not-shared-yet` / `…-api-not-enabled` and
+    # EXITS 0 while the owner's Google-side setup is pending, so exit code and
+    # file mtime both say "healthy" for a sync that has never published a
+    # single event. That WAITING state is exactly what live_since covers: it is
+    # not an error tonight, but if it is still WAITING on 2026-08-20 the owner
+    # needs telling, and this probe is what tells him.
+    # repo is None ON PURPOSE: aoifes-schedule already owns the
+    # aoife-planner-backup row, and notion_health.py stamps one row per repo
+    # with the LAST result winning — a green backup would paint over a red
+    # calendar sync (the same trap documented on dhaka-hotels). Telegram
+    # carries both entries independently.
+    {"name": "aoife-gcal-sync (nightly Google Calendar publish)", "repo": None,
+     "probe": "log_marker",
+     "log_path": "~/Library/Logs/aoife-gcal-sync.log",
+     "log_grep": r"GCAL-SYNC OK {date}",
+     "live_since": "2026-08-20"},
 ]
 
 
