@@ -1,5 +1,5 @@
 {
- "checked": "2026-08-19 05:00",
+ "checked": "2026-08-20 05:00",
  "telegram": "sent",
  "results": [
   {
@@ -20,7 +20,7 @@
    "name": "carmax-scraper (nightly car picks)",
    "repo": "carmax-scraper",
    "ok": true,
-   "detail": "last success 2026-08-19",
+   "detail": "last success 2026-08-20",
    "cfg": "probe=local_stamp \u00b7 repo=carmax-scraper \u00b7 path=~/PycharmProjects/carmax-scraper/.last_success_date \u00b7 max_age_h=36"
   },
   {
@@ -40,25 +40,24 @@
   {
    "name": "sentiment-scraper (AAII weekly data)",
    "repo": "sentiment-scraper",
-   "ok": false,
-   "detail": "last run  (1h ago)\nrun: https://github.com/jalalchowdhury1/sentiment-scraper/actions/runs/32232928014",
-   "cfg": "probe=gh_run \u00b7 repo=sentiment-scraper \u00b7 workflow=daily-scrape.yml \u00b7 max_age_h=36",
-   "failing_since": "2026-08-19"
+   "ok": true,
+   "detail": "success 0h ago",
+   "cfg": "probe=gh_run \u00b7 repo=sentiment-scraper \u00b7 workflow=daily-scrape.yml \u00b7 max_age_h=36"
   },
   {
    "name": "ynab-budget-brief (7am budget brief)",
    "repo": "ynab-budget-brief",
-   "ok": false,
-   "detail": "run green but data marker missing ('Sent eating-out brief:', 'Sent family brief:')\nrun: https://github.com/jalalchowdhury1/ynab-budget-brief/actions/runs/32131478225",
-   "cfg": "probe=gh_run \u00b7 repo=ynab-budget-brief \u00b7 workflow=daily_brief.yml \u00b7 max_age_h=36 \u00b7 log_grep=Sent eating-out brief: + Sent family brief:",
-   "failing_since": "2026-08-19"
+   "ok": true,
+   "detail": "success 22h ago, data confirmed",
+   "cfg": "probe=gh_run \u00b7 repo=ynab-budget-brief \u00b7 workflow=daily_brief.yml \u00b7 max_age_h=36 \u00b7 log_grep=Sent eating-out brief: + Sent family brief:"
   },
   {
    "name": "financial-dashboard-history (2x-daily snapshots)",
    "repo": "financial-dashboard-history",
-   "ok": true,
-   "detail": "success 6h ago",
-   "cfg": "probe=gh_run \u00b7 repo=financial-dashboard-history \u00b7 workflow=scraper.yml \u00b7 max_age_h=36"
+   "ok": false,
+   "detail": "last run failure (6h ago)\nrun: https://github.com/jalalchowdhury1/financial-dashboard-history/actions/runs/32325981679\nlog tail:\nTraceback (most recent call last):\n...\nFile \"/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/gspread/worksheet.py\", line 463, in get_values\nreturn self.get(\n^^^^^^^^^\nFile \"/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/gspread/worksheet.py\", line 958, in get\nresponse = self.client.values_get(\n^^^^^^^^^^^^^^^^^^^^^^^\nFile \"/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/gspread/http_client.py\", line 236, in values_get\nr = self.request(\"get\", url, params=params)\n^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nFile \"/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/gspread/http_client.py\", line 128, in request\nraise APIError(response)\ngspread.exceptions.APIError: APIError: [503]: The service is currently unavailable.\n\n##[error]Process completed with exit code 1.",
+   "cfg": "probe=gh_run \u00b7 repo=financial-dashboard-history \u00b7 workflow=scraper.yml \u00b7 max_age_h=36",
+   "failing_since": "2026-08-20"
   },
   {
    "name": "vix-fear-greed (daily tag)",
@@ -169,7 +168,7 @@
    "name": "aoife-gcal-sync (nightly Google Calendar publish)",
    "repo": null,
    "ok": true,
-   "detail": "pre-launch grace period \u2014 alerting starts 2026-08-20",
+   "detail": "marker present in ~/Library/Logs/aoife-gcal-sync.log",
    "cfg": "probe=log_marker \u00b7 log_grep=GCAL-SYNC OK {date} \u00b7 log_path=~/Library/Logs/aoife-gcal-sync.log \u00b7 live_since=2026-08-20"
   }
  ]
