@@ -1,5 +1,5 @@
 {
- "checked": "2026-08-20 05:00",
+ "checked": "2026-08-21 05:00",
  "telegram": "sent",
  "results": [
   {
@@ -20,7 +20,7 @@
    "name": "carmax-scraper (nightly car picks)",
    "repo": "carmax-scraper",
    "ok": true,
-   "detail": "last success 2026-08-20",
+   "detail": "last success 2026-08-21",
    "cfg": "probe=local_stamp \u00b7 repo=carmax-scraper \u00b7 path=~/PycharmProjects/carmax-scraper/.last_success_date \u00b7 max_age_h=36"
   },
   {
@@ -54,10 +54,9 @@
   {
    "name": "financial-dashboard-history (2x-daily snapshots)",
    "repo": "financial-dashboard-history",
-   "ok": false,
-   "detail": "last run failure (6h ago)\nrun: https://github.com/jalalchowdhury1/financial-dashboard-history/actions/runs/32325981679\nlog tail:\nTraceback (most recent call last):\n...\nFile \"/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/gspread/worksheet.py\", line 463, in get_values\nreturn self.get(\n^^^^^^^^^\nFile \"/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/gspread/worksheet.py\", line 958, in get\nresponse = self.client.values_get(\n^^^^^^^^^^^^^^^^^^^^^^^\nFile \"/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/gspread/http_client.py\", line 236, in values_get\nr = self.request(\"get\", url, params=params)\n^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nFile \"/opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/gspread/http_client.py\", line 128, in request\nraise APIError(response)\ngspread.exceptions.APIError: APIError: [503]: The service is currently unavailable.\n\n##[error]Process completed with exit code 1.",
-   "cfg": "probe=gh_run \u00b7 repo=financial-dashboard-history \u00b7 workflow=scraper.yml \u00b7 max_age_h=36",
-   "failing_since": "2026-08-20"
+   "ok": true,
+   "detail": "success 6h ago",
+   "cfg": "probe=gh_run \u00b7 repo=financial-dashboard-history \u00b7 workflow=scraper.yml \u00b7 max_age_h=36"
   },
   {
    "name": "vix-fear-greed (daily tag)",
