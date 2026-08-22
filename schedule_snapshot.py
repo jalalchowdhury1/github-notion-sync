@@ -41,9 +41,9 @@ CATALOG = {
         "notes": "Retry slots no-op after success via .last_run_date stamp; refuses to start after 5:30 AM"},
     "com.jalal.dhaka-hotels": {
         "title": "Dhaka hotel award-rate refresh",
-        "what": "Scrapes the IST/SIN card-play shortlist (8 properties) and republishes site/hotel_rates.json for the trip site's Stays table",
+        "what": "Scrapes the IST/SIN card-play shortlist (19 properties since 2026-08-22) and republishes site/hotel_rates.json for the trip site's Stays table",
         "logs": "~/PycharmProjects/Dhaka flights/cron.log",
-        "notes": "5:00 AM is the WAKE time — the job then sleeps a random 0-35 min, so it actually runs 05:00-05:35 (a fixed nightly cadence is itself a bot signature; never jitter EARLIER, that walks into the 04:00 flight slot). Because of that it now ALWAYS finishes after the 5:00 fleet check, which therefore grades YESTERDAY's file — by design, and why that probe allows 96 h. Own browser identity (BROWSE_SESSION=hotels); stands down if a flight run is still active, which is also what keeps the two jobs off each other's shared git index. Uses Browserbase (60 free min/month) for ~26 nights and local Chrome for ~4 paced, scattered nights"},
+        "notes": "5:00 AM is the WAKE time — the job then sleeps a random 0-35 min, so it actually runs 05:00-05:35 (a fixed nightly cadence is itself a bot signature; never jitter EARLIER, that walks into the 04:00 flight slot). Because of that it now ALWAYS finishes after the 5:00 fleet check, which therefore grades YESTERDAY's file — by design, and why that probe allows 96 h. Own browser identity (BROWSE_SESSION=hotels); stands down if a flight run is still active, which is also what keeps the two jobs off each other's shared git index. At 19 properties (~5.7 min/run) Browserbase's 60 free min cover ~10 nights; the other ~20 run on local Chrome, paced and scattered (8-20 s between searches). Jalal chose to stay on the free tier 2026-08-22; the $20 Developer plan would make it all-remote"},
     "com.jalal.carmax": {
         "title": "CarMax scraper",
         "what": "Best-value top-trim ICE-SUV finder (11–16k mi) with live KBB/Edmunds valuation of top 3",
