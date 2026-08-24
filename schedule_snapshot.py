@@ -63,7 +63,7 @@ CATALOG = {
         "title": "Gemini Notebook podcast drip",
         "what": "Fires Audio+Video Overview generation (3+3/day free-tier quota) for book notebooks in ~/PycharmProjects/notebooklm-library/index.tsv; backlog CLEARED 2026-08-09 (all 39 have podcast+video) so it now no-ops in seconds and only picks up newly added books",
         "logs": "~/PycharmProjects/notebooklm-library/drip.log",
-        "notes": "Kaiser burner account via notebooklm-py CLI. Second slot moved 4 PM → 11:30 PM on 2026-08-09: it was a quota hedge that never paid off (04:00 fired 71 generations in 14 runs, 16:00 fired 0 in 13 — reset always landed before 4 AM), and no jobs run in working hours. Now a transient-failure retry, not a quota retry. Idempotent, so a wasted run is free."},
+        "notes": "Kaiser burner account via notebooklm-py CLI. Second slot moved 4 PM → 11:30 PM on 2026-08-09 (quota hedge that never paid off; no jobs in working hours), then 11:30 PM → 12:45 AM on 2026-08-24 when Jalal fixed the fleet window as midnight–7 AM. Still a transient-failure retry, not a quota retry (reset always landed before 4 AM). Idempotent, so a wasted run is free."},
     "com.jalal.keepawake": {
         "title": "Keep-awake",
         "what": "Prevents system sleep (display may still sleep) so the midnight jobs always fire",
@@ -93,7 +93,7 @@ CATALOG = {
         "title": "Daily Trackers sheet update",
         "what": "Appends nightly rows (Zillow Zestimate, Redfin estimate, MND 30-yr mortgage rate, USD-CAD, USD-BDT) to the 'Automa Data' Google Sheet that feeds the Daily Trackers spreadsheet",
         "logs": "~/PycharmProjects/daily-trackers/cron.log",
-        "notes": "4:30 AM + 5:30 AM retry; sheet-level dedupe (a tab already holding today's row is skipped, so the retry only fills gaps); Zillow via local browse CLI in its own session (BROWSE_SESSION=trackers); refuses to start after 6:15 AM; replaced the Automa Chrome-extension workflows 2026-08-24"},
+        "notes": "3:30 AM + 4:30/5:30 AM retries (3-slot ladder like dhaka/carmax since 2026-08-24 evening); sheet-level dedupe (a tab already holding today's row is skipped, so retries only fill gaps); Zillow via local browse CLI in its own session (BROWSE_SESSION=trackers); refuses to start after 6:15 AM; replaced the Automa Chrome-extension workflows 2026-08-24"},
     "timemachine": {
         "title": "Time Machine backup",
         "what": "Backs up the Mac to the encrypted T7Backup volume on the Samsung T7",
@@ -102,14 +102,11 @@ CATALOG = {
 }
 
 # Cron lines matched by substring → catalog entry (+ forced Frequency label).
-CRON_CATALOG = [
-    (("Dhaka flights", "run_daily.py"), {
-        "title": "Legacy Dhaka cron (8 AM)",
-        "frequency": "Legacy",
-        "what": "Pre-launchd leftover of the Dhaka scraper schedule",
-        "logs": "~/PycharmProjects/Dhaka flights/cron.log",
-        "notes": 'Harmless — .last_run_date stamp makes it log "Already ran today, skipping" — but it bypasses run_daily.sh\'s 5:30 AM guard on failure days. Candidate for removal (crontab -e).'}),
-]
+# The legacy 8 AM Dhaka cron was DISABLED 2026-08-24 (commented out in the
+# crontab, backup line preserved in the comment itself) during the fleet-window
+# cleanup: it bypassed run_daily.sh's 5:30 AM guard on failure days. Its
+# catalog entry was removed with it; cron_jobs() skips '#' lines.
+CRON_CATALOG = []
 
 # Rows that describe scheduled work NOT visible from this Mac (cloud companions).
 STATIC_JOBS = [

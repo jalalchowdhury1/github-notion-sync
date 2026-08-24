@@ -565,14 +565,16 @@ FLEET = [
      "log_grep": r"GCAL-SYNC OK {date}",
      "live_since": "2026-08-20"},
     # Added 2026-08-24 with the daily-trackers deploy (launchd
-    # com.jalal.daily-trackers, run_daily.sh, 4:30 AM + 5:30 AM retry).
+    # com.jalal.daily-trackers, run_daily.sh, 3:30 AM + 4:30/5:30 AM retries —
+    # widened from 4:30/5:30 to the fleet-standard 3-slot ladder the same
+    # evening).
     # Appends five metric rows (Zillow Zestimate, Redfin estimate, MND 30-yr
     # mortgage rate, USD-CAD, USD-BDT) to the "Automa Data" Google Sheet that
     # the Daily Trackers spreadsheet reads live. `TRACKERS_OK 5/5`
     # specifically: a partial night prints `TRACKERS_FAIL [...]` instead
     # (per-metric isolation still writes what it can), and a bounds-rejected
     # value is a FAIL by design — a wrong number in that sheet is worse than a
-    # missing one. The 4:30 marker exists well before the 5:00 check; if only
+    # missing one. The 3:30 marker exists well before the 5:00 check; if only
     # the 5:30 retry succeeds, the 6:30 slot sees it (the {date} window is
     # extra slack, not the mechanism).
     {"name": "daily-trackers (nightly Automa Data sheet update)", "repo": "daily-trackers",
