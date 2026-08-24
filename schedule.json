@@ -1,5 +1,5 @@
 {
- "updated": "2026-08-23 05:00",
+ "updated": "2026-08-24 09:59",
  "jobs": [
   {
    "key": "com.jalal.aoife-gcal-sync",
@@ -42,6 +42,16 @@
    "notes": "Runs in parallel with Dhaka scraper (isolated browse sessions); same stamp-based retry no-op"
   },
   {
+   "key": "com.jalal.daily-trackers",
+   "title": "Daily Trackers sheet update",
+   "when": "4:30 AM (retries 5:30 AM)",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.daily-trackers → ~/PycharmProjects/daily-trackers/run_daily.sh",
+   "what": "Appends nightly rows (Zillow Zestimate, Redfin estimate, MND 30-yr mortgage rate, USD-CAD, USD-BDT) to the 'Automa Data' Google Sheet that feeds the Daily Trackers spreadsheet",
+   "logs": "~/PycharmProjects/daily-trackers/cron.log",
+   "notes": "4:30 AM + 5:30 AM retry; sheet-level dedupe (a tab already holding today's row is skipped, so the retry only fills gaps); Zillow via local browse CLI in its own session (BROWSE_SESSION=trackers); refuses to start after 6:15 AM; replaced the Automa Chrome-extension workflows 2026-08-24"
+  },
+  {
    "key": "com.jalal.dhaka-flights",
    "title": "Dhaka flights scraper",
    "when": "12:00 AM (retries 2:00 AM, 4:00 AM)",
@@ -67,7 +77,7 @@
    "when": "5:00 AM (retries 6:30 AM)",
    "frequency": "Daily",
    "mechanism": "launchd com.jalal.fleet-health → ~/PycharmProjects/github-notion-sync/run_health.sh",
-   "what": "24 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
+   "what": "25 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
    "logs": "~/PycharmProjects/github-notion-sync/health.log",
    "notes": "The daily \"is everything working\" check (6:30 AM slot is a no-op retry; all settled before wake-up). One-line ✅ when all healthy; full paste-to-Claude diagnostics when not. Companion daily GitHub Action stamps results onto the GitHub Repos table."
   },
