@@ -492,8 +492,23 @@ FLEET = [
     # Monday morning.
     {"name": "hedgelab (noon hedge check)", "repo": "hedgelab",
      "probe": "gh_run", "workflow": "daily.yml", "max_age_h": 72},
+    # Rebuilt 2026-08-24 to read NUTS's /evaluate instead of its own drifted
+    # tree (it had been reporting BIL while NUTS was TQQQ). It is now SILENT
+    # unless the holding changed, so silence in Telegram is indistinguishable
+    # from death — this probe is the ONLY liveness signal, which is precisely
+    # why the bot has no daily heartbeat message.
+    #
+    # The marker matches BOTH shapes on purpose: a quiet run prints
+    # "NUTS-SIGNAL OK unchanged=…", a change prints "NUTS-SIGNAL CHANGED …".
+    # One `|` covering both, never two patterns that can't both hold (the
+    # reddit-scraper lesson). Neither line can print unless the NUTS fetch
+    # succeeded AND its RSI unit test passed — main.py exits 1 first otherwise
+    # — so this cannot go green on stale or untrusted numbers. Conclusion-only
+    # (what this entry was until now) would have stayed green through the
+    # entire BIL-vs-TQQQ divergence.
     {"name": "trading-algorithm- (30-min signal)", "repo": "trading-algorithm-",
-     "probe": "gh_run", "workflow": "trading_alert.yml", "max_age_h": 72},
+     "probe": "gh_run", "workflow": "trading_alert.yml", "max_age_h": 72,
+     "log_grep": r"NUTS-SIGNAL (OK unchanged=|CHANGED )"},
     # reddit-scraper's commit step is `git commit … || exit 0`, so a run that
     # scrapes nothing still exits GREEN having written nothing — conclusion-only
     # was blind to it. The workflow has TWO legitimate shapes (03:00 scrape,
