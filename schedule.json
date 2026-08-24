@@ -1,5 +1,5 @@
 {
- "updated": "2026-08-24 09:59",
+ "updated": "2026-08-24 10:16",
  "jobs": [
   {
    "key": "com.jalal.aoife-gcal-sync",
@@ -44,12 +44,12 @@
   {
    "key": "com.jalal.daily-trackers",
    "title": "Daily Trackers sheet update",
-   "when": "4:30 AM (retries 5:30 AM)",
+   "when": "3:30 AM (retries 4:30 AM, 5:30 AM)",
    "frequency": "Daily",
    "mechanism": "launchd com.jalal.daily-trackers → ~/PycharmProjects/daily-trackers/run_daily.sh",
    "what": "Appends nightly rows (Zillow Zestimate, Redfin estimate, MND 30-yr mortgage rate, USD-CAD, USD-BDT) to the 'Automa Data' Google Sheet that feeds the Daily Trackers spreadsheet",
    "logs": "~/PycharmProjects/daily-trackers/cron.log",
-   "notes": "4:30 AM + 5:30 AM retry; sheet-level dedupe (a tab already holding today's row is skipped, so the retry only fills gaps); Zillow via local browse CLI in its own session (BROWSE_SESSION=trackers); refuses to start after 6:15 AM; replaced the Automa Chrome-extension workflows 2026-08-24"
+   "notes": "3:30 AM + 4:30/5:30 AM retries (3-slot ladder like dhaka/carmax since 2026-08-24 evening); sheet-level dedupe (a tab already holding today's row is skipped, so retries only fill gaps); Zillow via local browse CLI in its own session (BROWSE_SESSION=trackers); refuses to start after 6:15 AM; replaced the Automa Chrome-extension workflows 2026-08-24"
   },
   {
    "key": "com.jalal.dhaka-flights",
@@ -94,12 +94,12 @@
   {
    "key": "com.jalal.notebooklm-drip",
    "title": "Gemini Notebook podcast drip",
-   "when": "4:00 AM (retries 11:30 PM)",
+   "when": "4:00 AM (retries 12:45 AM)",
    "frequency": "Daily",
    "mechanism": "launchd com.jalal.notebooklm-drip → ~/PycharmProjects/notebooklm-library/run_drip.sh",
    "what": "Fires Audio+Video Overview generation (3+3/day free-tier quota) for book notebooks in ~/PycharmProjects/notebooklm-library/index.tsv; backlog CLEARED 2026-08-09 (all 39 have podcast+video) so it now no-ops in seconds and only picks up newly added books",
    "logs": "~/PycharmProjects/notebooklm-library/drip.log",
-   "notes": "Kaiser burner account via notebooklm-py CLI. Second slot moved 4 PM → 11:30 PM on 2026-08-09: it was a quota hedge that never paid off (04:00 fired 71 generations in 14 runs, 16:00 fired 0 in 13 — reset always landed before 4 AM), and no jobs run in working hours. Now a transient-failure retry, not a quota retry. Idempotent, so a wasted run is free."
+   "notes": "Kaiser burner account via notebooklm-py CLI. Second slot moved 4 PM → 11:30 PM on 2026-08-09 (quota hedge that never paid off; no jobs in working hours), then 11:30 PM → 12:45 AM on 2026-08-24 when Jalal fixed the fleet window as midnight–7 AM. Still a transient-failure retry, not a quota retry (reset always landed before 4 AM). Idempotent, so a wasted run is free."
   },
   {
    "key": "com.jalal.supervisor",
@@ -120,16 +120,6 @@
    "what": "Syncs files to the T7Files volume on the Samsung T7 drive",
    "logs": "/tmp/t7-drive-sync.log",
    "notes": "Fleet health probes its launchd exit code daily"
-  },
-  {
-   "key": "cron:0 8 * * * cd \"/Users/jalalchowdhury/PycharmProjects/Dhaka flights\" && /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3 run_daily.py >> \"/Users/jalalchowdhury/PycharmProjects/Dhaka flights/cron.log\" 2>&1",
-   "title": "Legacy Dhaka cron (8 AM)",
-   "when": "8:00 AM",
-   "frequency": "Legacy",
-   "mechanism": "crontab → cd \"~/PycharmProjects/Dhaka flights\" && /Library/Developer/CommandLineTools/Library/Frameworks/Pytho",
-   "what": "Pre-launchd leftover of the Dhaka scraper schedule",
-   "logs": "~/PycharmProjects/Dhaka flights/cron.log",
-   "notes": "Harmless — .last_run_date stamp makes it log \"Already ran today, skipping\" — but it bypasses run_daily.sh's 5:30 AM guard on failure days. Candidate for removal (crontab -e)."
   },
   {
    "key": "timemachine",
