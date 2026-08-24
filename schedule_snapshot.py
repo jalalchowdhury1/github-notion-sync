@@ -56,7 +56,7 @@ CATALOG = {
         "notes": "Fleet health probes its launchd exit code daily"},
     "com.jalal.fleet-health": {
         "title": "Fleet health check (all repos)",
-        "what": "24 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
+        "what": "25 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
         "logs": "~/PycharmProjects/github-notion-sync/health.log",
         "notes": 'The daily "is everything working" check (6:30 AM slot is a no-op retry; all settled before wake-up). One-line ✅ when all healthy; full paste-to-Claude diagnostics when not. Companion daily GitHub Action stamps results onto the GitHub Repos table.'},
     "com.jalal.notebooklm-drip": {
@@ -89,6 +89,11 @@ CATALOG = {
         "what": "One-way nightly publish of the aoifes-schedule planner (weekly template, dated one-offs, travel/off periods) into the shared 'Aoife's School' Google Calendar",
         "logs": "~/Library/Logs/aoife-gcal-sync.log",
         "notes": "4:10 AM, between the 3:40 backup and the 5:00 fleet check. One-way only — events say 'do not edit here', and the sync overwrites anything edited in Google Calendar. It touches ONLY events carrying its own extendedProperties.private.aoifeSync=v1, so the family's own entries on that calendar are safe. Prints one of three 'GCAL-SYNC WAITING …' markers and exits 0 while the Google-side setup is pending, one per step in the order they clear: calendar-api-disabled (enable Google Calendar API in cloud project hoa-tracker-494016 — the service account cannot enable it itself), calendar-not-shared-yet (a calendar named exactly \"Aoife's School\" shared with claude-sheets@hoa-tracker-494016.iam.gserviceaccount.com), write-permission (shared as 'See all event details' instead of 'Make changes to events'). The fleet probe greps 'GCAL-SYNC OK' with a grace period to 2026-08-20, so a still-unshared calendar gets reported rather than sitting silent."},
+    "com.jalal.daily-trackers": {
+        "title": "Daily Trackers sheet update",
+        "what": "Appends nightly rows (Zillow Zestimate, Redfin estimate, MND 30-yr mortgage rate, USD-CAD, USD-BDT) to the 'Automa Data' Google Sheet that feeds the Daily Trackers spreadsheet",
+        "logs": "~/PycharmProjects/daily-trackers/cron.log",
+        "notes": "4:30 AM + 5:30 AM retry; sheet-level dedupe (a tab already holding today's row is skipped, so the retry only fills gaps); Zillow via local browse CLI in its own session (BROWSE_SESSION=trackers); refuses to start after 6:15 AM; replaced the Automa Chrome-extension workflows 2026-08-24"},
     "timemachine": {
         "title": "Time Machine backup",
         "what": "Backs up the Mac to the encrypted T7Backup volume on the Samsung T7",

@@ -564,6 +564,22 @@ FLEET = [
      "log_path": "~/Library/Logs/aoife-gcal-sync.log",
      "log_grep": r"GCAL-SYNC OK {date}",
      "live_since": "2026-08-20"},
+    # Added 2026-08-24 with the daily-trackers deploy (launchd
+    # com.jalal.daily-trackers, run_daily.sh, 4:30 AM + 5:30 AM retry).
+    # Appends five metric rows (Zillow Zestimate, Redfin estimate, MND 30-yr
+    # mortgage rate, USD-CAD, USD-BDT) to the "Automa Data" Google Sheet that
+    # the Daily Trackers spreadsheet reads live. `TRACKERS_OK 5/5`
+    # specifically: a partial night prints `TRACKERS_FAIL [...]` instead
+    # (per-metric isolation still writes what it can), and a bounds-rejected
+    # value is a FAIL by design — a wrong number in that sheet is worse than a
+    # missing one. The 4:30 marker exists well before the 5:00 check; if only
+    # the 5:30 retry succeeds, the 6:30 slot sees it (the {date} window is
+    # extra slack, not the mechanism).
+    {"name": "daily-trackers (nightly Automa Data sheet update)", "repo": "daily-trackers",
+     "probe": "log_marker",
+     "log_path": "~/PycharmProjects/daily-trackers/cron.log",
+     "log_grep": r"TRACKERS_OK 5/5 date={date}",
+     "live_since": "2026-08-25"},
 ]
 
 
