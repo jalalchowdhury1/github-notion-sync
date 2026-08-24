@@ -19,7 +19,7 @@ sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
   `.fleet_health.lock` (gitignored; locks >2 h old are treated as crashed
   and ignored); manual `python3 fleet_health.py` always runs. Wrapper
   `run_health.sh` also truncates `health.log` in place past ~400 KB —
-  gitignored). 25 data-level probes (local launchd stamps/exit codes, `gh`
+  gitignored). 28 data-level probes (local launchd stamps/exit codes, `gh`
   runs with log-grep data markers, live-site checks). `log_grep` takes one
   regex or a list (ALL must match); assert the *pipeline ran* rather than that
   a count was nonzero, or a legitimately quiet source false-alarms at 5 AM.
@@ -212,10 +212,35 @@ Actions). Never hardcode any of them — the repo is **public**.
 | `ANTHROPIC_API_KEY` | optional | Anthropic API key for Claude-generated descriptions. If absent, descriptions fall back to README/GitHub-description heuristics. |
 | `NOTION_SCHEDULE_DB_ID` | yes (health.yml only) | UUID of the **Mac Mini Schedule** Notion database (under 💻 Tech & Automation). Used only by `notion_schedule.py`. |
 | `TELEGRAM_TOKEN` / `TELEGRAM_CHAT_ID` | strongly recommended (health.yml only) | Lets `notion_health.py` send the dead-Mac / undelivered-digest alert from the cloud. Same bot+chat the Mac uses (`~/PycharmProjects/Dhaka flights/.env`). If unset, the watchdog still fails the run but only GitHub's failure email carries it. |
+| `VOICES_BOT_TOKEN` | Mac-side only (`run_health.sh`) | @MainJ_bot's own token, for the `telegram_webhook` probe. Exported by NAME in `run_health.sh` — **never** `source` voices-bot/.env wholesale, it defines `TELEGRAM_TOKEN` too and would clobber the digest sender, making fleet-health report on itself through the wrong bot. |
 
 ---
 
 ## 4. Gotchas / hard rules
+
+- **`telegram_webhook` probe (added 2026-08-24).** A webhook bot has no
+  scheduled run to grade, so "did it run" is the wrong question. It dies two
+  independent ways and **neither probe catches the other's failure**, which is
+  why `voices-bot` is rostered twice:
+  1. the Vercel function stops serving → `web_200`;
+  2. Telegram stops pointing at it → `telegram_webhook`.
+  A dead function still has a valid webhook registration, and an unhooked bot
+  still returns 200 on a GET. Case 2 is not hypothetical: deactivating the old
+  n8n `MAIN` workflow made n8n call `deleteWebhook` on @MainJ_bot and wipe the
+  Vercel registration — twice in one afternoon. The bot went silently deaf
+  while every "is it up?" signal stayed green.
+  The two entries also differ in `repo`: the webhook one is `None` **on
+  purpose**, because `notion_health.py` stamps one row per repo and the LAST
+  result wins — a healthy `web_200` would paint the `voices-bot` row ✅ while
+  the bot was deaf. Same trap as the dhaka-hotels/dhaka-flights pair.
+
+- **`mental-models` marker is un-fakeable by design.** Its workflow exposes a
+  `dry_run` input, so a manual test run could otherwise satisfy the probe while
+  the nightly cron was dead. `MENTAL-MODELS OK n/3 date=… index=A->B` is printed
+  only when the brief was *delivered* AND the rotation index *advanced*;
+  `--dry-run` and `--no-telegram` deliberately cannot print it (7 tests in
+  `mental-models/tests/test_marker.py` assert this). When adding any probe to a
+  repo whose workflow has a manual dry-run mode, check the same thing.
 
 - **A green check must prove the PRIMARY path ran — a fallback satisfying it is a
   false negative.** This is the rule the fleet exists to enforce, learned the hard

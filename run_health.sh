@@ -17,6 +17,13 @@ fi
 # Telegram creds shared with the trip tracker (same chat)
 set -a; source "/Users/jalalchowdhury/PycharmProjects/Dhaka flights/.env" 2>/dev/null; set +a
 
+# voices-bot's OWN bot token (@MainJ_bot), read for the telegram_webhook probe.
+# Deliberately NOT sourced with `set -a; source .../voices-bot/.env` — that file
+# also defines TELEGRAM_TOKEN and would clobber the digest sender above, so
+# fleet-health would report on itself through the wrong bot. Extracted by name.
+export VOICES_BOT_TOKEN="$(grep '^TELEGRAM_TOKEN=' \
+  /Users/jalalchowdhury/PycharmProjects/voices-bot/.env 2>/dev/null | cut -d= -f2-)"
+
 # From 6 AM on this invocation is the retry slot: fleet_health.py exits early
 # if the 5 AM run already sent today's digest, or backs off if that run is
 # still going (lock file). (Manual runs: call `python3 fleet_health.py`

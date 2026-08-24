@@ -355,11 +355,45 @@ def probe_log_marker(log_path, log_grep, live_since=None, **_):
     return True, f"marker present in {log_path}"
 
 
+def probe_telegram_webhook(token_env, expect_url, **_):
+    """A Telegram bot's webhook still points where we think it does.
+
+    Added 2026-08-24 after voices-bot went silently deaf: deactivating the old
+    n8n `MAIN` workflow made n8n call deleteWebhook on @MainJ_bot, which wiped
+    the Vercel registration. The function was still deployed and still returned
+    200 on a GET, so a web_200 probe would have stayed green while every
+    message the bot received went nowhere. This is the probe that catches it.
+
+    Also surfaces Telegram's own last_error_message — the earliest warning that
+    a deployed-but-erroring function is dropping updates.
+    """
+    token = os.environ.get(token_env)
+    if not token:
+        return False, f"{token_env} not set (see run_health.sh)"
+    url = f"https://api.telegram.org/bot{token}/getWebhookInfo"
+    with urllib.request.urlopen(urllib.request.Request(url), timeout=30) as r:
+        body = json.load(r)
+    if not body.get("ok"):
+        return False, f"getWebhookInfo failed: {str(body)[:120]}"
+    info = body.get("result", {})
+    got = info.get("url") or ""
+    pending = info.get("pending_update_count", 0)
+    err = info.get("last_error_message")
+    if got != expect_url:
+        return False, (f"webhook is {got or '(EMPTY — bot is deaf)'}, "
+                       f"expected {expect_url}")
+    detail = f"webhook registered, {pending} pending"
+    if err:
+        return False, f"{detail}, last_error={err!r}"
+    return True, detail
+
+
 PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
              "local_stamp": probe_local_stamp, "launchd_exit": probe_launchd_exit,
              "file_mtime": probe_file_mtime, "gh_run": probe_gh_run,
              "planner_backup": probe_planner_backup,
-             "log_marker": probe_log_marker}
+             "log_marker": probe_log_marker,
+             "telegram_webhook": probe_telegram_webhook}
 
 # ── the fleet roster ────────────────────────────────────────────────────────
 # repo: GitHub repo name for the Notion row (None = not a repo, Telegram-only).
@@ -582,6 +616,32 @@ FLEET = [
      "log_path": "~/PycharmProjects/daily-trackers/cron.log",
      "log_grep": r"TRACKERS_OK 5/5 date={date}",
      "live_since": "2026-08-25"},
+    # ── ported off n8n 2026-08-24 ───────────────────────────────────────────
+    # mental-models: cron 05:10 UTC (00:10 EST / 01:10 EDT), so by the 09:00 UTC
+    # check a good night's run is ~4 h old and ONE missed night reads ~28 h.
+    # 24 catches the first miss with ~20 h of slack over anything observed.
+    #
+    # The marker is printed ONLY when the brief was delivered AND the rotation
+    # index advanced — `--dry-run` and `--no-telegram` deliberately cannot
+    # print it. That matters here because dry_run is a workflow_dispatch input:
+    # without that rule, running a manual test would paint the row ✅ while the
+    # nightly cron was dead. index=A->B in the marker is the proof of real work;
+    # a run that sent a message but did not advance is NOT a healthy night.
+    {"name": "mental-models (nightly 3 models + audio)", "repo": "mental-models",
+     "probe": "gh_run", "workflow": "daily.yml", "max_age_h": 24,
+     "log_grep": r"MENTAL-MODELS OK [1-3]/3 date=\d{4}-\d{2}-\d{2} index=\d+->\d+"},
+    # voices-bot is a WEBHOOK, not a cron — there is no scheduled run to grade,
+    # so "did it run" is the wrong question. The two ways it dies silently are
+    # (a) the Vercel function stops serving and (b) Telegram stops pointing at
+    # it. Neither probe catches the other's failure, so both are rostered:
+    # a dead function still has a valid webhook registration, and an unhooked
+    # bot still serves 200 on a GET.
+    {"name": "voices-bot (function serving)", "repo": "voices-bot",
+     "probe": "web_200", "url": "https://voices-bot.vercel.app/api/webhook"},
+    # (b) — the one that actually happened, twice, on 2026-08-24.
+    {"name": "voices-bot (telegram webhook registered)", "repo": None,
+     "probe": "telegram_webhook", "token_env": "VOICES_BOT_TOKEN",
+     "expect_url": "https://voices-bot.vercel.app/api/webhook"},
 ]
 
 
@@ -589,7 +649,7 @@ def _cfg_line(item) -> str:
     """One-line probe config so a failure block is self-describing."""
     keys = ("probe", "repo", "workflow", "url", "path", "label",
             "json_key", "max_age_h", "log_grep", "dest_dir", "names",
-            "log_path", "live_since")
+            "log_path", "live_since", "token_env", "expect_url")
     def fmt(v):
         return " + ".join(v) if isinstance(v, list) else v
     return " · ".join(f"{k}={fmt(item[k])}"
