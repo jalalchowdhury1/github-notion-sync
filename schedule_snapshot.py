@@ -34,6 +34,11 @@ WEEKDAYS = {0: "Sunday", 1: "Monday", 2: "Tuesday", 3: "Wednesday",
 
 # ── human-facing text for known jobs (key = launchd label / special id) ──────
 CATALOG = {
+    "com.jalal.nuts-radar": {
+        "title": "NUTS Catalyst Radar — daily catalysts",
+        "what": "Rebuilds catalysts.json for nuts-radar.vercel.app from official calendars (FRED release dates, the Fed's FOMC calendar, Nasdaq earnings), deploys it, then Telegrams the day's events plus the link to the 📡 alerts chat",
+        "logs": "~/PycharmProjects/nuts-radar/job/run.log",
+        "notes": "05:45, after the 5:00 fleet check and before the 7 AM wake-up. Deterministic on purpose — no language model touches it, because an invented earnings date on a page read before the open is worse than an empty section. Build → deploy → message, in that order, so the link already shows today's rows. A failed build leaves yesterday's file and sends nothing; fleet-health's nuts_radar probe then calls the staleness (limit 30 h, which tolerates the 5:00 check seeing a 23 h-old file). deploy.sh always content-stamps the assets first — a cached assets/tree.js would self-check the OLD tree shape and pass silently"},
     "com.jalal.dhaka-flights": {
         "title": "Dhaka flights scraper",
         "what": "Scrapes Google Flights (BOS→DAC/BKK + Singapore-detour variant), publishes results site, Telegrams on crash",

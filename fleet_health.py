@@ -504,13 +504,14 @@ def probe_nuts_radar(url, repo_dir, catalysts_url=None, max_cat_age_h=30, **_):
       1. the site serves 200 (transport — cheap, and it is the delivery path
          for the 6 AM Telegram link)
       2. selfcheck.js exits 0 (the tree shape still matches NUTS)
-      3. catalysts.json freshness — ONLY once the daily gather is live. While
-         `generated_at` is null the file is the hand-seeded placeholder and is
-         deliberately not graded.
+      3. catalysts.json freshness. The builder runs at 05:45 daily, so at the
+         5:00 check the file is ~23 h old and at the 6:30 retry it is fresh;
+         30 h is the limit, which passes a healthy night and fails a missed one.
+         A null `generated_at` is now a FAILURE, not a shrug — it means the
+         file was never built by job/build_catalysts.py.
 
-    TODO when job/ ships: drop the null-generated_at exemption in step 3, so a
-    dead gather is a failure instead of a shrug. Tracked in the radar's
-    AGENTS.md section 8.
+    Deliberately NOT a launchd_exit probe: exit 0 would only prove the wrapper
+    woke up. Grading catalysts.json grades the thing that matters.
     """
     ok, detail = probe_web_200(url)
     if not ok:
@@ -541,13 +542,17 @@ def probe_nuts_radar(url, repo_dir, catalysts_url=None, max_cat_age_h=30, **_):
         except Exception as exc:                       # noqa: BLE001
             return False, f"catalysts.json unreadable: {exc}"
         gen = cj.get("generated_at")
-        if gen:
-            age = _age_hours(_parse_stamp(gen).timestamp())
-            if age > max_cat_age_h:
-                return False, (f"catalysts stale: generated_at={gen} "
-                               f"({age:.0f}h, limit {max_cat_age_h}h) — the "
-                               f"5:15 gather has not landed")
-            cat = f"{len(cj.get('items') or [])} catalysts ({age:.0f}h old)"
+        if not gen:
+            return False, "catalysts.json has no generated_at — never built by job/"
+        age = _age_hours(_parse_stamp(gen).timestamp())
+        if age > max_cat_age_h:
+            return False, (f"catalysts stale: generated_at={gen} "
+                           f"({age:.0f}h, limit {max_cat_age_h}h) — the 05:45 "
+                           f"build has not landed")
+        miss = cj.get("missing") or []
+        cat = f"{len(cj.get('items') or [])} catalysts ({age:.0f}h old)"
+        if miss:
+            cat += f" · {len(miss)} source issue(s): {miss[0][:90]}"
 
     return True, f"tree shape matches NUTS · book {book} · {cat}"
 
