@@ -19,7 +19,7 @@ sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
   `.fleet_health.lock` (gitignored; locks >2 h old are treated as crashed
   and ignored); manual `python3 fleet_health.py` always runs. Wrapper
   `run_health.sh` also truncates `health.log` in place past ~400 KB —
-  gitignored). 28 data-level probes (local launchd stamps/exit codes, `gh`
+  gitignored). 30 data-level probes (local launchd stamps/exit codes, `gh`
   runs with log-grep data markers, live-site checks). `log_grep` takes one
   regex or a list (ALL must match); assert the *pipeline ran* rather than that
   a count was nonzero, or a legitimately quiet source false-alarms at 5 AM.
@@ -217,6 +217,29 @@ Actions). Never hardcode any of them — the repo is **public**.
 ---
 
 ## 4. Gotchas / hard rules
+
+- **`nuts` probe (added 2026-08-25) — grade the SIGNAL, not the transport.**
+  NUTS models a live ~$178k Composer symphony, and until 2026-08-25 it was the
+  only unwatched link in a chain whose watched ends were green: both consumers
+  (`trading-algorithm-`, voices-bot `/nuts`) read its `/evaluate` API and alert
+  only on CHANGE, so silence is their normal output. If NUTS freezes, the API
+  keeps serving HTTP 200 with a stale cached body, the consumers see "no
+  change" and stay quiet, and their green rows prove only that *they* woke up.
+  A frozen signal is indistinguishable from a quiet market — which is why
+  `web_200` here would be decoration, and `probe_nuts` grades the payload:
+  `unit_test.pass` (NUTS's own RSI self-check; fail = DO NOT TRADE = hard red),
+  `download_errors` empty, worst `data_quality[*].last_date` ≤ 5 d, and
+  `evaluated_at` ≤ 96 h. The threshold table (measured, in the probe docstring)
+  is calendar-based on purpose: the first draft's 4 d / 80 h sat *below* the
+  Monday-holiday / Good-Friday row (84.4 h) and would have false-alarmed ~6
+  mornings a year. Hard rules: **plain GET only, NEVER `?force=true`** (a bare
+  GET returns the cached body at zero cost to NUTS — see the read-only rule in
+  the memory file `reference-nuts-algo`); **never modify the NUTS repo from
+  here**; the site probe targets `nuts-sooty.vercel.app`, NOT `nuts.vercel.app`
+  (an unrelated old app that would serve a cheerful 200 forever). Two entries
+  for the same reason as voices-bot below — API and frontend fail
+  independently — and the site entry's `repo` is `None` for the same
+  last-row-wins trap.
 
 - **`telegram_webhook` probe (added 2026-08-24).** A webhook bot has no
   scheduled run to grade, so "did it run" is the wrong question. It dies two

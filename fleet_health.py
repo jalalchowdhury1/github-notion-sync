@@ -388,12 +388,105 @@ def probe_telegram_webhook(token_env, expect_url, **_):
     return True, detail
 
 
+def probe_nuts(url, max_data_age_d=5, max_eval_age_h=96, **_):
+    """NUTS /evaluate — the SIGNAL behind trading-algorithm- and voices-bot /nuts.
+
+    Why this probe has to exist (added 2026-08-25): trading-algorithm- reads this
+    endpoint and alerts ONLY on a holding change, so silence is its normal
+    output. If NUTS freezes, /evaluate keeps returning HTTP 200 with a stale
+    cached body, the consumer sees no change and stays quiet, and its green
+    gh_run row proves only that the Action woke up. A frozen signal was
+    therefore indistinguishable from a quiet market, on the model behind a live
+    ~$178k Composer symphony. `web_200` would have reproduced exactly that blind
+    spot, which is why this grades the payload instead.
+
+    Plain GET only. NEVER add ?force=true — a bare GET returns the cached body
+    the website shows, at zero cost to NUTS (see reference-nuts-algo).
+
+    Four data-level assertions, most-serious first:
+      1. unit_test.pass — NUTS's own RSI self-check. Per reference-nuts-algo,
+         if this fails the standing instruction is DO NOT TRADE, so it is a
+         hard failure here even when everything else looks fine.
+      2. download_errors empty — a partial price fetch silently changes which
+         branch wins.
+      3. data_quality[*].last_date — the last COMPLETED trading day, which is
+         the freshness signal that actually matters: it catches a signal being
+         computed on stale prices.
+      4. evaluated_at — backstop for a wholly dead EventBridge cron.
+
+    THRESHOLDS (measured 2026-08-25, against a 5 AM check and NUTS's last
+    recompute of a session at ~16:35 ET). Both limits are graded on the plain
+    calendar rather than a market calendar, so both must absorb the longest
+    legitimate quiet stretch:
+
+        scenario                          eval_age_h   data_age_d
+        normal weekday (Mon → Tue 5am)          12.4          1.2
+        long weekend   (Fri → Mon 5am)          60.4          3.2
+        Monday holiday (Fri → Tue 5am)          84.4          4.2
+        Good Friday    (Thu → Mon 5am)          84.4          4.2
+
+    The first draft used 4 d / 80 h, which sits BELOW the holiday row — it would
+    have false-alarmed on every Monday holiday and Good Friday, ~6 times a year,
+    which is how a digest gets ignored. 5 d / 96 h clears the worst legitimate
+    case with real slack. The cost is one extra day before a total outage is
+    called, and that is cheap: an outage persists, so the next morning catches
+    it, while assertions 1 and 2 are time-independent and catch the genuinely
+    dangerous silent-corruption cases on the very first run.
+
+    Deliberately NOT graded: final_result's VALUE. Which ticker NUTS holds is a
+    trading decision, not a health fact — trading-algorithm- owns alerting on
+    that. This only asserts the field is populated at all.
+    """
+    with urllib.request.urlopen(url, timeout=45) as r:
+        if r.status != 200:
+            return False, f"HTTP {r.status}"
+        data = json.loads(r.read().decode())
+
+    ut = data.get("unit_test") or {}
+    if not ut.get("pass"):
+        return False, (f"unit_test FAILED (expected {ut.get('expected')!r}, "
+                       f"calculated {ut.get('calculated')!r}) — DO NOT TRADE")
+
+    errs = data.get("download_errors")
+    if errs:
+        return False, f"download_errors: {json.dumps(errs)[:200]}"
+
+    dq = data.get("data_quality") or {}
+    dates = {t: v.get("last_date") for t, v in dq.items()
+             if isinstance(v, dict) and v.get("last_date")}
+    if not dates:
+        return False, "no data_quality[*].last_date in payload"
+    worst_t = min(dates, key=lambda t: _parse_stamp(dates[t]).timestamp())
+    worst = dates[worst_t]
+    data_age_d = _age_hours(_parse_stamp(worst).timestamp()) / 24
+    if data_age_d > max_data_age_d:
+        return False, (f"stale prices: {worst_t} last_date={worst} "
+                       f"({data_age_d:.1f}d, limit {max_data_age_d}d)")
+
+    raw_eval = data.get("evaluated_at")
+    if not raw_eval:
+        return False, "no evaluated_at in payload"
+    eval_age_h = _age_hours(_parse_stamp(raw_eval).timestamp())
+    if eval_age_h > max_eval_age_h:
+        return False, (f"recompute stalled: evaluated_at={raw_eval} "
+                       f"({eval_age_h:.0f}h, limit {max_eval_age_h}h)")
+
+    holding = data.get("final_result")
+    if not holding:
+        return False, f"final_result empty (final_source={data.get('final_source')!r})"
+
+    return True, (f"{holding} via {data.get('final_source')} · unit_test pass · "
+                  f"prices {worst} ({data_age_d:.1f}d, {len(dates)} tickers) · "
+                  f"eval {eval_age_h:.0f}h old")
+
+
 PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
              "local_stamp": probe_local_stamp, "launchd_exit": probe_launchd_exit,
              "file_mtime": probe_file_mtime, "gh_run": probe_gh_run,
              "planner_backup": probe_planner_backup,
              "log_marker": probe_log_marker,
-             "telegram_webhook": probe_telegram_webhook}
+             "telegram_webhook": probe_telegram_webhook,
+             "nuts": probe_nuts}
 
 # ── the fleet roster ────────────────────────────────────────────────────────
 # repo: GitHub repo name for the Notion row (None = not a repo, Telegram-only).
@@ -657,6 +750,22 @@ FLEET = [
     {"name": "voices-bot (telegram webhook registered)", "repo": None,
      "probe": "telegram_webhook", "token_env": "VOICES_BOT_TOKEN",
      "expect_url": "https://voices-bot.vercel.app/api/webhook"},
+    # NUTS — rostered 2026-08-25 after Jalal spotted it missing. It is the
+    # highest-consequence thing in the fleet (it models a live ~$178k Composer
+    # symphony) and was the ONLY unwatched link in a chain whose watched end was
+    # reporting green: trading-algorithm- ✅ + voices-bot ✅ both sit downstream
+    # of this endpoint, and both go quiet — not red — when it freezes.
+    # Two probes because they fail independently, same reasoning as voices-bot:
+    # the API is what the consumers actually read, while the site is what Jalal
+    # reads. A dead Vercel frontend leaves the API serving perfectly, and a
+    # frozen API leaves the frontend rendering a stale page at HTTP 200.
+    {"name": "NUTS (trading signal API)", "repo": "NUTS",
+     "probe": "nuts",
+     "url": "https://ju9t7h8903.execute-api.us-east-1.amazonaws.com/evaluate"},
+    # nuts-sooty, NOT nuts.vercel.app — that is an unrelated old app that would
+    # serve a cheerful 200 forever (see reference-nuts-algo).
+    {"name": "NUTS (visualizer site)", "repo": None,
+     "probe": "web_200", "url": "https://nuts-sooty.vercel.app"},
 ]
 
 
