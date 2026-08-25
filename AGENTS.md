@@ -19,7 +19,7 @@ sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
   `.fleet_health.lock` (gitignored; locks >2 h old are treated as crashed
   and ignored); manual `python3 fleet_health.py` always runs. Wrapper
   `run_health.sh` also truncates `health.log` in place past ~400 KB —
-  gitignored). 30 data-level probes (local launchd stamps/exit codes, `gh`
+  gitignored). 31 data-level probes (local launchd stamps/exit codes, `gh`
   runs with log-grep data markers, live-site checks). `log_grep` takes one
   regex or a list (ALL must match); assert the *pipeline ran* rather than that
   a count was nonzero, or a legitimately quiet source false-alarms at 5 AM.
@@ -240,6 +240,25 @@ Actions). Never hardcode any of them — the repo is **public**.
   for the same reason as voices-bot below — API and frontend fail
   independently — and the site entry's `repo` is `None` for the same
   last-row-wins trap.
+
+- **`nuts_radar` probe (added 2026-08-25) — grade the TREE SHAPE, not uptime.**
+  `nuts-radar.vercel.app` answers "if this condition crosses, what does the book
+  become?" by re-walking a copy of NUTS's tree *shape* (`assets/tree.js`; it holds
+  no thresholds — every number is read live from `/evaluate`). That copy is the
+  whole risk: if NUTS's trees are edited, a stale shape keeps confidently
+  reporting the OLD destinations — the same silent divergence that had
+  trading-algorithm- reporting BIL while NUTS was TQQQ. The page self-checks on
+  every load and hides all consequences on mismatch, but **nobody is looking at
+  the page at 5 AM**, so `web_200` here would be decoration.
+  So the probe shells out to the radar repo's own `job/selfcheck.js`, which
+  replays that shape against a live `/evaluate` and asserts it reproduces NUTS's
+  own frontrunners / ftlt / blackswan results; exit 1 = drift. **Running the
+  repo's script instead of reimplementing the walk here is deliberate — a third
+  copy of the tree would be a third thing to drift.** It needs `node` on PATH
+  (raises, so it retries rather than false-alarming) and the repo present on the
+  Mac at `repo_dir`. `catalysts.json` freshness is asserted **only once
+  `generated_at` is non-null**, because the file is a hand-seeded placeholder
+  until the 5:15 gather ships — when `job/` lands, drop that exemption.
 
 - **`telegram_webhook` probe (added 2026-08-24).** A webhook bot has no
   scheduled run to grade, so "did it run" is the wrong question. It dies two

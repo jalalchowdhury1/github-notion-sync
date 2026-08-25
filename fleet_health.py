@@ -480,13 +480,86 @@ def probe_nuts(url, max_data_age_d=5, max_eval_age_h=96, **_):
                   f"eval {eval_age_h:.0f}h old")
 
 
+def probe_nuts_radar(url, repo_dir, catalysts_url=None, max_cat_age_h=30, **_):
+    """nuts-radar — grade the TREE SHAPE, not the page returning 200.
+
+    The radar answers "if this condition crosses, what does the book become?"
+    by re-walking a copy of NUTS's tree shape held in `assets/tree.js`. That
+    copy is the whole risk: if NUTS's trees are ever edited, a stale shape
+    would keep confidently reporting the OLD destinations — the same class of
+    silent divergence that had trading-algorithm- reporting BIL (cash) while
+    NUTS was TQQQ (3x long). The page defends itself by self-checking on every
+    load and hiding all consequences on mismatch, but nobody is looking at the
+    page at 5 AM, so `web_200` here would be pure decoration.
+
+    So this runs the repo's OWN checker, `job/selfcheck.js`, which replays
+    assets/tree.js against a live /evaluate and asserts it reproduces NUTS's
+    own frontrunners / ftlt / blackswan results. Exit 1 = the shape has drifted.
+    Running the repo's script rather than reimplementing the walk here is
+    deliberate: a third copy of the tree would be a third thing to drift.
+
+    Plain GET inside the script — never ?force=true (see reference-nuts-algo).
+
+    Three assertions:
+      1. the site serves 200 (transport — cheap, and it is the delivery path
+         for the 6 AM Telegram link)
+      2. selfcheck.js exits 0 (the tree shape still matches NUTS)
+      3. catalysts.json freshness — ONLY once the daily gather is live. While
+         `generated_at` is null the file is the hand-seeded placeholder and is
+         deliberately not graded.
+
+    TODO when job/ ships: drop the null-generated_at exemption in step 3, so a
+    dead gather is a failure instead of a shrug. Tracked in the radar's
+    AGENTS.md section 8.
+    """
+    ok, detail = probe_web_200(url)
+    if not ok:
+        return False, f"site: {detail}"
+
+    script = os.path.join(os.path.expanduser(repo_dir), "job", "selfcheck.js")
+    if not os.path.exists(script):
+        return False, f"selfcheck.js missing at {script}"
+    try:
+        p = subprocess.run(["node", script], capture_output=True, text=True,
+                           timeout=90, cwd=os.path.dirname(script))
+    except FileNotFoundError:
+        raise RuntimeError("node not on PATH for fleet-health")
+    if p.returncode != 0:
+        fails = [ln.strip() for ln in p.stdout.splitlines() if "FAIL" in ln]
+        return False, ("TREE SHAPE DRIFTED from NUTS — consequences on the "
+                       "radar are hidden until assets/tree.js is re-derived "
+                       "from NUTS/backend/trees/. " + (" · ".join(fails)
+                       or (p.stderr or "").strip()[:200]))
+    book = next((ln.split("=", 1)[1].strip() for ln in p.stdout.splitlines()
+                 if ln.strip().startswith("book =")), "?")
+
+    cat = "catalysts not live yet"
+    if catalysts_url:
+        try:
+            with urllib.request.urlopen(catalysts_url, timeout=30) as r:
+                cj = json.loads(r.read().decode())
+        except Exception as exc:                       # noqa: BLE001
+            return False, f"catalysts.json unreadable: {exc}"
+        gen = cj.get("generated_at")
+        if gen:
+            age = _age_hours(_parse_stamp(gen).timestamp())
+            if age > max_cat_age_h:
+                return False, (f"catalysts stale: generated_at={gen} "
+                               f"({age:.0f}h, limit {max_cat_age_h}h) — the "
+                               f"5:15 gather has not landed")
+            cat = f"{len(cj.get('items') or [])} catalysts ({age:.0f}h old)"
+
+    return True, f"tree shape matches NUTS · book {book} · {cat}"
+
+
 PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
              "local_stamp": probe_local_stamp, "launchd_exit": probe_launchd_exit,
              "file_mtime": probe_file_mtime, "gh_run": probe_gh_run,
              "planner_backup": probe_planner_backup,
              "log_marker": probe_log_marker,
              "telegram_webhook": probe_telegram_webhook,
-             "nuts": probe_nuts}
+             "nuts": probe_nuts,
+             "nuts_radar": probe_nuts_radar}
 
 # ── the fleet roster ────────────────────────────────────────────────────────
 # repo: GitHub repo name for the Notion row (None = not a repo, Telegram-only).
@@ -766,6 +839,13 @@ FLEET = [
     # serve a cheerful 200 forever (see reference-nuts-algo).
     {"name": "NUTS (visualizer site)", "repo": None,
      "probe": "web_200", "url": "https://nuts-sooty.vercel.app"},
+    # nuts-radar's risk is not uptime, it is a stale copy of NUTS's tree shape
+    # silently reporting the wrong consequences — so this runs the repo's own
+    # selfcheck.js against live /evaluate. See probe_nuts_radar.
+    {"name": "nuts-radar (catalyst board)", "repo": "nuts-radar",
+     "probe": "nuts_radar", "url": "https://nuts-radar.vercel.app",
+     "repo_dir": "~/PycharmProjects/nuts-radar",
+     "catalysts_url": "https://nuts-radar.vercel.app/catalysts.json"},
 ]
 
 
