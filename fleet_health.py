@@ -480,7 +480,7 @@ def probe_nuts(url, max_data_age_d=5, max_eval_age_h=96, **_):
                   f"eval {eval_age_h:.0f}h old")
 
 
-def probe_nuts_radar(url, repo_dir, catalysts_url=None, max_cat_age_h=30, **_):
+def probe_nuts_radar(url, repo_dir, catalysts_url=None, max_cat_age_h=27, **_):
     """nuts-radar — grade the TREE SHAPE, not the page returning 200.
 
     The radar answers "if this condition crosses, what does the book become?"
@@ -504,9 +504,13 @@ def probe_nuts_radar(url, repo_dir, catalysts_url=None, max_cat_age_h=30, **_):
       1. the site serves 200 (transport — cheap, and it is the delivery path
          for the 6 AM Telegram link)
       2. selfcheck.js exits 0 (the tree shape still matches NUTS)
-      3. catalysts.json freshness. The builder runs at 05:45 daily, so at the
-         5:00 check the file is ~23 h old and at the 6:30 retry it is fresh;
-         30 h is the limit, which passes a healthy night and fails a missed one.
+      3. catalysts.json freshness. The builder runs at 04:30 — deliberately
+         BEFORE this 5:00 check, so a failed build is caught the same morning
+         rather than ~23 h later. (It was 05:45 first, which put it after the
+         check and made the 6:30 retry slot useless for it, since fleet_health
+         exits early once the day's digest has gone out.) A healthy file is
+         ~30 min old at check time; 27 h is the limit, which fails a single
+         missed night.
          A null `generated_at` is now a FAILURE, not a shrug — it means the
          file was never built by job/build_catalysts.py.
 
