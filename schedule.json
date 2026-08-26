@@ -1,5 +1,5 @@
 {
- "updated": "2026-08-24 10:16",
+ "updated": "2026-08-25 21:29",
  "jobs": [
   {
    "key": "com.jalal.aoife-gcal-sync",
@@ -92,6 +92,16 @@
    "notes": "KeepAlive restarts it if it dies; starts on login/reboot"
   },
   {
+   "key": "com.jalal.mac-audit",
+   "title": "Mac security audit — nightly posture diff",
+   "when": "3:10 AM (retries 4:10 AM)",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.mac-audit → ~/PycharmProjects/mac-audit/run_daily.sh",
+   "what": "Snapshots ~24 groups of security-relevant facts about this Mac (SIP/FileVault/Gatekeeper/firewall, MDM, LaunchDaemons + LaunchAgents, privileged helpers, login items, cron, LAN-exposed listeners, DNS, /etc/hosts, admins and local users, SSH authorized keys, sudoers.d, TCC privacy grants, system extensions, third-party kexts, root processes, Chrome extension IDs), diffs against last night and Telegrams ONLY when something changed",
+   "logs": "~/PycharmProjects/mac-audit/cron.log",
+   "notes": "03:10 with a 04:10 retry — both deliberately BEFORE the 5:00 fleet check so a failed audit is caught the same morning. SILENT BY DESIGN: no message means nothing changed, so the fleet-health local_stamp probe on state/last_success is the only proof it is alive. Severity drives loudness — CRITICAL (protection switched off, new root LaunchDaemon, new admin, new SSH key) notifies; INFO (a new Chrome extension) is a quiet ping. `tcc_allowed` reads as 'still unreadable' every night because a launchd-spawned bash has no Full Disk Access; that is reported, never silently dropped, and granting FDA to /bin/bash would restore it at the cost of giving every shell script full-disk rights. root_processes is MONOTONIC (union of everything ever seen) because OneDrive's updater daemon is only intermittently running and a plain set-diff flapped nightly. After deliberately changing the Mac's posture, run `uv run mac-audit run` once so the change lands in the baseline instead of ambushing you at 3 AM"
+  },
+  {
    "key": "com.jalal.notebooklm-drip",
    "title": "Gemini Notebook podcast drip",
    "when": "4:00 AM (retries 12:45 AM)",
@@ -100,6 +110,16 @@
    "what": "Fires Audio+Video Overview generation (3+3/day free-tier quota) for book notebooks in ~/PycharmProjects/notebooklm-library/index.tsv; backlog CLEARED 2026-08-09 (all 39 have podcast+video) so it now no-ops in seconds and only picks up newly added books",
    "logs": "~/PycharmProjects/notebooklm-library/drip.log",
    "notes": "Kaiser burner account via notebooklm-py CLI. Second slot moved 4 PM → 11:30 PM on 2026-08-09 (quota hedge that never paid off; no jobs in working hours), then 11:30 PM → 12:45 AM on 2026-08-24 when Jalal fixed the fleet window as midnight–7 AM. Still a transient-failure retry, not a quota retry (reset always landed before 4 AM). Idempotent, so a wasted run is free."
+  },
+  {
+   "key": "com.jalal.nuts-radar",
+   "title": "NUTS Catalyst Radar — daily catalysts",
+   "when": "4:30 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.nuts-radar → ~/PycharmProjects/nuts-radar/job/run.sh",
+   "what": "Rebuilds catalysts.json for nuts-radar.vercel.app from official calendars (FRED release dates, the Fed's FOMC calendar, Nasdaq earnings), deploys it, then Telegrams the day's events plus the link to the 📡 alerts chat",
+   "logs": "~/PycharmProjects/nuts-radar/job/run.log",
+   "notes": "04:30, deliberately BEFORE the 5:00 fleet check so a failed build is caught the same morning (it was 05:45 first, which put it after the check and made the 6:30 retry slot useless — fleet_health exits early once the digest has gone). Deterministic on purpose — no language model touches it, because an invented earnings date on a page read before the open is worse than an empty section. Build → deploy → message, in that order, so the link already shows today's rows. A failed build leaves yesterday's file and sends nothing; fleet-health's nuts_radar probe then calls the staleness (limit 30 h, which tolerates the 5:00 check seeing a 23 h-old file). deploy.sh always content-stamps the assets first — a cached assets/tree.js would self-check the OLD tree shape and pass silently"
   },
   {
    "key": "com.jalal.supervisor",
