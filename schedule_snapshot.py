@@ -109,6 +109,11 @@ CATALOG = {
         "what": "Backs up the Mac to the encrypted T7Backup volume on the Samsung T7",
         "logs": "tmutil latestbackup / System Settings",
         "notes": "T7 must stay plugged in. TM cannot back up the T7 itself — photos' 2nd copy is iCloud only."},
+    "com.jalal.toolcheck": {
+        "title": "CLI toolbox health check — weekly",
+        "what": "Runs `toolcheck` (~/.local/bin/toolcheck), which functionally exercises the whole local CLI toolbox — pandoc, ripgrep, jq, fd, duckdb, sqlite3, htmlq, ghostscript, poppler, qpdf, img2pdf, tesseract, ocrmypdf, pdf2odt, LibreOffice headless, ffmpeg, exiftool, the arm64 PDF-signing venv, plus gh and notebooklm auth. Real round-trips rather than --version checks: it OCRs a rendered image and reads the text back, converts docx to pdf, stamps a signature onto a PDF, queries a CSV. Telegrams the alerts chat ONLY on failure",
+        "logs": "~/Library/Logs/toolcheck.log",
+        "notes": "SILENT BY DESIGN — no message means every tool passed, so the log is the only proof it ran. WEEKLY not nightly on purpose: these tools barely change, so nightly would be ~365 runs a year to catch maybe one event, and it spawns headless LibreOffice + an OCR pass each time. Added 2026-08-25 after PDF signing was found SILENTLY BROKEN for weeks — a Rosetta arch mismatch (Antigravity's terminal launched an Intel bash, so the venv's universal python loaded x86_64 and refused the arm64 PyMuPDF wheel); nothing would ever have surfaced it. Fires 04:40 Sunday, deliberately before the 05:00 fleet check. The runner reads TELEGRAM_TOKEN/TELEGRAM_CHAT_ID from Dhaka flights/.env BY NAME and must NEVER source it wholesale — that .env also defines BROWSERBASE_API_KEY, and exporting it would contaminate the very check that asserts Browserbase stays project-scoped. Baseline: 26 pass / 0 fail / 1 skip (twitter-cli is skipped because a live probe pops a Chrome Safe Storage Keychain modal at whoever is sitting there)"},
 }
 
 # Cron lines matched by substring → catalog entry (+ forced Frequency label).
