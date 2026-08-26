@@ -1,5 +1,5 @@
 {
- "updated": "2026-08-25 21:29",
+ "updated": "2026-08-25 21:32",
  "jobs": [
   {
    "key": "com.jalal.aoife-gcal-sync",
@@ -77,9 +77,9 @@
    "when": "5:00 AM (retries 6:30 AM)",
    "frequency": "Daily",
    "mechanism": "launchd com.jalal.fleet-health → ~/PycharmProjects/github-notion-sync/run_health.sh",
-   "what": "25 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
+   "what": "Data-level probes across every automation (scrapers, GH Actions repos, live sites, webhook bots) → Telegram digest, commits health.json + schedule.json. Deliberately NO probe count here: it grows as repos are rostered and a hardcoded number goes stale silently — read len(FLEET) in fleet_health.py for the live figure",
    "logs": "~/PycharmProjects/github-notion-sync/health.log",
-   "notes": "The daily \"is everything working\" check (6:30 AM slot is a no-op retry; all settled before wake-up). One-line ✅ when all healthy; full paste-to-Claude diagnostics when not. Companion daily GitHub Action stamps results onto the GitHub Repos table."
+   "notes": "The daily \"is everything working\" check (6:30 AM slot is a no-op retry; all settled before wake-up). One-line ✅ when all healthy; full paste-to-Claude diagnostics when not. Companion daily GitHub Action stamps results onto the GitHub Repos table. Governing rule since the 2026-08-06 audit: A GREEN CHECK MUST PROVE THE PRIMARY PATH RAN — if a fallback can satisfy a probe it is a false negative."
   },
   {
    "key": "com.jalal.keepawake",
