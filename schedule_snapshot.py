@@ -34,6 +34,11 @@ WEEKDAYS = {0: "Sunday", 1: "Monday", 2: "Tuesday", 3: "Wednesday",
 
 # ── human-facing text for known jobs (key = launchd label / special id) ──────
 CATALOG = {
+    "com.jalal.mac-audit": {
+        "title": "Mac security audit — nightly posture diff",
+        "what": "Snapshots ~24 groups of security-relevant facts about this Mac (SIP/FileVault/Gatekeeper/firewall, MDM, LaunchDaemons + LaunchAgents, privileged helpers, login items, cron, LAN-exposed listeners, DNS, /etc/hosts, admins and local users, SSH authorized keys, sudoers.d, TCC privacy grants, system extensions, third-party kexts, root processes, Chrome extension IDs), diffs against last night and Telegrams ONLY when something changed",
+        "logs": "~/PycharmProjects/mac-audit/cron.log",
+        "notes": "03:10 with a 04:10 retry — both deliberately BEFORE the 5:00 fleet check so a failed audit is caught the same morning. SILENT BY DESIGN: no message means nothing changed, so the fleet-health local_stamp probe on state/last_success is the only proof it is alive. Severity drives loudness — CRITICAL (protection switched off, new root LaunchDaemon, new admin, new SSH key) notifies; INFO (a new Chrome extension) is a quiet ping. `tcc_allowed` reads as 'still unreadable' every night because a launchd-spawned bash has no Full Disk Access; that is reported, never silently dropped, and granting FDA to /bin/bash would restore it at the cost of giving every shell script full-disk rights. root_processes is MONOTONIC (union of everything ever seen) because OneDrive's updater daemon is only intermittently running and a plain set-diff flapped nightly. After deliberately changing the Mac's posture, run `uv run mac-audit run` once so the change lands in the baseline instead of ambushing you at 3 AM"},
     "com.jalal.nuts-radar": {
         "title": "NUTS Catalyst Radar — daily catalysts",
         "what": "Rebuilds catalysts.json for nuts-radar.vercel.app from official calendars (FRED release dates, the Fed's FOMC calendar, Nasdaq earnings), deploys it, then Telegrams the day's events plus the link to the 📡 alerts chat",

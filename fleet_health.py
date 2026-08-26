@@ -608,6 +608,20 @@ FLEET = [
     {"name": "carmax-scraper (nightly car picks)", "repo": "carmax-scraper",
      "probe": "local_stamp", "path": "~/PycharmProjects/carmax-scraper/.last_success_date",
      "max_age_h": 36},
+    # com.jalal.mac-audit (launchd, 3:10 AM + 4:10 AM retry) — nightly security
+    # posture diff of the Mac itself (repo: mac-audit, private).
+    # This job is SILENT BY DESIGN: it Telegrams only when the posture changed,
+    # so "no message" proves nothing on its own. That makes this probe the only
+    # thing separating "quiet because healthy" from "quiet because dead" — which
+    # is exactly the failure mode the 2026-08-06 audit found across the fleet.
+    # state/last_success is written LAST and ONLY after a run that could actually
+    # see the machine (<= MAX_BLIND collectors unavailable), so a green tick here
+    # proves the collectors ran — not merely that the wrapper woke up and exited 0.
+    # 24 h: the job stamps at ~03:10 and this check runs at 05:00, so a healthy
+    # morning reads ~1.8 h while the FIRST missed night already reads ~25.8 h.
+    {"name": "mac-audit (nightly security posture)", "repo": "mac-audit",
+     "probe": "local_stamp", "path": "~/PycharmProjects/mac-audit/state/last_success",
+     "max_age_h": 24},
     # Two separate workflows against the same source — the Daily snapshot and
     # the cumulative Historical sheet. They failed together 2026-08-04/05 but
     # only the Daily one was rostered, so the digest under-reported it as a
