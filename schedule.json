@@ -1,5 +1,5 @@
 {
- "updated": "2026-08-25 21:38",
+ "updated": "2026-08-26 06:30",
  "jobs": [
   {
    "key": "com.jalal.aoife-gcal-sync",
@@ -80,6 +80,16 @@
    "what": "Data-level probes across every automation (scrapers, GH Actions repos, live sites, webhook bots) → Telegram digest, commits health.json + schedule.json. Deliberately NO probe count here: it grows as repos are rostered and a hardcoded number goes stale silently — read len(FLEET) in fleet_health.py for the live figure",
    "logs": "~/PycharmProjects/github-notion-sync/health.log",
    "notes": "The daily \"is everything working\" check (6:30 AM slot is a no-op retry; all settled before wake-up). One-line ✅ when all healthy; full paste-to-Claude diagnostics when not. Companion daily GitHub Action stamps results onto the GitHub Repos table. Governing rule since the 2026-08-06 audit: A GREEN CHECK MUST PROVE THE PRIMARY PATH RAN — if a fallback can satisfy a probe it is a false negative."
+  },
+  {
+   "key": "com.jalal.health-tick",
+   "title": "Health Hub scheduler tick — every 5 min",
+   "when": "—",
+   "frequency": "Always on",
+   "mechanism": "launchd com.jalal.health-tick → ~/PycharmProjects/health-hub/scripts/health_tick.sh",
+   "what": "curls https://jalal-health.vercel.app/api/tick (secret from ~/.config/secrets.env), which sends Jalal's med nags with confirm buttons, eating-window open/warn/close alerts, and fridge prompts via @JalalHealthBot, all state in the shared Upstash KV (health:* keys)",
+   "logs": "~/Library/Logs/health-tick.log",
+   "notes": "PRIMARY trigger for the health-hub app (repo health-hub, built 2026-08-26); an hourly GH Actions tick.yml is the backstop, so a dead Mac degrades nags to hourly instead of killing them. Idempotent server-side — overlapping ticks can't double-send. Fleet-health grades the loop via last_tick on /api/health (max 3h)."
   },
   {
    "key": "com.jalal.keepawake",
