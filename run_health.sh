@@ -34,6 +34,8 @@ export SCHOOL_BOT_TOKEN="$(grep '^TELEGRAM_TOKEN=' \
   /Users/jalalchowdhury/PycharmProjects/aoife-school-bot/.env 2>/dev/null | cut -d= -f2-)"
 export MILESTONES_BOT_TOKEN="$(grep '^TELEGRAM_TOKEN=' \
   /Users/jalalchowdhury/PycharmProjects/aoife-milestones-bot/.env 2>/dev/null | cut -d= -f2-)"
+export HEALTH_BOT_TOKEN="$(grep '^HEALTH_BOT_TOKEN=' \
+  "$HOME/.config/secrets.env" 2>/dev/null | cut -d= -f2-)"
 
 # From 6 AM on this invocation is the retry slot: fleet_health.py exits early
 # if the 5 AM run already sent today's digest, or backs off if that run is

@@ -932,6 +932,22 @@ FLEET = [
      "probe": "nuts_radar", "url": "https://nuts-radar.vercel.app",
      "repo_dir": "~/PycharmProjects/nuts-radar",
      "catalysts_url": "https://nuts-radar.vercel.app/catalysts.json"},
+    # health-hub (Jalal's health app, 2026-08-26): the tick loop IS the product —
+    # med nags, eating-window alerts and fridge prompts all ride on it, and a
+    # web_200 would stay green with the scheduler dead. /api/health exposes
+    # last_tick, stamped at the END of every tick pass, so this proves the loop
+    # completed recently. Primary trigger: com.jalal.health-tick every 5 min;
+    # backstop: hourly GH tick.yml. max_age_h=3 tolerates a dead Mac (backstop
+    # hourly, GH cron up to ~90 min late) yet pages the morning both are gone.
+    {"name": "health-hub (tick loop fresh)", "repo": "health-hub",
+     "probe": "web_fresh", "url": "https://jalal-health.vercel.app/api/health",
+     "json_key": "last_tick", "max_age_h": 3},
+    # Same two-independent-deaths reasoning as the other webhook bots; repo None
+    # so a healthy tick row can't paint over a deaf bot in Notion.
+    {"name": "health-hub (telegram webhook registered)", "repo": None,
+     "probe": "telegram_webhook", "token_env": "HEALTH_BOT_TOKEN",
+     "expect_url": "https://jalal-health.vercel.app/api/telegram",
+     "require_query_guard": True},
 ]
 
 

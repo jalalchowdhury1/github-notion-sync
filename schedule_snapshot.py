@@ -109,6 +109,11 @@ CATALOG = {
         "what": "Backs up the Mac to the encrypted T7Backup volume on the Samsung T7",
         "logs": "tmutil latestbackup / System Settings",
         "notes": "T7 must stay plugged in. TM cannot back up the T7 itself — photos' 2nd copy is iCloud only."},
+    "com.jalal.health-tick": {
+        "title": "Health Hub scheduler tick — every 5 min",
+        "what": "curls https://jalal-health.vercel.app/api/tick (secret from ~/.config/secrets.env), which sends Jalal's med nags with confirm buttons, eating-window open/warn/close alerts, and fridge prompts via @JalalHealthBot, all state in the shared Upstash KV (health:* keys)",
+        "logs": "~/Library/Logs/health-tick.log",
+        "notes": "PRIMARY trigger for the health-hub app (repo health-hub, built 2026-08-26); an hourly GH Actions tick.yml is the backstop, so a dead Mac degrades nags to hourly instead of killing them. Idempotent server-side — overlapping ticks can't double-send. Fleet-health grades the loop via last_tick on /api/health (max 3h)."},
     "com.jalal.toolcheck": {
         "title": "CLI toolbox health check — weekly",
         "what": "Runs `toolcheck` (~/.local/bin/toolcheck), which functionally exercises the whole local CLI toolbox — pandoc, ripgrep, jq, fd, duckdb, sqlite3, htmlq, ghostscript, poppler, qpdf, img2pdf, tesseract, ocrmypdf, pdf2odt, LibreOffice headless, ffmpeg, exiftool, the arm64 PDF-signing venv, plus gh and notebooklm auth. Real round-trips rather than --version checks: it OCRs a rendered image and reads the text back, converts docx to pdf, stamps a signature onto a PDF, queries a CSV. Telegrams the alerts chat ONLY on failure",
