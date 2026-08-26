@@ -66,9 +66,9 @@ CATALOG = {
         "notes": "Fleet health probes its launchd exit code daily"},
     "com.jalal.fleet-health": {
         "title": "Fleet health check (all repos)",
-        "what": "25 data-level probes across every automation (scrapers, GH Actions repos, live sites) → Telegram digest, commits health.json + schedule.json",
+        "what": "Data-level probes across every automation (scrapers, GH Actions repos, live sites, webhook bots) → Telegram digest, commits health.json + schedule.json. Deliberately NO probe count here: it grows as repos are rostered and a hardcoded number goes stale silently — read len(FLEET) in fleet_health.py for the live figure",
         "logs": "~/PycharmProjects/github-notion-sync/health.log",
-        "notes": 'The daily "is everything working" check (6:30 AM slot is a no-op retry; all settled before wake-up). One-line ✅ when all healthy; full paste-to-Claude diagnostics when not. Companion daily GitHub Action stamps results onto the GitHub Repos table.'},
+        "notes": 'The daily "is everything working" check (6:30 AM slot is a no-op retry; all settled before wake-up). One-line ✅ when all healthy; full paste-to-Claude diagnostics when not. Companion daily GitHub Action stamps results onto the GitHub Repos table. Governing rule since the 2026-08-06 audit: A GREEN CHECK MUST PROVE THE PRIMARY PATH RAN — if a fallback can satisfy a probe it is a false negative.'},
     "com.jalal.notebooklm-drip": {
         "title": "Gemini Notebook podcast drip",
         "what": "Fires Audio+Video Overview generation (3+3/day free-tier quota) for book notebooks in ~/PycharmProjects/notebooklm-library/index.tsv; backlog CLEARED 2026-08-09 (all 39 have podcast+video) so it now no-ops in seconds and only picks up newly added books",
