@@ -39,6 +39,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.parse
 import urllib.request
 
 REPO_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -355,7 +356,7 @@ def probe_log_marker(log_path, log_grep, live_since=None, **_):
     return True, f"marker present in {log_path}"
 
 
-def probe_telegram_webhook(token_env, expect_url, **_):
+def probe_telegram_webhook(token_env, expect_url, require_query_guard=False, **_):
     """A Telegram bot's webhook still points where we think it does.
 
     Added 2026-08-24 after voices-bot went silently deaf: deactivating the old
@@ -379,9 +380,22 @@ def probe_telegram_webhook(token_env, expect_url, **_):
     got = info.get("url") or ""
     pending = info.get("pending_update_count", 0)
     err = info.get("last_error_message")
-    if got != expect_url:
-        return False, (f"webhook is {got or '(EMPTY — bot is deaf)'}, "
+    # Compare scheme+host+path ONLY. aoife-milestones-bot and aoife-school-bot
+    # guard their webhook with a shared secret in the query string (?s=...) and
+    # THIS REPO IS PUBLIC — putting the full URL in the roster would publish the
+    # guard. The query is not what we are verifying anyway; that the hook still
+    # points at the right function is. Never echo the query back in an error
+    # message either, for the same reason.
+    g = urllib.parse.urlsplit(got)
+    e = urllib.parse.urlsplit(expect_url)
+    if (g.scheme, g.netloc, g.path) != (e.scheme, e.netloc, e.path):
+        return False, (f"webhook is {got.split('?')[0] or '(EMPTY — bot is deaf)'}, "
                        f"expected {expect_url}")
+    # ...but a guard that silently VANISHES leaves the endpoint open to anyone,
+    # so assert it still exists without ever storing or printing its value.
+    if require_query_guard and not g.query:
+        return False, ("webhook lost its shared-secret query guard — "
+                       "the endpoint is now unauthenticated")
     detail = f"webhook registered, {pending} pending"
     if err:
         return False, f"{detail}, last_error={err!r}"
@@ -735,6 +749,13 @@ FLEET = [
      "probe": "launchd_exit", "label": "com.jalal.t7-drive-sync"},
     {"name": "zinger-bot (Telegram bot on Vercel)", "repo": "zinger-bot",
      "probe": "web_200", "url": "https://zinger-bot.vercel.app"},
+    # The web_200 above probes the ROOT, which a dead handler still serves — a
+    # gap noted in AGENTS.md and closed here 2026-08-25. Same two-independent-
+    # deaths reasoning as voices-bot: the function can stop serving, OR Telegram
+    # can stop pointing at it, and neither probe sees the other's failure.
+    {"name": "zinger-bot (telegram webhook registered)", "repo": None,
+     "probe": "telegram_webhook", "token_env": "ZINGER_BOT_TOKEN",
+     "expect_url": "https://zinger-bot.vercel.app/api/webhook"},
     {"name": "aoife-math (daily game site)", "repo": "aoife-math",
      "probe": "web_200", "url": "https://aoife-math.vercel.app"},
     {"name": "aoife-columns (site)", "repo": "aoife-columns",
@@ -743,6 +764,19 @@ FLEET = [
      "probe": "web_200", "url": "https://aoife-frameworks.vercel.app"},
     {"name": "nafis-mortgage (site)", "repo": "nafis-mortgage",
      "probe": "web_200", "url": "https://nafis-mortgage.vercel.app"},
+    # Rostered 2026-08-25 during a coverage audit: aoife-math/columns/frameworks
+    # were watched while these three equally-live sisters were not — coverage by
+    # accident of when each was built, not by risk. aoife-puzzles matters most:
+    # it is the WISC-V prep game, and a broken level reads to Jalal as a real
+    # weakness in Aoife rather than a bug (see feedback-puzzle-validity-sacred).
+    {"name": "aoife-puzzles (site)", "repo": "aoife-puzzles",
+     "probe": "web_200", "url": "https://aoife-puzzles.vercel.app"},
+    {"name": "aoife-algebra (site)", "repo": "aoife-algebra",
+     "probe": "web_200", "url": "https://aoife-algebra.vercel.app"},
+    {"name": "aoife-order (site)", "repo": "aoife-order",
+     "probe": "web_200", "url": "https://aoife-order.vercel.app"},
+    {"name": "backbench (daily trading brief)", "repo": "backbench",
+     "probe": "web_200", "url": "https://backbench.vercel.app"},
     # Added 2026-08-17 alongside the Aoife's Planner rebuild. live_since is a
     # deliberate grace period: /api/plan-get (the plan-half endpoint the
     # backup script fetches) only goes live 2026-08-18, so the script's plan
@@ -774,6 +808,35 @@ FLEET = [
      "log_path": "~/Library/Logs/aoife-school-bot-tick.log",
      "log_grep": r"TICK OK {date}",
      "live_since": "2026-08-19"},
+    # The tick above proves the OUTBOUND half (the Mac pushing previews). It says
+    # nothing about the INBOUND half: Jalal replying to the bot. Those die
+    # independently — the tick keeps writing TICK OK while an unhooked bot
+    # silently swallows every reply. Rostered 2026-08-25.
+    # repo: None on purpose, so a healthy sibling row cannot paint over it in
+    # Notion (last-row-wins trap).
+    {"name": "aoife-school-bot (telegram webhook registered)", "repo": None,
+     "probe": "telegram_webhook", "token_env": "SCHOOL_BOT_TOKEN",
+     "expect_url": "https://aoife-school-bot.vercel.app/api/webhook",
+     "require_query_guard": True},
+    # aoife-milestones-bot had NO probe of any kind before 2026-08-25 — the only
+    # live service in the fleet that was entirely unwatched. It is voice-driven
+    # and write-through (voice → draft → ✓ → Sheet → Doc + Notion), so a deaf bot
+    # loses milestones Jalal believes were recorded; the Sheet is master and it
+    # simply stops gaining rows, which looks exactly like a quiet week.
+    {"name": "aoife-milestones-bot (function serving)", "repo": "aoife-milestones-bot",
+     "probe": "web_200", "url": "https://aoife-milestones-bot.vercel.app/api/webhook"},
+    {"name": "aoife-milestones-bot (telegram webhook registered)", "repo": None,
+     "probe": "telegram_webhook", "token_env": "MILESTONES_BOT_TOKEN",
+     "expect_url": "https://aoife-milestones-bot.vercel.app/api/webhook",
+     "require_query_guard": True},
+    # notebooklm-drip: daily 04:00 with a 00:45 retry slot, both landing before
+    # this 05:00 check. Grade the marker generate_all.py PRINTS ON COMPLETION,
+    # correlated to a dated run header — a bare FINISHED would match a stale one
+    # from last week, and drip.log's mtime only proves the wrapper woke up.
+    {"name": "notebooklm-drip (nightly Gemini Notebook drip)", "repo": None,
+     "probe": "log_marker",
+     "log_path": "~/PycharmProjects/notebooklm-library/drip.log",
+     "log_grep": r"=== drip {date}[\s\S]*?FINISHED types_still_open="},
     # Added 2026-08-18 with the Google Calendar sync (launchd
     # com.jalal.aoife-gcal-sync, scripts/gcal-sync/run.sh, 04:10 daily — after
     # the 03:40 planner backup, before this 05:00 check, so TODAY's marker is

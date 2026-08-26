@@ -24,6 +24,17 @@ set -a; source "/Users/jalalchowdhury/PycharmProjects/Dhaka flights/.env" 2>/dev
 export VOICES_BOT_TOKEN="$(grep '^TELEGRAM_TOKEN=' \
   /Users/jalalchowdhury/PycharmProjects/voices-bot/.env 2>/dev/null | cut -d= -f2-)"
 
+# Same by-name extraction for the three bots rostered 2026-08-25. EVERY one of
+# these files defines its own TELEGRAM_TOKEN, so sourcing any of them wholesale
+# would clobber the digest sender above and fleet-health would report on itself
+# through the wrong bot. Never `set -a; source` a bot .env here.
+export ZINGER_BOT_TOKEN="$(grep '^TELEGRAM_TOKEN=' \
+  /Users/jalalchowdhury/PycharmProjects/.secrets/telegram.env 2>/dev/null | cut -d= -f2-)"
+export SCHOOL_BOT_TOKEN="$(grep '^TELEGRAM_TOKEN=' \
+  /Users/jalalchowdhury/PycharmProjects/aoife-school-bot/.env 2>/dev/null | cut -d= -f2-)"
+export MILESTONES_BOT_TOKEN="$(grep '^TELEGRAM_TOKEN=' \
+  /Users/jalalchowdhury/PycharmProjects/aoife-milestones-bot/.env 2>/dev/null | cut -d= -f2-)"
+
 # From 6 AM on this invocation is the retry slot: fleet_health.py exits early
 # if the 5 AM run already sent today's digest, or backs off if that run is
 # still going (lock file). (Manual runs: call `python3 fleet_health.py`

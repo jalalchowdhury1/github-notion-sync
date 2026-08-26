@@ -19,7 +19,7 @@ sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
   `.fleet_health.lock` (gitignored; locks >2 h old are treated as crashed
   and ignored); manual `python3 fleet_health.py` always runs. Wrapper
   `run_health.sh` also truncates `health.log` in place past ~400 KB —
-  gitignored). 31 data-level probes (local launchd stamps/exit codes, `gh`
+  gitignored). 41 data-level probes (local launchd stamps/exit codes, `gh`
   runs with log-grep data markers, live-site checks). `log_grep` takes one
   regex or a list (ALL must match); assert the *pipeline ran* rather than that
   a count was nonzero, or a legitimately quiet source false-alarms at 5 AM.
@@ -503,3 +503,46 @@ Frontend (React); `express`/`fastify`/`@hono/node-server` → API/Backend;
   cron auto-disable (only runs the commit when idle ≥ 40 days; `contents: write`).
 - `README.md` — human-facing landing page (kept; see §5 for its drift vs. code).
 - `.gitignore` — ignores `.env*`, `__pycache__`, venvs, editor dirs.
+
+## Coverage audit 2026-08-25 (31 → 41 probes)
+
+Jalal asked "what else in my fleet has no health check". Diffed the roster against
+ground truth — every `com.jalal.*` launchd job, every repo with an active cron
+workflow, every live URL, and every bot's `getWebhookInfo`. Nine gaps closed:
+
+- **`aoife-milestones-bot` had NO probe of any kind** — the only live service that
+  was entirely unwatched. Now two (function serving + webhook registered). It is
+  voice-driven and write-through, so a deaf bot loses milestones Jalal believes
+  were saved, and the master Sheet just stops gaining rows — indistinguishable
+  from a quiet week.
+- **`notebooklm-drip`** — a daily 04:00 launchd job with nothing watching it.
+  `log_marker` on `FINISHED types_still_open=`, correlated to a dated run header:
+  a bare `FINISHED` would match a stale one from last week, and drip.log's mtime
+  only ever proves the wrapper woke up.
+- **Webhook probes for `zinger-bot` and `aoife-school-bot`.** The
+  `telegram_webhook` probe type existed but had only ever been applied to
+  voices-bot. zinger's `web_200` hits the ROOT, which a dead handler still serves;
+  school-bot's tick proves the OUTBOUND half only, while an unhooked bot silently
+  swallows every reply.
+- **`aoife-puzzles` / `aoife-algebra` / `aoife-order` / `backbench`** — live sites
+  unwatched while their siblings were watched. Coverage by accident of build
+  order, not by risk.
+
+**`telegram_webhook` no longer matches the full URL.** aoife-milestones-bot and
+aoife-school-bot guard their webhook with a shared secret in the query string
+(`?s=…`) and **this repo is public** — hardcoding `expect_url` would have
+published the guard. It now compares scheme+host+path only, never echoes the
+query back in an error message, and takes `require_query_guard: True` to assert
+the guard still EXISTS without ever storing its value (a guard that silently
+vanishes leaves the endpoint unauthenticated — that must still page).
+
+Every new probe's failure branches were verified to actually fire before commit
+(wrong host, wrong path, missing token, absent query guard, bogus log pattern,
+missing log), plus a regression check that voices-bot still passes unchanged and
+that no error message leaks a secret. A probe that cannot fail is decoration.
+
+**Not gaps, delete instead:** `aoife-math-2a`, `aoife-math-game`,
+`aoife-subtraction-game`, `long-subtraction-aoife` are all still deployed and
+serving 200. They are the four superseded math repos already marked for deletion;
+they were deliberately NOT rostered.
+
