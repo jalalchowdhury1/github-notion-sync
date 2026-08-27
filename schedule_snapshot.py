@@ -79,6 +79,11 @@ CATALOG = {
         "what": "Prevents system sleep (display may still sleep) so the midnight jobs always fire",
         "logs": "—",
         "notes": "KeepAlive restarts it if it dies; starts on login/reboot"},
+    "com.jalal.claude-concierge": {
+        "title": "Claude concierge (phone remote-control hub)",
+        "what": "Keeps a tmux session 'concierge' running `claude remote-control` so Jalal can reach/spawn Claude Code sessions on this Mac from the Claude phone app; knows the 'fresh start' session-cleanup trick (~/.local/bin/fresh-start.sh)",
+        "logs": "~/Library/Logs/claude-concierge.log",
+        "notes": "Always-on, KeepAlive + 60s self-heal loop; concierge briefing lives in ~/concierge/CLAUDE.md; added 2026-08-27"},
     "com.jalal.supervisor": {
         "title": "Supervisor (mission watcher)",
         "what": "Watches Google Drive supervisor/inbox for MISSION.md files and runs an autonomous aider build loop; pings Telegram",
