@@ -979,7 +979,8 @@ def run_checks() -> list:
         else:                                # all attempts raised
             ok, detail = False, f"{err} (after {PROBE_ATTEMPTS} attempts)"
         results.append({"name": item["name"], "repo": item.get("repo"),
-                        "ok": ok, "detail": detail, "cfg": _cfg_line(item)})
+                        "probe": item["probe"], "ok": ok, "detail": detail,
+                        "cfg": _cfg_line(item)})
         print(f"  {'✅' if ok else '❌'} {item['name']} — {detail.splitlines()[0]}")
     return results
 
@@ -1038,6 +1039,42 @@ def _failure_block(r, today, budget=None) -> list:
     return out + [""]
 
 
+# A gh_run probe that never found a run at all — the workflow did not START,
+# as opposed to starting and failing. Anchored to the exact string probe_gh_run
+# emits for that case.
+_NEVER_STARTED = re.compile(r"^no run in ")
+
+
+def correlated_note(results) -> list:
+    """Several workflows going stale AT ONCE is ONE event, not N separate bugs.
+
+    On 2026-08-27 GitHub silently dropped ~9 h of scheduled events across every
+    repo in the account. The digest reported that as three unrelated repo
+    failures — three wrong debugging sessions — because each probe only ever
+    sees its own system. Nothing here is wrong per probe; what was missing is
+    the sentence that ties them together, so name the shape before the blocks.
+
+    Only *never started* counts. A run that started and failed has a real,
+    per-repo cause, and lumping those together would send the reader looking
+    for a fleet outage that isn't there.
+    """
+    stale = [r for r in results
+             if not r["ok"] and r.get("probe") == "gh_run"
+             and _NEVER_STARTED.match(r["detail"])]
+    if len(stale) < 2:
+        return []
+    repos = sorted({r["repo"] for r in stale if r.get("repo")})
+    if len(repos) < 2:
+        where = repos[0] if repos else "one repo"
+        return [f"\u26a0\ufe0f {len(stale)} workflows in the same repo ({where}) never "
+                f"started \u2014 ONE event, not {len(stale)} bugs. Debug them together.", ""]
+    return [f"\u26a0\ufe0f {len(stale)} workflows across {len(repos)} repos never started "
+            f"\u2014 ONE event, not {len(stale)} bugs. Suspect GitHub's cron dispatcher "
+            f"before the repos: check the newest event=schedule run ACROSS all "
+            f"repos first. If that is hours old it is GitHub, and recovery is "
+            f"`gh workflow run <wf>` per missed workflow.", ""]
+
+
 def format_digest(results, recovered=()) -> str:
     """One line when all healthy; full paste-to-Claude blocks when not.
 
@@ -1072,7 +1109,8 @@ def format_digest(results, recovered=()) -> str:
     # Header + footer are reserved first; whatever is left is split evenly
     # across the failures, and blocks that come in under their share hand the
     # slack back to the big ones (usually a gh_run block carrying a log tail).
-    room = TELEGRAM_LIMIT - len(header) - 1 - _size(footer)
+    note = correlated_note(results)
+    room = TELEGRAM_LIMIT - len(header) - 1 - _size(note) - _size(footer)
     if sum(_size(b) for b in blocks) > room:
         share = max(0, room // len(bad))
         slack = sum(share - _size(b) for b in blocks if _size(b) < share)
@@ -1090,7 +1128,7 @@ def format_digest(results, recovered=()) -> str:
             body.pop()
             if body:
                 body[-1] = "…(+ more — full list in health.json)"
-    return "\n".join([header, ""] + body + footer)
+    return "\n".join([header, ""] + note + body + footer)
 
 
 def _telegram_send(text) -> bool:

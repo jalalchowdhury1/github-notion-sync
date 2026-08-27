@@ -181,7 +181,10 @@ returned quietly (no stderr noise).
 ## 3. How to run / test / deploy
 
 **This is not "deployed" — it just runs in Actions or locally.** No build step, no
-`requirements.txt` (stdlib only). There are **no automated tests** in the repo.
+`requirements.txt` (stdlib only). The only automated tests are
+`test_fleet_health.py` (stdlib `unittest`, no deps) covering the digest's
+correlated-staleness banner — run `python3 -m unittest test_fleet_health -v`.
+The probes themselves are still untested (they all talk to the network).
 
 ### Local run
 ```sh
@@ -217,6 +220,25 @@ Actions). Never hardcode any of them — the repo is **public**.
 ---
 
 ## 4. Gotchas / hard rules
+
+- **Several probes stale at once is ONE event — the digest now says so
+  (`correlated_note`, added 2026-08-27).** Every probe only ever sees its own
+  system, so a shared upstream cause reads as N unrelated failures. On
+  2026-08-27 GitHub silently dropped ~9 h of scheduled events across the whole
+  account (01:02→09:57 UTC); the digest reported leasehackr ×2 + mental-models
+  as three separate repo bugs, and the repos were fine. `correlated_note` now
+  prefixes the digest when **≥2 `gh_run` probes report *never started*** — the
+  exact `no run in …` string, anchored with `_NEVER_STARTED`. Two shapes: same
+  repo → "debug them together"; **≥2 repos → suspect GitHub's cron dispatcher
+  and check the newest `event=schedule` run ACROSS all repos before touching
+  any of them.** Hard rules: (1) a run that STARTED and failed must never count
+  — it has a real per-repo cause, and folding it in sends the reader hunting a
+  fleet outage that isn't there; (2) the note is reserved out of `room`
+  alongside header/footer, so trimming can never eat the one line that
+  reframes the whole digest. **Do not "fix" this by tightening `max_age_h`** —
+  the 36 h windows deliberately absorb GitHub's cron drift, and today's digest
+  under-reported 3-of-8 precisely because only three entries sit at 24 h. The
+  correlation line is the fix; the windows are not the bug.
 
 - **`nuts` probe (added 2026-08-25) — grade the SIGNAL, not the transport.**
   NUTS models a live ~$178k Composer symphony, and until 2026-08-25 it was the
@@ -489,6 +511,8 @@ Frontend (React); `express`/`fastify`/`@hono/node-server` → API/Backend;
     `mark_deleted` — Notion reads/writes (upsert by Repo URL; soft-delete).
   - `main()` — orchestrates the run; reads env vars (incl. fallback names); returns exit code.
 - `fleet_health.py` / `run_health.sh` — Mac-side daily fleet health check (see §1).
+- `test_fleet_health.py` — stdlib `unittest` cover for `correlated_note` /
+  `format_digest` (see §3 and the correlated-staleness rule in §4).
 - `schedule_snapshot.py` — Mac-side ground-truth snapshot of launchd/cron/Time
   Machine schedules → `schedule.json` (see §1). **Add a `CATALOG` entry whenever
   adding a launchd job**, or the Notion row will carry a 🆕 placeholder.
