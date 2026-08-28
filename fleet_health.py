@@ -211,6 +211,12 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, **_):
     that stay true on a legitimately quiet day: assert the pipeline ran ("across
     N regions"), not that the count was nonzero, or a slow source hands you a
     false alarm at 5 AM.
+
+    A `{date}` in a pattern expands to today|yesterday, same as
+    `probe_log_marker`. Use it whenever the marker carries the date of the data
+    it produced: an unpinned `date=\\d{4}-\\d{2}-\\d{2}` proves only that the
+    job printed A date, so a pipeline whose cron quietly stopped keeps passing
+    on yesterday's marker until the run itself ages out of max_age_h.
     """
     p = subprocess.run(
         ["gh", "run", "list", "-R", f"{GH_USER}/{repo}", "--workflow", workflow,
@@ -244,6 +250,10 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, **_):
                        f"\nlast run: {run_url}")
     if log_grep:
         patterns = [log_grep] if isinstance(log_grep, str) else list(log_grep)
+        _today = datetime.date.today()
+        _dates = "|".join(d.isoformat() for d in
+                          (_today, _today - datetime.timedelta(days=1)))
+        patterns = [p.replace("{date}", f"(?:{_dates})") for p in patterns]
         lp = subprocess.run(
             ["gh", "run", "view", str(run["databaseId"]), "-R",
              f"{GH_USER}/{repo}", "--log"],
@@ -921,7 +931,10 @@ FLEET = [
     # a run that sent a message but did not advance is NOT a healthy night.
     {"name": "mental-models (nightly 3 models + audio)", "repo": "mental-models",
      "probe": "gh_run", "workflow": "daily.yml", "max_age_h": 24,
-     "log_grep": r"MENTAL-MODELS OK [1-3]/3 date=\d{4}-\d{2}-\d{2} index=\d+->\d+"},
+     # date={date}, not an unpinned \d{4}-..: on 2026-08-28 GitHub's cron never
+     # fired at all, yet the previous day's runs were still inside max_age_h, so
+     # an any-date marker reported healthy while no brief had been sent.
+     "log_grep": r"MENTAL-MODELS OK [1-3]/3 date={date} index=\d+->\d+"},
     # voices-bot is a WEBHOOK, not a cron — there is no scheduled run to grade,
     # so "did it run" is the wrong question. The two ways it dies silently are
     # (a) the Vercel function stops serving and (b) Telegram stops pointing at
