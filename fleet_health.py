@@ -900,6 +900,29 @@ FLEET = [
      "log_path": "~/Library/Logs/aoife-gcal-sync.log",
      "log_grep": r"GCAL-SYNC OK {date}",
      "live_since": "2026-08-20"},
+    # Added 2026-08-28 after GitHub's cron dropped mental-models entirely that
+    # morning (schedule is best-effort; observed +31m/+34m/+11h14m/never).
+    # launchd com.jalal.mental-models-backstop, 6:00 AM: if
+    # results/daily/$TODAY.json is absent from the repo, dispatch daily.yml
+    # (idempotent — the workflow's own skip-guard makes a redundant dispatch a
+    # no-op). Runs AFTER this 05:00 check, so the {date} today|yesterday window
+    # is what grades it: yesterday's marker at 5 AM proves the backstop is
+    # alive; a dead backstop surfaces the following morning, the fleet-wide
+    # buffer. OK|DISPATCHED both count — either way the backstop RAN; ERROR
+    # lines deliberately don't match. This row watches the BACKSTOP; the
+    # mental-models gh_run row above still watches the primary path, so a
+    # backstop-only week still shows up there as late/odd runs.
+    # repo is None: mental-models already owns the gh_run row and
+    # notion_health.py's last-result-wins would let this green paint over a
+    # red primary.
+    {"name": "mental-models-backstop (6 AM cron-miss dispatcher)", "repo": None,
+     "probe": "log_marker",
+     "log_path": "~/Library/Logs/mental-models-backstop.log",
+     "log_grep": r"MM-BACKSTOP (OK|DISPATCHED) date={date}",
+     # 08-30, not 08-29: today's markers came from manual test runs; the first
+     # scheduled 6 AM run is 08-29, so 08-30 is the first morning where only a
+     # scheduled marker can satisfy the window (the gcal-sync lesson above).
+     "live_since": "2026-08-30"},
     # Added 2026-08-24 with the daily-trackers deploy (launchd
     # com.jalal.daily-trackers, run_daily.sh, 3:30 AM + 4:30/5:30 AM retries —
     # widened from 4:30/5:30 to the fleet-standard 3-slot ladder the same
