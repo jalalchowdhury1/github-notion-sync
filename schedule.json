@@ -1,5 +1,5 @@
 {
- "updated": "2026-08-26 06:30",
+ "updated": "2026-08-28 05:01",
  "jobs": [
   {
    "key": "com.jalal.aoife-gcal-sync",
@@ -40,6 +40,16 @@
    "what": "Best-value top-trim ICE-SUV finder (11–16k mi) with live KBB/Edmunds valuation of top 3",
    "logs": "~/PycharmProjects/carmax-scraper/cron.log",
    "notes": "Runs in parallel with Dhaka scraper (isolated browse sessions); same stamp-based retry no-op"
+  },
+  {
+   "key": "com.jalal.claude-concierge",
+   "title": "Claude concierge (phone remote-control hub)",
+   "when": "—",
+   "frequency": "Always on",
+   "mechanism": "launchd com.jalal.claude-concierge → ~/.local/bin/concierge-keeper.sh",
+   "what": "Keeps a tmux session 'concierge' running `claude remote-control` so Jalal can reach/spawn Claude Code sessions on this Mac from the Claude phone app; knows the 'fresh start' session-cleanup trick (~/.local/bin/fresh-start.sh)",
+   "logs": "~/Library/Logs/claude-concierge.log",
+   "notes": "Always-on, KeepAlive + 60s self-heal loop; concierge briefing lives in ~/concierge/CLAUDE.md; added 2026-08-27"
   },
   {
    "key": "com.jalal.daily-trackers",
