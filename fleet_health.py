@@ -903,9 +903,11 @@ FLEET = [
     # Added 2026-08-28 after GitHub's cron dropped mental-models entirely that
     # morning (schedule is best-effort; observed +31m/+34m/+11h14m/never).
     # launchd com.jalal.mental-models-backstop, 6:00 AM: if
-    # results/daily/$TODAY.json is absent from the repo, dispatch daily.yml
-    # (idempotent — the workflow's own skip-guard makes a redundant dispatch a
-    # no-op). Runs AFTER this 05:00 check, so the {date} today|yesterday window
+    # results/daily/$TODAY.json is absent from the repo, dispatch daily.yml.
+    # NOTE the workflow's skip-guard is `if: github.event_name == 'schedule'`
+    # ONLY — a dispatch bypasses it, so the script's artifact check IS the
+    # dedupe guard (the guard still stops a LATE cron arriving after a backstop
+    # dispatch). Runs AFTER this 05:00 check, so the {date} today|yesterday window
     # is what grades it: yesterday's marker at 5 AM proves the backstop is
     # alive; a dead backstop surfaces the following morning, the fleet-wide
     # buffer. OK|DISPATCHED both count — either way the backstop RAN; ERROR
