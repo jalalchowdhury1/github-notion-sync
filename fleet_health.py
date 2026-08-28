@@ -214,7 +214,7 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, **_):
     """
     p = subprocess.run(
         ["gh", "run", "list", "-R", f"{GH_USER}/{repo}", "--workflow", workflow,
-         "--limit", "1", "--json", "status,conclusion,createdAt,databaseId"],
+         "--limit", "5", "--json", "status,conclusion,createdAt,databaseId"],
         capture_output=True, text=True, timeout=60)
     if p.returncode != 0:
         raise RuntimeError(f"gh run list failed: {p.stderr.strip()[:150]}")
@@ -260,11 +260,36 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, **_):
                 f"could not fetch run log (rc={lp.returncode}): "
                 f"{(lp.stderr or '').strip()[:120] or 'empty log'}")
         missing = [pat for pat in patterns if not re.search(pat, log)]
-        if missing:
-            return False, (f"run green but data marker missing "
-                           f"({', '.join(repr(m) for m in missing)})"
-                           f"\nrun: {run_url}")
-        return True, f"success {age:.0f}h ago, data confirmed"
+        if not missing:
+            return True, f"success {age:.0f}h ago, data confirmed"
+        # The latest run's log lacks the marker, but some workflows (e.g.
+        # mental-models) fire more than once a day — a manual dispatch does
+        # the real work, then the schedule trigger fires later, sees today's
+        # output already committed, and no-ops green with no marker. That's
+        # not a failure, so before crying wolf, check whether an EARLIER run
+        # from today's same freshness window already proved the work happened.
+        # Bounded to max_age_h so this can't reach back into a stale prior day
+        # and paper over an actually-broken "latest" run.
+        for cand in runs[1:]:
+            if cand.get("status") != "completed" or cand.get("conclusion") != "success":
+                continue
+            cand_ts = datetime.datetime.strptime(cand["createdAt"][:16], "%Y-%m-%dT%H:%M")
+            if _age_hours(cand_ts.replace(tzinfo=datetime.timezone.utc).timestamp()) > max_age_h:
+                continue
+            clp = subprocess.run(
+                ["gh", "run", "view", str(cand["databaseId"]), "-R",
+                 f"{GH_USER}/{repo}", "--log"],
+                capture_output=True, text=True, timeout=120)
+            if clp.returncode != 0 or not clp.stdout.strip():
+                continue  # an older run's log being unfetchable isn't infra trouble worth raising for
+            cand_missing = [pat for pat in patterns if not re.search(pat, clp.stdout)]
+            if not cand_missing:
+                cand_url = f"https://github.com/{GH_USER}/{repo}/actions/runs/{cand['databaseId']}"
+                return True, (f"success {age:.0f}h ago, data confirmed in earlier "
+                              f"same-window run: {cand_url}")
+        return False, (f"run green but data marker missing "
+                       f"({', '.join(repr(m) for m in missing)})"
+                       f"\nrun: {run_url}")
     return True, f"success {age:.0f}h ago"
 
 
