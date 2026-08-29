@@ -203,7 +203,7 @@ def _failed_log_tail(repo, run_id, max_chars=1200, keep=14):
         return ""
 
 
-def probe_gh_run(repo, workflow, max_age_h, log_grep=None, **_):
+def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None, **_):
     """Latest workflow run: recent + successful; optionally grep the log for
     data-level markers proving real work happened, not just a green exit.
 
@@ -217,10 +217,20 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, **_):
     it produced: an unpinned `date=\\d{4}-\\d{2}-\\d{2}` proves only that the
     job printed A date, so a pipeline whose cron quietly stopped keeps passing
     on yesterday's marker until the run itself ages out of max_age_h.
+
+    `expect_event` (One Clock, 2026-08-29) names the trigger that SHOULD be
+    firing this workflow — "workflow_dispatch" for anything whose primary is now
+    an AWS EventBridge schedule. Without it, an EventBridge that silently stops
+    is INVISIBLE here: GitHub's demoted backstop cron still runs the job, the
+    run is recent and green, and this probe reports healthy while the thing we
+    migrated to is dead. That is exactly how the financial-telegram-bot Lambda
+    stayed broken for two months behind a GHA backstop. A mismatch is reported
+    as a WARN-style failure naming both events — the job itself is fine, the
+    primary trigger is not.
     """
     p = subprocess.run(
         ["gh", "run", "list", "-R", f"{GH_USER}/{repo}", "--workflow", workflow,
-         "--limit", "5", "--json", "status,conclusion,createdAt,databaseId"],
+         "--limit", "5", "--json", "status,conclusion,createdAt,databaseId,event"],
         capture_output=True, text=True, timeout=60)
     if p.returncode != 0:
         raise RuntimeError(f"gh run list failed: {p.stderr.strip()[:150]}")
@@ -248,6 +258,29 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, **_):
     if age > max_age_h:
         return False, (f"no run in {age/24:.1f}d (limit {max_age_h}h)"
                        f"\nlast run: {run_url}")
+    # Trigger-provenance check. Deliberately placed AFTER age/conclusion: a job
+    # that is failing or stale is the bigger story, and this must not mask it.
+    #
+    # Judge the WINDOW, not just the newest run. GitHub's demoted backstop cron
+    # frequently lands hours late, so on a perfectly healthy day the newest run
+    # is often the backstop even though EventBridge fired on time (measured
+    # 2026-08-29: AWS ran mental-models at 04:10, GitHub's cron straggled in at
+    # 11:36). Testing the newest run alone false-alarms constantly. What we
+    # actually want to know is: did the primary fire AT ALL inside the window?
+    if expect_event:
+        seen = [r for r in runs
+                if r.get("event") == expect_event
+                and r.get("conclusion") == "success"
+                and _age_hours(datetime.datetime.strptime(r["createdAt"][:16], "%Y-%m-%dT%H:%M")
+                               .replace(tzinfo=datetime.timezone.utc).timestamp()) <= max_age_h]
+        if not seen:
+            events = ", ".join(sorted({r.get("event", "?") for r in runs})) or "none"
+            return False, (
+                f"no '{expect_event}' run in {max_age_h}h (saw: {events}) — the job "
+                f"itself is fine, but its PRIMARY trigger (AWS EventBridge, One "
+                f"Clock) has not fired; GitHub's demoted backstop cron is carrying "
+                f"it. Check `aws scheduler get-schedule --name one-clock-*` and the "
+                f"gh-dispatcher Lambda logs.\nlatest run: {run_url}")
     if log_grep:
         patterns = [log_grep] if isinstance(log_grep, str) else list(log_grep)
         _today = datetime.date.today()
@@ -698,6 +731,8 @@ FLEET = [
     # while leaving 13-19 h of slack over the worst measured run time.
     # sentiment-scraper: cron 08:00 UTC, actually runs 09:51-11:17 (10 days).
     {"name": "sentiment-scraper (AAII weekly data)", "repo": "sentiment-scraper",
+     # NO expect_event: only sentiment-scraper's WATCHDOG moved to AWS
+     # (one-clock-sentiment-watchdog); this daily scrape is still GitHub-cron.
      "probe": "gh_run", "workflow": "daily-scrape.yml", "max_age_h": 36},
     # ynab-budget-brief: cron 11:00 UTC, actually runs 12:00-13:40 (10 days).
     # Since the 2026-08-19 quota redesign the run sends TWO messages (Eating
@@ -706,9 +741,11 @@ FLEET = [
     # actually delivered, not merely that Python exited 0.
     {"name": "ynab-budget-brief (7am budget brief)", "repo": "ynab-budget-brief",
      "probe": "gh_run", "workflow": "daily_brief.yml", "max_age_h": 36,
-     "log_grep": [r"Sent eating-out brief:", r"Sent family brief:"]},
+     "log_grep": [r"Sent eating-out brief:", r"Sent family brief:"],
+     "expect_event": "workflow_dispatch"},
     {"name": "financial-dashboard-history (2x-daily snapshots)", "repo": "financial-dashboard-history",
-     "probe": "gh_run", "workflow": "scraper.yml", "max_age_h": 36},
+     "probe": "gh_run", "workflow": "scraper.yml", "max_age_h": 36,
+     "expect_event": "workflow_dispatch"},
     # vix-fear-greed: RETIRED + ARCHIVED 2026-08-29, probe deliberately removed.
     # Its whole job was writing the FEAR/GREED tag into the VIX sheet's cell C2.
     # That computation now lives in financial-telegram-bot
@@ -744,7 +781,8 @@ FLEET = [
     # entire BIL-vs-TQQQ divergence.
     {"name": "trading-algorithm- (30-min signal)", "repo": "trading-algorithm-",
      "probe": "gh_run", "workflow": "trading_alert.yml", "max_age_h": 72,
-     "log_grep": r"NUTS-SIGNAL (OK unchanged=|CHANGED )"},
+     "log_grep": r"NUTS-SIGNAL (OK unchanged=|CHANGED )",
+     "expect_event": "workflow_dispatch"},
     # reddit-scraper's commit step is `git commit … || exit 0`, so a run that
     # scrapes nothing still exits GREEN having written nothing — conclusion-only
     # was blind to it. The workflow has TWO legitimate shapes (03:00 scrape,
@@ -767,7 +805,8 @@ FLEET = [
     {"name": "financial-telegram-bot (daily report)", "repo": "financial-telegram-bot",
      "probe": "gh_run", "workflow": "daily_report.yml", "max_age_h": 36},
     {"name": "financial-telegram-bot (self-health monitor)", "repo": "financial-telegram-bot",
-     "probe": "gh_run", "workflow": "health-check.yml", "max_age_h": 36},
+     "probe": "gh_run", "workflow": "health-check.yml", "max_age_h": 36,
+     "expect_event": "workflow_dispatch"},
     # The BACKUP needs two probes because neither failure mode implies the other.
     # `launchd_exit` alone was a probe that could essentially never fail: the script
     # ends with `tail … && mv`, so it used to report mv's status and discard rsync's
@@ -957,7 +996,12 @@ FLEET = [
      # date={date}, not an unpinned \d{4}-..: on 2026-08-28 GitHub's cron never
      # fired at all, yet the previous day's runs were still inside max_age_h, so
      # an any-date marker reported healthy while no brief had been sent.
-     "log_grep": r"MENTAL-MODELS OK [1-3]/3 date={date} index=\d+->\d+"},
+     "log_grep": r"MENTAL-MODELS OK [1-3]/3 date={date} index=\d+->\d+",
+     # Primary trigger is one-clock-mental-models (EventBridge 00:10 ET). The
+     # Mac 6 AM backstop ALSO dispatches, so a workflow_dispatch alone does not
+     # prove AWS fired — but a `schedule` run means BOTH AWS and the Mac missed
+     # and GitHub's demoted cron covered. Pair with the MM-BACKSTOP marker above.
+     "expect_event": "workflow_dispatch"},
     # voices-bot is a WEBHOOK, not a cron — there is no scheduled run to grade,
     # so "did it run" is the wrong question. The two ways it dies silently are
     # (a) the Vercel function stops serving and (b) Telegram stops pointing at
