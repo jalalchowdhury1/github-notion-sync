@@ -528,6 +528,17 @@ Frontend (React); `express`/`fastify`/`@hono/node-server` → API/Backend;
 - `README.md` — human-facing landing page (kept; see §5 for its drift vs. code).
 - `.gitignore` — ignores `.env*`, `__pycache__`, venvs, editor dirs.
 
+## Retirement 2026-08-29 (44 → 43 probes): vix-fear-greed
+
+`vix-fear-greed` was archived and its probe removed. Its only job was writing the
+FEAR/GREED tag into the VIX sheet's cell C2. That computation now lives in
+`financial-telegram-bot` (`dashboard/lib/vixFearGreed.js`, cascade
+CBOE → FRED → C2), and both the dashboard and the Telegram brief read it from
+`/api/sheets` rather than the cell — so the tag is covered by the existing
+`financial-telegram-bot` probes. **Removing a probe is only correct when the thing
+it proved is proved elsewhere**; here the daily brief's own probe fails if the VIX
+row goes missing. A probe pointed at an archived repo can only ever fail.
+
 ## Coverage audit 2026-08-25 (31 → 41 probes)
 
 Jalal asked "what else in my fleet has no health check". Diffed the roster against

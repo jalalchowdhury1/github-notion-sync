@@ -709,15 +709,13 @@ FLEET = [
      "log_grep": [r"Sent eating-out brief:", r"Sent family brief:"]},
     {"name": "financial-dashboard-history (2x-daily snapshots)", "repo": "financial-dashboard-history",
      "probe": "gh_run", "workflow": "scraper.yml", "max_age_h": 36},
-    # vix-fear-greed: cron 13:00 UTC, actually runs 14:36-15:46 (10 days).
-    # fear_greed.py writes the tag to stdout, which the workflow redirects into
-    # tag.txt — so the only place the value appears in the log is the "Show
-    # result" step's echoed command, where Actions has already interpolated it.
-    # Requiring WORD+DIGITS proves a real tag was computed (GREED11 / FEAR12 /
-    # NEUTRAL00); an empty tag.txt would render as "**Result:** " and miss.
-    {"name": "vix-fear-greed (daily tag)", "repo": "vix-fear-greed",
-     "probe": "gh_run", "workflow": "fear-greed.yml", "max_age_h": 36,
-     "log_grep": [r"\*\*Result:\*\* [A-Z]+\d+"]},
+    # vix-fear-greed: RETIRED + ARCHIVED 2026-08-29, probe deliberately removed.
+    # Its whole job was writing the FEAR/GREED tag into the VIX sheet's cell C2.
+    # That computation now lives in financial-telegram-bot
+    # (dashboard/lib/vixFearGreed.js, cascade CBOE -> FRED -> C2), and both the
+    # dashboard and the Telegram brief read it from /api/sheets instead of the
+    # cell. The tag is therefore covered by the financial-telegram-bot probes
+    # below; a probe here would only ever fail on an archived repo.
     # ── added 2026-08-06 after a GitHub-wide Actions outage took down hedgelab
     # and trading-algorithm- for hours and the digest said NOTHING: neither repo
     # was rostered. Both have an `if: failure()` Telegram step, which is useless
