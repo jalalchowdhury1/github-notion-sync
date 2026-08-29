@@ -1,5 +1,5 @@
 {
- "updated": "2026-08-29 05:00",
+ "updated": "2026-08-29 06:30",
  "jobs": [
   {
    "key": "com.jalal.aoife-gcal-sync",
@@ -94,8 +94,8 @@
   {
    "key": "com.jalal.health-tick",
    "title": "Health Hub scheduler tick — every 5 min",
-   "when": "—",
-   "frequency": "Always on",
+   "when": "every 5 min, 12:00 AM–12:55 AM",
+   "frequency": "Daily",
    "mechanism": "launchd com.jalal.health-tick → ~/PycharmProjects/health-hub/scripts/health_tick.sh",
    "what": "curls https://jalal-health.vercel.app/api/tick (secret from ~/.config/secrets.env), which sends Jalal's med nags with confirm buttons, eating-window open/warn/close alerts, and fridge prompts via @JalalHealthBot, all state in the shared Upstash KV (health:* keys)",
    "logs": "~/Library/Logs/health-tick.log",
