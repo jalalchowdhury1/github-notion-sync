@@ -1059,6 +1059,15 @@ FLEET = [
      "log_path": "~/PycharmProjects/daily-trackers/cron.log",
      "log_grep": r"TRACKERS_OK 5/5 date={date}",
      "live_since": "2026-08-25"},
+    # sheets-backup: nightly git snapshot of every sheet feeding the finance
+    # dashboard + Automa Data (cron 06:10 UTC, ~3 h old at the 09:00 check; one
+    # missed night reads ~27 h, so 24 catches it same-morning). The marker is
+    # printed only after every fetch passed sanity_check, so a garbage/partial
+    # night cannot paint the row green. Marker shape is anchored by a unit test
+    # in sheets-backup — change both sides together.
+    {"name": "sheets-backup (nightly sheets -> git)", "repo": "sheets-backup",
+     "probe": "gh_run", "workflow": "backup.yml", "max_age_h": 24,
+     "log_grep": r"BACKUP OK: \d+ owned tabs, \d+ public sources"},
     # ── ported off n8n 2026-08-24 ───────────────────────────────────────────
     # mental-models: cron 05:10 UTC (00:10 EST / 01:10 EDT), so by the 09:00 UTC
     # check a good night's run is ~4 h old and ONE missed night reads ~28 h.
