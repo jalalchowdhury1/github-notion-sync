@@ -643,7 +643,67 @@ def probe_nuts_radar(url, repo_dir, catalysts_url=None, max_cat_age_h=27, **_):
     return True, f"tree shape matches NUTS · book {book} · {cat}"
 
 
+def probe_one_clock_lambda(log_group="/aws/lambda/gh-dispatcher",
+                           ping_window_min=75, min_pings=2,
+                           dispatch_window_h=26, min_dispatches=3, **_):
+    """Health of the One Clock dispatch machinery itself (EventBridge Scheduler
+    -> gh-dispatcher Lambda), independent of any single job.
+
+    The expect_event checks on individual gh_run probes tell you a given job's
+    primary went quiet, one job at a time, up to a day late. This probe watches
+    the shared machinery directly, so one red row names the real culprit:
+
+      1. Any ERROR/Traceback in the Lambda log inside 24h -> red with the tail.
+         Catches a revoked/rotated-but-not-updated GH_DISPATCH_PAT (urlopen
+         raises on the 401), a bad deploy, and Lambda timeouts, in ONE place.
+      2. PING OK count in the last `ping_window_min` minutes (health-hub tick,
+         cron(1/15 ...) = 5 expected per 75 min; >= `min_pings` tolerates
+         transients). Proves scheduler->Lambda->URL end to end, every hour of
+         the day -- this is the canary, because it is the only One Clock leg
+         that fires often enough to grade freshly at 5 AM.
+      3. DISPATCH OK count across `dispatch_window_h` -> proves the PAT leg
+         (mental-models 00:10 ET + >=4 daytime monitors land inside any 26h).
+
+    Uses the `aws` CLI as claude-ops (CloudWatchLogsReadOnly); run_health.sh
+    puts /usr/local/bin on PATH. An aws-CLI failure RAISES (infra retry path),
+    the same convention as probe_gh_run's log fetch: an unreadable log is not
+    a log with missing markers.
+    """
+    def _logs(minutes_back, pattern):
+        start = int((time.time() - minutes_back * 60) * 1000)
+        p = subprocess.run(
+            ["aws", "logs", "filter-log-events", "--log-group-name", log_group,
+             "--start-time", str(start), "--filter-pattern", pattern,
+             "--query", "events[].message", "--output", "text"],
+            capture_output=True, text=True, timeout=60)
+        if p.returncode != 0:
+            raise RuntimeError(f"aws logs failed: {p.stderr.strip()[:150]}")
+        out = p.stdout.strip()
+        return [l for l in out.splitlines() if l.strip()] if out else []
+
+    errors = _logs(24 * 60, "?ERROR ?Traceback ?\"Task timed out\"")
+    if errors:
+        return False, (f"{len(errors)} Lambda error line(s) in 24h — first: "
+                       f"{errors[0][:180]}\n(check GH_DISPATCH_PAT validity and "
+                       f"the gh-dispatcher deploy; log group {log_group})")
+    pings = _logs(ping_window_min, '"PING OK"')
+    if len(pings) < min_pings:
+        return False, (f"only {len(pings)} PING OK in {ping_window_min}m "
+                       f"(expect ~{ping_window_min // 15}) — EventBridge "
+                       f"Scheduler or the Lambda is not firing; check "
+                       f"`aws scheduler list-schedules --name-prefix one-clock`")
+    dispatches = _logs(dispatch_window_h * 60, '"DISPATCH OK"')
+    if len(dispatches) < min_dispatches:
+        return False, (f"only {len(dispatches)} DISPATCH OK in "
+                       f"{dispatch_window_h}h (expect >=5) — the workflow_dispatch "
+                       f"leg (PAT) is failing while pings still pass; the "
+                       f"GH_DISPATCH_PAT has likely been revoked or lost repos")
+    return True, (f"{len(pings)} pings/{ping_window_min}m, "
+                  f"{len(dispatches)} dispatches/{dispatch_window_h}h, 0 errors")
+
+
 PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
+             "one_clock_lambda": probe_one_clock_lambda,
              "local_stamp": probe_local_stamp, "launchd_exit": probe_launchd_exit,
              "file_mtime": probe_file_mtime, "gh_run": probe_gh_run,
              "planner_backup": probe_planner_backup,
@@ -729,6 +789,25 @@ FLEET = [
     # yesterday's — 17-23 h old on a good day, 41-47 h after ONE missed day.
     # 48 therefore needed TWO consecutive misses to alarm; 36 catches the first
     # while leaving 13-19 h of slack over the worst measured run time.
+    # ── One Clock (AWS EventBridge primary triggers, 2026-08-29) ────────────
+    # The dispatch machinery itself. One red row here names the real culprit
+    # when several expect_event rows would otherwise go red one by one.
+    {"name": "one-clock (EventBridge->Lambda dispatcher)", "repo": "one-clock",
+     "probe": "one_clock_lambda"},
+    # The dead-man's-switch's own dead-man's-switch: health.yml (GH side)
+    # watches this Mac; this row watches health.yml back, and expect_event
+    # confirms AWS (one-clock-notion-health, 12:37 UTC) is what fires it —
+    # mutual watching, so neither side can die silently.
+    {"name": "github-notion-sync (daily health stamp)", "repo": "github-notion-sync",
+     "probe": "gh_run", "workflow": "health.yml", "max_age_h": 36,
+     "expect_event": "workflow_dispatch"},
+    # Watchdog for the AAII scrape. Un-rostered before 2026-08-29 — the thing
+    # that catches a silent scrape miss could itself go silent unnoticed.
+    # AWS one-clock-sentiment-watchdog 19:30 UTC; GH 20:00 backstop.
+    {"name": "sentiment-scraper (evening watchdog)", "repo": "sentiment-scraper",
+     "probe": "gh_run", "workflow": "watchdog.yml", "max_age_h": 36,
+     "expect_event": "workflow_dispatch"},
+    # ────────────────────────────────────────────────────────────────────────
     # sentiment-scraper: cron 08:00 UTC, actually runs 09:51-11:17 (10 days).
     {"name": "sentiment-scraper (AAII weekly data)", "repo": "sentiment-scraper",
      # NO expect_event: only sentiment-scraper's WATCHDOG moved to AWS
