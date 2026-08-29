@@ -1,5 +1,5 @@
 {
- "updated": "2026-08-28 05:01",
+ "updated": "2026-08-29 05:00",
  "jobs": [
   {
    "key": "com.jalal.aoife-gcal-sync",
@@ -120,6 +120,16 @@
    "what": "Snapshots the Mac's security + hygiene state (SIP/FileVault/Gatekeeper/firewall, MDM, LaunchDaemons + LaunchAgents, privileged helpers, login items, cron, LAN-exposed listeners, DNS, /etc/hosts, admins and local users, SSH authorized keys, sudoers.d, TCC privacy grants, system extensions, third-party kexts, root processes, installed apps, Chrome extension IDs + their risky permissions, sustained-CPU hogs, disk space), diffs against last night and Telegrams ONLY when something changed. No collector count here on purpose — it grows, and a number in prose goes stale silently (see mac_audit/collect.py COLLECTORS)",
    "logs": "~/PycharmProjects/mac-audit/cron.log",
    "notes": "03:10 with a 04:10 retry — both deliberately BEFORE the 5:00 fleet check so a failed audit is caught the same morning. SILENT BY DESIGN: no message means nothing changed, so the fleet-health local_stamp probe on state/last_success is the only proof it is alive. Severity drives loudness — CRITICAL (protection switched off, new root LaunchDaemon, new admin, new SSH key) notifies; INFO (a new Chrome extension) is a quiet ping. `tcc_allowed` reads as 'still unreadable' every night because a launchd-spawned bash has no Full Disk Access; that is reported, never silently dropped, and granting FDA to /bin/bash would restore it at the cost of giving every shell script full-disk rights. root_processes is MONOTONIC (union of everything ever seen) because OneDrive's updater daemon is only intermittently running and a plain set-diff flapped nightly. After deliberately changing the Mac's posture, run `uv run mac-audit run` once so the change lands in the baseline instead of ambushing you at 3 AM"
+  },
+  {
+   "key": "com.jalal.mental-models-backstop",
+   "title": "Mental-models cron-miss backstop",
+   "when": "6:00 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.mental-models-backstop → ~/.local/bin/mental-models-backstop.sh",
+   "what": "6:00 AM check: if results/daily/$TODAY.json is absent from the mental-models repo (GitHub's 05:10 UTC cron dropped the run), dispatches daily.yml via gh. The artifact check is the dedupe guard — the workflow's own skip-guard covers schedule events only, so a dispatch always runs; the guard still no-ops a LATE cron that fires after a backstop dispatch",
+   "logs": "~/Library/Logs/mental-models-backstop.log",
+   "notes": "Added 2026-08-28 after GitHub Actions schedule proved unreliable for this repo (fired +31m, +34m, +11h14m late, then never on 08-28). This is the delivery guarantee; GitHub's cron is now best-effort first-attempt. Markers MM-BACKSTOP OK/DISPATCHED date=… are date-pinned and graded by fleet-health's log_marker probe (runs after the 5 AM check, so yesterday's marker is the one graded)."
   },
   {
    "key": "com.jalal.notebooklm-drip",
