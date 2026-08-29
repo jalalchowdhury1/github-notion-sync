@@ -544,7 +544,12 @@ def main() -> int:
         print("WARN: ANTHROPIC_API_KEY not set — falling back to heuristic descriptions", file=sys.stderr)
 
     print("Listing GitHub repos...", flush=True)
-    repos = list_user_repos(gh_token, include_archived=False)
+    # include_archived=True: an archived repo is FROZEN, not gone. Excluding them
+    # here made them fall out of `seen_urls` and hit the "vanished from GitHub"
+    # sweep below, so Notion labelled them Status=Deleted -- and compute_status's
+    # `is_archived -> "Archived"` branch was dead code that could never run.
+    # (Bit vix-fear-greed, archived 2026-08-29.) Deleted must mean actually gone.
+    repos = list_user_repos(gh_token, include_archived=True)
     print(f"  Found {len(repos)} repos", flush=True)
 
     last_actions: dict[str, str | None] = {}

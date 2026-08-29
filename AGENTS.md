@@ -127,7 +127,7 @@ A single-file Python script (`sync.py`, stdlib-only — no third-party packages)
 **mirrors the owner's GitHub repos into a Notion database**. On each run it:
 
 1. Lists every repo the authenticated user **owns** (paginated, `affiliation=owner`,
-   sorted by `pushed`), skipping GitHub-archived repos by default.
+   sorted by `pushed`), **including GitHub-archived repos** (`include_archived=True`).
 2. For each repo, fetches the file tree, the README, the timestamp of the last
    **successful** Actions run, and the contents of a few manifest files
    (`package.json`, `pyproject.toml`, `serverless.yml`, etc.).
@@ -170,6 +170,7 @@ GitHub Actions (monthly cron, or manual)
         │
         └─▶ Notion API    query DB by "Repo URL" → PATCH (update) or POST (create) page
                           → repos gone from GitHub get Status=Deleted (PATCH)
+                          → archived repos get Status=Archived, NOT Deleted
 ```
 
 All HTTP goes through one helper, `http()`, which retries `429/502/503/504` (and network
@@ -183,8 +184,9 @@ returned quietly (no stderr noise).
 **This is not "deployed" — it just runs in Actions or locally.** No build step, no
 `requirements.txt` (stdlib only). The only automated tests are
 `test_fleet_health.py` (stdlib `unittest`, no deps) covering the digest's
-correlated-staleness banner — run `python3 -m unittest test_fleet_health -v`.
-The probes themselves are still untested (they all talk to the network).
+correlated-staleness banner, and `test_sync.py` covering `compute_status`'s
+Active/Stale/Archived labelling — run `python3 -m unittest test_sync test_fleet_health -v`
+(13 tests). The probes and the network-touching sync paths are still untested.
 
 ### Local run
 ```sh
@@ -401,9 +403,16 @@ Actions). Never hardcode any of them — the repo is **public**.
   duplicates.
 
 - **Deletes are soft.** Repos present in Notion but no longer returned by GitHub are set
-  to `Status=Deleted` (and skipped if already Deleted). Rows are never removed. Note this
-  also catches **renamed** repos (new URL = new row created, old URL = marked Deleted) and
-  repos that became **archived** (archived repos are skipped at list time → look "gone").
+  to `Status=Deleted` (and skipped if already Deleted). Rows are never removed. This still
+  catches **renamed** repos (new URL = new row created, old URL = marked Deleted).
+- **⚠️ Archived ≠ Deleted — do NOT set `include_archived=False` again.** Until 2026-08-29
+  archived repos were skipped at list time, so they fell out of `seen_urls`, hit the
+  "vanished from GitHub" sweep, and were labelled `Status=Deleted` — which is false: the
+  repo is still there, deliberately frozen. It also made `compute_status`'s
+  `is_archived -> "Archived"` branch dead code that could never execute. Found when
+  `vix-fear-greed` was archived (2026-08-29) and would have flipped to Deleted on the next
+  monthly run. `test_sync.py` pins the labelling; the list flag itself is network wiring
+  and is verified by running the sync and reading the row back.
 
 - **The target Notion DB must already have the exact column names/types** used in
   `build_props` (`Name`=title, `Repo URL`=url, `Stack`=multi_select, `Language`/`Visibility`/
