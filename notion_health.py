@@ -91,14 +91,24 @@ def die(msg) -> None:
 
 
 def http(method, url, token, body=None):
+    """3 attempts / 20s pause on network errors — same convention as
+    fleet_health.py's PROBE_ATTEMPTS (a single flaky Notion read timeout
+    should not fail the whole run)."""
     req = urllib.request.Request(
         url, method=method,
         data=json.dumps(body).encode() if body is not None else None,
         headers={"Authorization": f"Bearer {token}",
                  "Notion-Version": NOTION_VERSION,
                  "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return r.status, json.loads(r.read().decode())
+    for attempt in range(1, 4):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return r.status, json.loads(r.read().decode())
+        except Exception:                    # noqa: BLE001 — infra error: retry
+            if attempt == 3:
+                raise
+            print(f"WARN: Notion {method} attempt {attempt} failed, retrying")
+            time.sleep(20)
 
 
 def ensure_properties(token, db_id):
