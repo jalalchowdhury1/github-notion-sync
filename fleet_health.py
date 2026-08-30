@@ -238,6 +238,7 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None, **
     if not runs:
         return False, "no runs found"
     run = runs[0]
+    _rescue_note = None
     run_url = f"https://github.com/{GH_USER}/{repo}/actions/runs/{run['databaseId']}"
     ts = datetime.datetime.strptime(run["createdAt"][:16], "%Y-%m-%dT%H:%M")
     age = _age_hours(ts.replace(tzinfo=datetime.timezone.utc).timestamp())
@@ -250,11 +251,46 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None, **
                        f" — likely HUNG; cancel it to release the runner and"
                        f" expose the wedged step's log\nrun: {run_url}")
     if run["conclusion"] != "success":
-        detail = f"last run {run['conclusion']} ({age:.0f}h ago)\nrun: {run_url}"
-        tail = _failed_log_tail(repo, run["databaseId"])
-        if tail:
-            detail += f"\nlog tail:\n{tail}"
-        return False, detail
+        # One Clock made a job's newest run and its REAL run two different things.
+        # With an AWS primary plus a demoted GitHub backstop, a redundant backstop
+        # run can fail on its own (transient API blip) minutes-to-hours AFTER the
+        # primary already did the work — newest-run grading then reports red on a
+        # pipeline that is fine. Observed 2026-08-29: AWS stamped Notion at 15:27,
+        # the 4h-late backstop cron hit a Notion TimeoutError at 17:03, row red.
+        #
+        # So: a failure is only downgraded when the work provably happened anyway —
+        # a SUCCESS inside max_age_h, and (when expect_event is set) via the
+        # PRIMARY trigger specifically. A genuinely broken job has no such success
+        # and stays red, which is the case this must not soften.
+        rescue = None
+        for r in runs[1:]:
+            if r.get("conclusion") != "success":
+                continue
+            r_age = _age_hours(datetime.datetime.strptime(r["createdAt"][:16], "%Y-%m-%dT%H:%M")
+                               .replace(tzinfo=datetime.timezone.utc).timestamp())
+            if r_age > max_age_h:
+                continue
+            if expect_event and r.get("event") != expect_event:
+                continue
+            rescue = (r, r_age)
+            break
+        if rescue:
+            r, r_age = rescue
+            note = (f"newest run ({run.get('event', '?')}) {run['conclusion']} "
+                    f"{age:.0f}h ago, but the {r.get('event', '?')} run {r_age:.0f}h "
+                    f"ago succeeded — redundant-trigger blip, work was done")
+            if log_grep:
+                run, run_url, age = r, (f"https://github.com/{GH_USER}/{repo}"
+                                        f"/actions/runs/{r['databaseId']}"), r_age
+                _rescue_note = note
+            else:
+                return True, note
+        else:
+            detail = f"last run {run['conclusion']} ({age:.0f}h ago)\nrun: {run_url}"
+            tail = _failed_log_tail(repo, run["databaseId"])
+            if tail:
+                detail += f"\nlog tail:\n{tail}"
+            return False, detail
     if age > max_age_h:
         return False, (f"no run in {age/24:.1f}d (limit {max_age_h}h)"
                        f"\nlast run: {run_url}")
@@ -304,7 +340,8 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None, **
                 f"{(lp.stderr or '').strip()[:120] or 'empty log'}")
         missing = [pat for pat in patterns if not re.search(pat, log)]
         if not missing:
-            return True, f"success {age:.0f}h ago, data confirmed"
+            return True, (f"success {age:.0f}h ago, data confirmed"
+                          + (f" ({_rescue_note})" if _rescue_note else ""))
         # The latest run's log lacks the marker, but some workflows (e.g.
         # mental-models) fire more than once a day — a manual dispatch does
         # the real work, then the schedule trigger fires later, sees today's
@@ -333,7 +370,8 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None, **
         return False, (f"run green but data marker missing "
                        f"({', '.join(repr(m) for m in missing)})"
                        f"\nrun: {run_url}")
-    return True, f"success {age:.0f}h ago"
+    return True, (f"success {age:.0f}h ago"
+                  + (f" ({_rescue_note})" if _rescue_note else ""))
 
 
 def _valid_json(path):
