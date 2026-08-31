@@ -1,5 +1,5 @@
 {
- "checked": "2026-08-30 05:01",
+ "checked": "2026-08-31 05:01",
  "telegram": "sent",
  "results": [
   {
@@ -23,7 +23,7 @@
    "repo": "carmax-scraper",
    "probe": "local_stamp",
    "ok": true,
-   "detail": "last success 2026-08-30",
+   "detail": "last success 2026-08-31",
    "cfg": "probe=local_stamp \u00b7 repo=carmax-scraper \u00b7 path=~/PycharmProjects/carmax-scraper/.last_success_date \u00b7 max_age_h=36"
   },
   {
@@ -31,7 +31,7 @@
    "repo": "mac-audit",
    "probe": "local_stamp",
    "ok": true,
-   "detail": "last success 2026-08-30",
+   "detail": "last success 2026-08-31",
    "cfg": "probe=local_stamp \u00b7 repo=mac-audit \u00b7 path=~/PycharmProjects/mac-audit/state/last_success \u00b7 max_age_h=24"
   },
   {
@@ -39,7 +39,7 @@
    "repo": "leasehackr-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 10h ago, data confirmed",
+   "detail": "success 24h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=leasehackr-scraper \u00b7 workflow=daily_scraper.yml \u00b7 max_age_h=24 \u00b7 log_grep=unique deal cards across \\d+ regions + Scraped \\d+ deals total"
   },
   {
@@ -47,7 +47,7 @@
    "repo": "leasehackr-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 23h ago, data confirmed",
+   "detail": "success 24h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=leasehackr-scraper \u00b7 workflow=weekly_scraper.yml \u00b7 max_age_h=24 \u00b7 log_grep=unique deal cards across \\d+ regions + refreshed the dashboard with [1-9]\\d* sorted deals"
   },
   {
@@ -55,17 +55,16 @@
    "repo": "one-clock",
    "probe": "one_clock_lambda",
    "ok": true,
-   "detail": "5 pings/75m, 8 dispatches/26h, 0 errors",
+   "detail": "5 pings/75m, 7 dispatches/26h, 0 errors",
    "cfg": "probe=one_clock_lambda \u00b7 repo=one-clock"
   },
   {
    "name": "github-notion-sync (daily health stamp)",
    "repo": "github-notion-sync",
    "probe": "gh_run",
-   "ok": false,
-   "detail": "last run failure (16h ago)\nrun: https://github.com/jalalchowdhury1/github-notion-sync/actions/runs/33264634820\nlog tail:\nTraceback (most recent call last):\n...\nFile \"/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/http/client.py\", line 304, in _read_status\nline = str(self.fp.readline(_MAXLINE + 1), \"iso-8859-1\")\n^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nFile \"/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/socket.py\", line 720, in readinto\nreturn self._sock.recv_into(b)\n^^^^^^^^^^^^^^^^^^^^^^^\nFile \"/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/ssl.py\", line 1251, in recv_into\nreturn self.read(nbytes, buffer)\n^^^^^^^^^^^^^^^^^^^^^^^^^\nFile \"/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/ssl.py\", line 1103, in read\nreturn self._sslobj.read(len, buffer)\n^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTimeoutError: The read operation timed out\n##[error]Process completed with exit code 1.",
-   "cfg": "probe=gh_run \u00b7 repo=github-notion-sync \u00b7 workflow=health.yml \u00b7 max_age_h=36",
-   "failing_since": "2026-08-30"
+   "ok": true,
+   "detail": "success 16h ago",
+   "cfg": "probe=gh_run \u00b7 repo=github-notion-sync \u00b7 workflow=health.yml \u00b7 max_age_h=36"
   },
   {
    "name": "sentiment-scraper (evening watchdog)",
@@ -80,7 +79,7 @@
    "repo": "sentiment-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 19h ago",
+   "detail": "success 20h ago",
    "cfg": "probe=gh_run \u00b7 repo=sentiment-scraper \u00b7 workflow=daily-scrape.yml \u00b7 max_age_h=36"
   },
   {
@@ -88,7 +87,7 @@
    "repo": "ynab-budget-brief",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 18h ago, data confirmed",
+   "detail": "success 16h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/ynab-budget-brief/actions/runs/33307821226",
    "cfg": "probe=gh_run \u00b7 repo=ynab-budget-brief \u00b7 workflow=daily_brief.yml \u00b7 max_age_h=36 \u00b7 log_grep=Sent eating-out brief: + Sent family brief:"
   },
   {
@@ -104,7 +103,7 @@
    "repo": "hedgelab",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 32h ago",
+   "detail": "success 56h ago",
    "cfg": "probe=gh_run \u00b7 repo=hedgelab \u00b7 workflow=daily.yml \u00b7 max_age_h=72"
   },
   {
@@ -112,7 +111,7 @@
    "repo": "trading-algorithm-",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 18h ago, data confirmed",
+   "detail": "success 42h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=trading-algorithm- \u00b7 workflow=trading_alert.yml \u00b7 max_age_h=72 \u00b7 log_grep=NUTS-SIGNAL (OK unchanged=|CHANGED )"
   },
   {
@@ -120,7 +119,7 @@
    "repo": "reddit-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 0h ago, data confirmed",
+   "detail": "success 19h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=reddit-scraper \u00b7 workflow=daily_scrape.yml \u00b7 max_age_h=36 \u00b7 log_grep=last data/ commit: [^$\\n]+ \u2014 proceeding|data/ already updated today \\([^$\\n]+\\) \u2014 skipping + Google News Aggregator|data/ already updated today \\([^$\\n]+\\) \u2014 skipping"
   },
   {
@@ -136,7 +135,7 @@
    "repo": "financial-telegram-bot",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 16h ago",
+   "detail": "success 15h ago",
    "cfg": "probe=gh_run \u00b7 repo=financial-telegram-bot \u00b7 workflow=health-check.yml \u00b7 max_age_h=36"
   },
   {
@@ -312,7 +311,7 @@
    "repo": "sheets-backup",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 10h ago, data confirmed",
+   "detail": "success 21h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=sheets-backup \u00b7 workflow=backup.yml \u00b7 max_age_h=24 \u00b7 log_grep=BACKUP OK: \\d+ owned tabs, \\d+ public sources"
   },
   {
@@ -344,7 +343,7 @@
    "repo": "NUTS",
    "probe": "nuts",
    "ok": true,
-   "detail": "TQQQ via ftlt \u00b7 unit_test pass \u00b7 prices 2026-08-28 (2.2d, 22 tickers) \u00b7 eval 1h old",
+   "detail": "TQQQ via ftlt \u00b7 unit_test pass \u00b7 prices 2026-08-28 (3.2d, 22 tickers) \u00b7 eval 1h old",
    "cfg": "probe=nuts \u00b7 repo=NUTS \u00b7 url=https://ju9t7h8903.execute-api.us-east-1.amazonaws.com/evaluate"
   },
   {
