@@ -1,5 +1,5 @@
 {
- "updated": "2026-08-29 06:30",
+ "updated": "2026-09-02 05:01",
  "jobs": [
   {
    "key": "com.jalal.aoife-gcal-sync",
@@ -10,6 +10,16 @@
    "what": "One-way nightly publish of the aoifes-schedule planner (weekly template, dated one-offs, travel/off periods) into the shared 'Aoife's School' Google Calendar",
    "logs": "~/Library/Logs/aoife-gcal-sync.log",
    "notes": "4:10 AM, between the 3:40 backup and the 5:00 fleet check. One-way only — events say 'do not edit here', and the sync overwrites anything edited in Google Calendar. It touches ONLY events carrying its own extendedProperties.private.aoifeSync=v1, so the family's own entries on that calendar are safe. Prints one of three 'GCAL-SYNC WAITING …' markers and exits 0 while the Google-side setup is pending, one per step in the order they clear: calendar-api-disabled (enable Google Calendar API in cloud project hoa-tracker-494016 — the service account cannot enable it itself), calendar-not-shared-yet (a calendar named exactly \"Aoife's School\" shared with claude-sheets@hoa-tracker-494016.iam.gserviceaccount.com), write-permission (shared as 'See all event details' instead of 'Make changes to events'). The fleet probe greps 'GCAL-SYNC OK' with a grace period to 2026-08-20, so a still-unshared calendar gets reported rather than sitting silent."
+  },
+  {
+   "key": "com.jalal.aoife-library-reminder",
+   "title": "Aoife library holds — 4-week habit reminder",
+   "when": "7:05 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.aoife-library-reminder → ~/.local/bin/aoife-library-reminder.sh",
+   "what": "Every-3-days 07:05 Telegram nudge (launchd fires daily; the script only sends on day 1,4,7…28) to the 📡 alerts chat reminding Jalal the concierge can place/swap Warwick library holds for Aoife (project memory project-aoife-library-holds). Runs 2026-09-02 → 2026-09-29 then unloads itself",
+   "logs": "~/Library/Logs/aoife-library-reminder.log",
+   "notes": "TEMPORARY by design — a habit-forming nudge, not a monitor. Deliberately daytime (07:05, next to the 7:00 budget brief) because a human has to read it. Self-terminates after Sep 29 2026 via launchctl bootout inside the script; STOP PHRASE from Jalal = \"stop the library reminders\" → run `aoife-library-reminder.sh stop` (touches ~/.local/state/aoife-library-reminder.stop + bootout); expect Frequency=Removed after that. Do not add a fleet-health probe"
   },
   {
    "key": "com.jalal.aoife-planner-backup",
@@ -132,6 +142,16 @@
    "notes": "Added 2026-08-28 after GitHub Actions schedule proved unreliable for this repo (fired +31m, +34m, +11h14m late, then never on 08-28). This is the delivery guarantee; GitHub's cron is now best-effort first-attempt. Markers MM-BACKSTOP OK/DISPATCHED date=… are date-pinned and graded by fleet-health's log_marker probe (runs after the 5 AM check, so yesterday's marker is the one graded)."
   },
   {
+   "key": "com.jalal.money-radar-reminder",
+   "title": "Money Radar site — daily green-light nag",
+   "when": "7:05 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.money-radar-reminder → ~/.local/bin/money-radar-reminder.sh",
+   "what": "Daily 07:05 Telegram nudge to the 📡 alerts chat until Jalal green-lights or parks the Money Radar maintenance site (plan: Notion page 3cf24bb1172e814cb5bee0e0d0ccf2fa + ~/PycharmProjects/money-radar/PLAN.md). Runs 2026-09-02 → 2026-09-30 then unloads itself",
+   "logs": "~/Library/Logs/money-radar-reminder.log",
+   "notes": "TEMPORARY by design — a decision nag, not a monitor. Deliberately daytime (07:05, same slot as the library reminder) because a human has to read it. STOP PHRASE from Jalal = \"stop the tracker reminders\" → run `money-radar-reminder.sh stop` (touches ~/.local/state/money-radar-reminder.stop + bootout); GREEN-LIGHT phrase = \"build the money radar\". Expect Frequency=Removed after either. Do not add a fleet-health probe"
+  },
+  {
    "key": "com.jalal.notebooklm-drip",
    "title": "Gemini Notebook podcast drip",
    "when": "4:00 AM (retries 12:45 AM)",
@@ -150,6 +170,16 @@
    "what": "Rebuilds catalysts.json for nuts-radar.vercel.app from official calendars (FRED release dates, the Fed's FOMC calendar, Nasdaq earnings), deploys it, then Telegrams the day's events plus the link to the 📡 alerts chat",
    "logs": "~/PycharmProjects/nuts-radar/job/run.log",
    "notes": "04:30, deliberately BEFORE the 5:00 fleet check so a failed build is caught the same morning (it was 05:45 first, which put it after the check and made the 6:30 retry slot useless — fleet_health exits early once the digest has gone). Deterministic on purpose — no language model touches it, because an invented earnings date on a page read before the open is worse than an empty section. Build → deploy → message, in that order, so the link already shows today's rows. A failed build leaves yesterday's file and sends nothing; fleet-health's nuts_radar probe then calls the staleness (limit 30 h, which tolerates the 5:00 check seeing a 23 h-old file). deploy.sh always content-stamps the assets first — a cached assets/tree.js would self-check the OLD tree shape and pass silently"
+  },
+  {
+   "key": "com.jalal.rubber-band",
+   "title": "com.jalal.rubber-band",
+   "when": "Monday, Tuesday, Wednesday, Thursday, Friday 6:30 PM",
+   "frequency": "Weekly",
+   "mechanism": "launchd com.jalal.rubber-band → ~/PycharmProjects/financial-telegram-bot/scripts/rubber_band_nightly.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/rubber-band.log",
+   "notes": ""
   },
   {
    "key": "com.jalal.supervisor",
