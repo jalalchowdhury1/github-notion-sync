@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-03 05:01",
+ "updated": "2026-09-08 05:02",
  "jobs": [
   {
    "key": "com.jalal.aoife-gcal-sync",
@@ -40,6 +40,16 @@
    "what": "Curls aoife-school-bot.vercel.app/api/tick every 30 min so the family Telegram group gets its morning preview (~07:30) and, only when something is still unlogged, one dynamic evening check-in",
    "logs": "~/Library/Logs/aoife-school-bot-tick.log",
    "notes": "07:00–21:30 ET is DELIBERATE and is the one standing exception to the overnight-only house rule: this job exists to talk to the family during the school day, so it cannot run at 3 AM. Slots with nothing to send log 'TICK OK <date> none' and cost one HTTP call; the fleet probe greps 'TICK OK' specifically, because a tick that cannot reach the planner still answers 200 and writes 'TICK FAIL'. The TICK_SECRET is read from the repo's gitignored .env by scripts/tick.sh and passed to curl through a config file on stdin, so it appears in neither the plist nor `ps`."
+  },
+  {
+   "key": "com.jalal.biom-cancel-reminder",
+   "title": "com.jalal.biom-cancel-reminder",
+   "when": "7:05 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.biom-cancel-reminder → ~/.local/bin/biom-cancel-reminder.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/biom-cancel-reminder.log",
+   "notes": ""
   },
   {
    "key": "com.jalal.carmax",
