@@ -1,5 +1,5 @@
 {
- "checked": "2026-09-07 05:01",
+ "checked": "2026-09-08 05:02",
  "telegram": "sent",
  "results": [
   {
@@ -23,7 +23,7 @@
    "repo": "carmax-scraper",
    "probe": "local_stamp",
    "ok": true,
-   "detail": "last success 2026-09-07",
+   "detail": "last success 2026-09-08",
    "cfg": "probe=local_stamp \u00b7 repo=carmax-scraper \u00b7 path=~/PycharmProjects/carmax-scraper/.last_success_date \u00b7 max_age_h=36"
   },
   {
@@ -31,7 +31,7 @@
    "repo": "mac-audit",
    "probe": "local_stamp",
    "ok": true,
-   "detail": "last success 2026-09-07",
+   "detail": "last success 2026-09-08",
    "cfg": "probe=local_stamp \u00b7 repo=mac-audit \u00b7 path=~/PycharmProjects/mac-audit/state/last_success \u00b7 max_age_h=24"
   },
   {
@@ -39,7 +39,7 @@
    "repo": "leasehackr-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 0h ago, data confirmed",
+   "detail": "success 1h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=leasehackr-scraper \u00b7 workflow=daily_scraper.yml \u00b7 max_age_h=24 \u00b7 log_grep=unique deal cards across \\d+ regions + Scraped \\d+ deals total"
   },
   {
@@ -47,7 +47,7 @@
    "repo": "leasehackr-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 0h ago, data confirmed",
+   "detail": "success 1h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=leasehackr-scraper \u00b7 workflow=weekly_scraper.yml \u00b7 max_age_h=24 \u00b7 log_grep=unique deal cards across \\d+ regions + refreshed the dashboard with [1-9]\\d* sorted deals"
   },
   {
@@ -55,7 +55,7 @@
    "repo": "one-clock",
    "probe": "one_clock_lambda",
    "ok": true,
-   "detail": "5 pings/75m, 7 dispatches/26h, 0 errors",
+   "detail": "5 pings/75m, 23 dispatches/26h, 0 errors",
    "cfg": "probe=one_clock_lambda \u00b7 repo=one-clock"
   },
   {
@@ -63,7 +63,7 @@
    "repo": "github-notion-sync",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 17h ago",
+   "detail": "success 15h ago",
    "cfg": "probe=gh_run \u00b7 repo=github-notion-sync \u00b7 workflow=health.yml \u00b7 max_age_h=36"
   },
   {
@@ -79,7 +79,7 @@
    "repo": "sentiment-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 21h ago",
+   "detail": "success 19h ago",
    "cfg": "probe=gh_run \u00b7 repo=sentiment-scraper \u00b7 workflow=daily-scrape.yml \u00b7 max_age_h=36"
   },
   {
@@ -87,7 +87,7 @@
    "repo": "ynab-budget-brief",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 17h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/ynab-budget-brief/actions/runs/34028971793",
+   "detail": "success 15h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/ynab-budget-brief/actions/runs/34114344772",
    "cfg": "probe=gh_run \u00b7 repo=ynab-budget-brief \u00b7 workflow=daily_brief.yml \u00b7 max_age_h=36 \u00b7 log_grep=Sent eating-out brief: + Sent family brief:"
   },
   {
@@ -103,7 +103,7 @@
    "repo": "hedgelab",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 61h ago",
+   "detail": "success 12h ago",
    "cfg": "probe=gh_run \u00b7 repo=hedgelab \u00b7 workflow=daily.yml \u00b7 max_age_h=72"
   },
   {
@@ -111,7 +111,7 @@
    "repo": "trading-algorithm-",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 59h ago, data confirmed",
+   "detail": "success 9h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=trading-algorithm- \u00b7 workflow=trading_alert.yml \u00b7 max_age_h=72 \u00b7 log_grep=NUTS-SIGNAL (OK unchanged=|CHANGED )"
   },
   {
@@ -127,7 +127,7 @@
    "repo": "financial-telegram-bot",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 20h ago",
+   "detail": "success 18h ago",
    "cfg": "probe=gh_run \u00b7 repo=financial-telegram-bot \u00b7 workflow=daily_report.yml \u00b7 max_age_h=36"
   },
   {
@@ -135,7 +135,7 @@
    "repo": "financial-telegram-bot",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 16h ago",
+   "detail": "success 14h ago",
    "cfg": "probe=gh_run \u00b7 repo=financial-telegram-bot \u00b7 workflow=health-check.yml \u00b7 max_age_h=36"
   },
   {
@@ -270,9 +270,10 @@
    "name": "aoife-milestones-bot (telegram webhook registered)",
    "repo": null,
    "probe": "telegram_webhook",
-   "ok": true,
-   "detail": "webhook registered, 0 pending",
-   "cfg": "probe=telegram_webhook \u00b7 token_env=MILESTONES_BOT_TOKEN \u00b7 expect_url=https://aoife-milestones-bot.vercel.app/api/webhook"
+   "ok": false,
+   "detail": "webhook lost its shared-secret query guard \u2014 the endpoint is now unauthenticated",
+   "cfg": "probe=telegram_webhook \u00b7 token_env=MILESTONES_BOT_TOKEN \u00b7 expect_url=https://aoife-milestones-bot.vercel.app/api/webhook",
+   "failing_since": "2026-09-08"
   },
   {
    "name": "notebooklm-drip (nightly Gemini Notebook drip)",
@@ -311,7 +312,7 @@
    "repo": "sheets-backup",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 22h ago, data confirmed",
+   "detail": "success 21h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=sheets-backup \u00b7 workflow=backup.yml \u00b7 max_age_h=24 \u00b7 log_grep=BACKUP OK: \\d+ owned tabs, \\d+ public sources"
   },
   {
@@ -343,7 +344,7 @@
    "repo": "NUTS",
    "probe": "nuts",
    "ok": true,
-   "detail": "TQQQ via ftlt \u00b7 unit_test pass \u00b7 prices 2026-09-04 (3.2d, 22 tickers) \u00b7 eval 0h old",
+   "detail": "TQQQ via ftlt \u00b7 unit_test pass \u00b7 prices 2026-09-04 (4.2d, 22 tickers) \u00b7 eval 1h old",
    "cfg": "probe=nuts \u00b7 repo=NUTS \u00b7 url=https://ju9t7h8903.execute-api.us-east-1.amazonaws.com/evaluate"
   },
   {
