@@ -507,6 +507,11 @@ def probe_telegram_webhook(token_env, expect_url, require_guard=False, **_):
     # was MORE locked down, not less. Test the door, not the shape of the key.
     if require_guard:
         status = _unauth_post_status(f"{g.scheme}://{g.netloc}{g.path}")
+        if status >= 500:
+            # A 5xx says nothing about the guard — the function is erroring or
+            # cold. Raise so run_checks() takes the infra-retry path instead of
+            # paging "guard is GONE" on a transient.
+            raise RuntimeError(f"unauth POST got HTTP {status} — cannot judge the guard")
         if status not in (401, 403):
             return False, (f"webhook guard is GONE — an unauthenticated POST got "
                            f"HTTP {status}, expected 401/403; the endpoint accepts "

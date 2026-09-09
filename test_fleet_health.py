@@ -114,3 +114,7 @@ class WebhookGuardProbe(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("guard is GONE", detail)
         self.assertNotIn("secret", detail)
+
+    def test_5xx_on_the_guard_post_is_an_infra_error_not_a_verdict(self):
+        with self.assertRaises(RuntimeError):
+            self._run("https://b.vercel.app/api/webhook", 503)
