@@ -68,3 +68,49 @@ class CorrelatedStaleness(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WebhookGuardProbe(unittest.TestCase):
+    """require_guard proves the secret still bites by POSTing WITHOUT one."""
+
+    def _run(self, registered_url, unauth_status):
+        import io, json, os, urllib.error
+        os.environ["T_TOKEN"] = "x"
+        info = {"ok": True, "result": {"url": registered_url, "pending_update_count": 0}}
+
+        def fake_urlopen(req, timeout=30):
+            url = req.full_url if hasattr(req, "full_url") else req
+            if "getWebhookInfo" in url:
+                r = io.BytesIO(json.dumps(info).encode()); r.status = 200
+                r.__enter__ = lambda s=r: s; r.__exit__ = lambda s, *a: None
+                return r
+            self.assertEqual(req.get_method(), "POST")
+            self.assertNotIn("?", url)
+            self.assertIsNone(req.get_header("X-telegram-bot-api-secret-token"))
+            if unauth_status == 200:
+                r = io.BytesIO(b"ok"); r.status = 200
+                r.__enter__ = lambda s=r: s; r.__exit__ = lambda s, *a: None
+                return r
+            raise urllib.error.HTTPError(url, unauth_status, "nope", {}, None)
+
+        orig = fh.urllib.request.urlopen
+        fh.urllib.request.urlopen = fake_urlopen
+        try:
+            return fh.probe_telegram_webhook("T_TOKEN", "https://b.vercel.app/api/webhook",
+                                             require_guard=True)
+        finally:
+            fh.urllib.request.urlopen = orig
+
+    def test_header_guarded_bot_with_no_query_passes(self):
+        ok, detail = self._run("https://b.vercel.app/api/webhook", 403)
+        self.assertTrue(ok, detail)
+
+    def test_query_guarded_bot_still_passes(self):
+        ok, detail = self._run("https://b.vercel.app/api/webhook?s=secret", 401)
+        self.assertTrue(ok, detail)
+
+    def test_open_endpoint_pages(self):
+        ok, detail = self._run("https://b.vercel.app/api/webhook", 200)
+        self.assertFalse(ok)
+        self.assertIn("guard is GONE", detail)
+        self.assertNotIn("secret", detail)

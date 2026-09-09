@@ -576,9 +576,15 @@ workflow, every live URL, and every bot's `getWebhookInfo`. Nine gaps closed:
 aoife-school-bot guard their webhook with a shared secret in the query string
 (`?s=…`) and **this repo is public** — hardcoding `expect_url` would have
 published the guard. It now compares scheme+host+path only, never echoes the
-query back in an error message, and takes `require_query_guard: True` to assert
-the guard still EXISTS without ever storing its value (a guard that silently
-vanishes leaves the endpoint unauthenticated — that must still page).
+query back in an error message, and takes `require_guard: True` to prove the
+guard still BITES: it POSTs one bare `{"update_id":0}` with no `?s=` and no
+`X-Telegram-Bot-Api-Secret-Token` header and requires a 401/403. (Until
+2026-09-09 it merely asserted `?s=` was present in the registered URL; when
+milestones-bot moved its secret into Telegram's header on 2026-09-07 — the
+query form leaked into every Vercel access-log line — the probe paged for a
+day on a bot that had become MORE locked down. Test the door, not the shape
+of the key.) A guard that silently vanishes still pages — `test_fleet_health`
+has the open-endpoint case.
 
 Every new probe's failure branches were verified to actually fire before commit
 (wrong host, wrong path, missing token, absent query guard, bogus log pattern,

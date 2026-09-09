@@ -39,6 +39,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -462,7 +463,7 @@ def probe_log_marker(log_path, log_grep, live_since=None, **_):
     return True, f"marker present in {log_path}"
 
 
-def probe_telegram_webhook(token_env, expect_url, require_query_guard=False, **_):
+def probe_telegram_webhook(token_env, expect_url, require_guard=False, **_):
     """A Telegram bot's webhook still points where we think it does.
 
     Added 2026-08-24 after voices-bot went silently deaf: deactivating the old
@@ -498,14 +499,33 @@ def probe_telegram_webhook(token_env, expect_url, require_query_guard=False, **_
         return False, (f"webhook is {got.split('?')[0] or '(EMPTY — bot is deaf)'}, "
                        f"expected {expect_url}")
     # ...but a guard that silently VANISHES leaves the endpoint open to anyone,
-    # so assert it still exists without ever storing or printing its value.
-    if require_query_guard and not g.query:
-        return False, ("webhook lost its shared-secret query guard — "
-                       "the endpoint is now unauthenticated")
+    # so prove it still bites: POST one bare update with NO secret (no ?s=, no
+    # X-Telegram-Bot-Api-Secret-Token header) and require a 401/403. Until
+    # 2026-09-07 this asserted `?s=` was in the registered URL; milestones-bot
+    # then moved its secret into Telegram's header (the query form leaked into
+    # every Vercel access-log line) and the probe paged for a day on a bot that
+    # was MORE locked down, not less. Test the door, not the shape of the key.
+    if require_guard:
+        status = _unauth_post_status(f"{g.scheme}://{g.netloc}{g.path}")
+        if status not in (401, 403):
+            return False, (f"webhook guard is GONE — an unauthenticated POST got "
+                           f"HTTP {status}, expected 401/403; the endpoint accepts "
+                           f"anyone's updates")
     detail = f"webhook registered, {pending} pending"
     if err:
         return False, f"{detail}, last_error={err!r}"
     return True, detail
+
+
+def _unauth_post_status(url):
+    """HTTP status for a secret-less Telegram-shaped POST. Never sends a token."""
+    req = urllib.request.Request(url, method="POST", data=b'{"update_id":0}',
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
 
 
 def probe_nuts(url, max_data_age_d=5, max_eval_age_h=96, **_):
@@ -1006,7 +1026,7 @@ FLEET = [
     {"name": "aoife-school-bot (telegram webhook registered)", "repo": None,
      "probe": "telegram_webhook", "token_env": "SCHOOL_BOT_TOKEN",
      "expect_url": "https://aoife-school-bot.vercel.app/api/webhook",
-     "require_query_guard": True},
+     "require_guard": True},
     # aoife-milestones-bot had NO probe of any kind before 2026-08-25 — the only
     # live service in the fleet that was entirely unwatched. It is voice-driven
     # and write-through (voice → draft → ✓ → Sheet → Doc + Notion), so a deaf bot
@@ -1017,7 +1037,7 @@ FLEET = [
     {"name": "aoife-milestones-bot (telegram webhook registered)", "repo": None,
      "probe": "telegram_webhook", "token_env": "MILESTONES_BOT_TOKEN",
      "expect_url": "https://aoife-milestones-bot.vercel.app/api/webhook",
-     "require_query_guard": True},
+     "require_guard": True},
     # notebooklm-drip: daily 04:00 with a 00:45 retry slot, both landing before
     # this 05:00 check. Grade the marker generate_all.py PRINTS ON COMPLETION,
     # correlated to a dated run header — a bare FINISHED would match a stale one
@@ -1178,7 +1198,7 @@ FLEET = [
     {"name": "health-hub (telegram webhook registered)", "repo": None,
      "probe": "telegram_webhook", "token_env": "HEALTH_BOT_TOKEN",
      "expect_url": "https://jalal-health.vercel.app/api/telegram",
-     "require_query_guard": True},
+     "require_guard": True},
 ]
 
 
