@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-08 05:02",
+ "updated": "2026-09-09 05:02",
  "jobs": [
   {
    "key": "com.jalal.aoife-gcal-sync",
@@ -80,6 +80,16 @@
    "what": "Appends nightly rows (Zillow Zestimate, Redfin estimate, MND 30-yr mortgage rate, USD-CAD, USD-BDT) to the 'Automa Data' Google Sheet that feeds the Daily Trackers spreadsheet",
    "logs": "~/PycharmProjects/daily-trackers/cron.log",
    "notes": "3:30 AM + 4:30/5:30 AM retries (3-slot ladder like dhaka/carmax since 2026-08-24 evening); sheet-level dedupe (a tab already holding today's row is skipped, so retries only fill gaps); Zillow via local browse CLI in its own session (BROWSE_SESSION=trackers); refuses to start after 6:15 AM; replaced the Automa Chrome-extension workflows 2026-08-24"
+  },
+  {
+   "key": "com.jalal.defensive-nag",
+   "title": "com.jalal.defensive-nag",
+   "when": "every 1 h, 8:20 AM–10:20 PM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.defensive-nag → ~/PycharmProjects/financial-telegram-bot/scripts/defensive_trigger.py",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/defensive-nag.log",
+   "notes": ""
   },
   {
    "key": "com.jalal.dhaka-flights",
@@ -220,6 +230,26 @@
    "what": "Runs `toolcheck` (~/.local/bin/toolcheck), which functionally exercises the whole local CLI toolbox — pandoc, ripgrep, jq, fd, duckdb, sqlite3, htmlq, ghostscript, poppler, qpdf, img2pdf, tesseract, ocrmypdf, pdf2odt, LibreOffice headless, ffmpeg, exiftool, the arm64 PDF-signing venv, plus gh and notebooklm auth. Real round-trips rather than --version checks: it OCRs a rendered image and reads the text back, converts docx to pdf, stamps a signature onto a PDF, queries a CSV. Telegrams the alerts chat ONLY on failure",
    "logs": "~/Library/Logs/toolcheck.log",
    "notes": "SILENT BY DESIGN — no message means every tool passed, so the log is the only proof it ran. WEEKLY not nightly on purpose: these tools barely change, so nightly would be ~365 runs a year to catch maybe one event, and it spawns headless LibreOffice + an OCR pass each time. Added 2026-08-25 after PDF signing was found SILENTLY BROKEN for weeks — a Rosetta arch mismatch (Antigravity's terminal launched an Intel bash, so the venv's universal python loaded x86_64 and refused the arm64 PyMuPDF wheel); nothing would ever have surfaced it. Fires 04:40 Sunday, deliberately before the 05:00 fleet check. The runner reads TELEGRAM_TOKEN/TELEGRAM_CHAT_ID from Dhaka flights/.env BY NAME and must NEVER source it wholesale — that .env also defines BROWSERBASE_API_KEY, and exporting it would contaminate the very check that asserts Browserbase stays project-scoped. Baseline: 26 pass / 0 fail / 1 skip (twitter-cli is skipped because a live probe pops a Chrome Safe Storage Keychain modal at whoever is sitting there)"
+  },
+  {
+   "key": "com.jalal.tranche-nag",
+   "title": "com.jalal.tranche-nag",
+   "when": "7:10 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.tranche-nag → ~/.local/bin/tranche-nag.py",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/tranche-nag.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.tranche-publish",
+   "title": "com.jalal.tranche-publish",
+   "when": "7:12 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.tranche-publish → ~/.local/bin/tranche-publish.py",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/tranche-publish.log",
+   "notes": ""
   },
   {
    "key": "timemachine",
