@@ -270,6 +270,16 @@
    "what": "Reads health.json + schedule.json pushed by the 5 AM fleet check; stamps the GitHub Repos table and rebuilds the Mac Mini Schedule table",
    "logs": "gh run list -w health.yml",
    "notes": "Dead-Mac watchdog: fails loudly if health.json is >2 days stale (i.e., the Mac-side check stopped running)"
+  },
+  {
+   "key": "com.jalal.trigger-board",
+   "title": "Trigger Board — morning must-do + evening verdict",
+   "when": "07:00 and 18:00",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.trigger-board → ~/concierge/triggers/board/run.sh → /usr/bin/python3 board.py",
+   "what": "Deterministic Telegram nag via @JalalHealthBot: ONE must-do + consequence in the morning, verdict in the evening, from health-hub /api/gym + /api/state, aoife-puzzles sessions, KV sat-with dates. No LLM in the path (owner rule 9 Sep 2026).",
+   "logs": "~/Library/Logs/trigger-board.log",
+   "notes": "Built 2026-09-09 from the 8 Sep podcast TRIGGERS.md. Marker BOARD OK <slot> <date> on exit 0; fleet-health log_marker probe. Aoife fetcher needs AOIFE_PARENT_KEY in secrets.env (missing on day 1)."
   }
  ]
 }

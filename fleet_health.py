@@ -1017,6 +1017,14 @@ FLEET = [
     # the next slot) and writes `TICK FAIL <date> planner-unreachable`, which
     # is exactly the silent-bot failure this probe exists to catch. See the
     # bot repo's AGENTS.md §5.
+    # Trigger Board (added 2026-09-09): 07:00 + 18:00 launchd com.jalal.trigger-board
+    # → ~/concierge/triggers/board/run.sh. run.sh prints `BOARD OK <slot> <date>`
+    # only on exit 0; the 05:00 check sees yesterday's evening marker via {date}.
+    {"name": "trigger-board (07:00 + 18:00 must-do nag)", "repo": None,
+     "probe": "log_marker",
+     "log_path": "~/Library/Logs/trigger-board.log",
+     "log_grep": r"BOARD OK \w+ {date}",
+     "live_since": "2026-09-10"},
     {"name": "aoife-school-bot (30-min Telegram tick)", "repo": "aoife-school-bot",
      "probe": "log_marker",
      "log_path": "~/Library/Logs/aoife-school-bot-tick.log",
