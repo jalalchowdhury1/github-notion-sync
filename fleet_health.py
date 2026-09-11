@@ -1395,9 +1395,9 @@ def format_digest(results, recovered=()) -> str:
     return "\n".join([header, ""] + note + body + footer)
 
 
-def _telegram_send(text) -> bool:
+def _telegram_send(text, silent=False) -> bool:
     """Plain-text send (no parse_mode — log excerpts would break Markdown),
-    3 attempts."""
+    3 attempts. silent=True = no buzz (the 05:00 digest; alerts stay loud)."""
     token = os.environ.get("TELEGRAM_TOKEN")
     chat = os.environ.get("TELEGRAM_CHAT_ID")
     if not (token and chat):
@@ -1406,7 +1406,8 @@ def _telegram_send(text) -> bool:
     for attempt in range(1, 4):
         try:
             body = json.dumps({"chat_id": chat, "text": text,
-                               "disable_web_page_preview": True}).encode()
+                               "disable_web_page_preview": True,
+                               "disable_notification": bool(silent)}).encode()
             req = urllib.request.Request(
                 f"https://api.telegram.org/bot{token}/sendMessage",
                 data=body, headers={"Content-Type": "application/json"})
@@ -1473,7 +1474,7 @@ def main(argv=()) -> None:
     try:
         results = run_checks()
         recovered = annotate_history(results)
-        sent = _telegram_send(format_digest(results, recovered))
+        sent = _telegram_send(format_digest(results, recovered), silent=True)   # 05:00 digest — no buzz (11 Sep 2026)
         publish(results, sent)
     finally:
         try:

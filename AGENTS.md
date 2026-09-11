@@ -596,3 +596,7 @@ that no error message leaks a secret. A probe that cannot fail is decoration.
 serving 200. They are the four superseded math repos already marked for deletion;
 they were deliberately NOT rostered.
 
+
+## 11 Sep 2026 — silent 05:00 fleet digest
+`fleet_health.py` sends the daily digest with `_telegram_send(..., silent=True)` (disable_notification):
+it lands at 05:00 ET and is read at breakfast. The self-crash panic message stays loud.
