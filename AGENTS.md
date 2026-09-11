@@ -600,3 +600,7 @@ they were deliberately NOT rostered.
 ## 11 Sep 2026 — silent 05:00 fleet digest
 `fleet_health.py` sends the daily digest with `_telegram_send(..., silent=True)` (disable_notification):
 it lands at 05:00 ET and is read at breakfast. The self-crash panic message stays loud.
+
+## Silent digest hand-off (11 Sep 2026)
+
+The overnight send calls `digest_post("fleet", text, parse_mode)` first (health-hub `api/digest.js`, env `DIGEST_URL` + `DIGEST_KEY` — repo secret DIGEST_KEY, URL in health.yml; only the silent 05:00 digest is handed off, alerts stay direct). Stored → no direct message; the 07:00 ⚪ Silent digest card carries a button that replays it in full (36 h). Collector down or env missing → the old silent direct send. Never make the direct send loud again.

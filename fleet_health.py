@@ -1395,9 +1395,31 @@ def format_digest(results, recovered=()) -> str:
     return "\n".join([header, ""] + note + body + footer)
 
 
+def digest_post(item_id, text, parse_mode="HTML", photo=None, caption=None) -> bool:
+    """Hand an overnight message to the health-hub Silent digest instead of the chat
+    (one 07:00 card, a button per item; a tap replays the full message — 11 Sep 2026).
+    True = stored; False = caller sends to Telegram as before. Needs DIGEST_URL + DIGEST_KEY."""
+    url, key = os.environ.get("DIGEST_URL"), os.environ.get("DIGEST_KEY")
+    if not url or not key:
+        return False
+    body = json.dumps({"id": item_id, "text": text, "parse_mode": parse_mode,
+                       "photo": photo, "caption": caption}).encode()
+    req = urllib.request.Request(f"{url}?k={urllib.parse.quote(key)}", data=body,
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read().decode() or "{}").get("ok") is True
+    except Exception as e:  # noqa: BLE001
+        print(f"digest hand-off failed ({e}); sending directly")
+        return False
+
+
 def _telegram_send(text, silent=False) -> bool:
     """Plain-text send (no parse_mode — log excerpts would break Markdown),
     3 attempts. silent=True = no buzz (the 05:00 digest; alerts stay loud)."""
+    if silent and digest_post("fleet", text, ""):   # Silent digest card first (11 Sep 2026)
+        print("handed to the Silent digest (health-hub)")
+        return True
     token = os.environ.get("TELEGRAM_TOKEN")
     chat = os.environ.get("TELEGRAM_CHAT_ID")
     if not (token and chat):

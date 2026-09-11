@@ -29,6 +29,8 @@ jobs:
           # than crashing.
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DIGEST_URL: https://jalal-health.vercel.app/api/digest
+          DIGEST_KEY: ${{ secrets.DIGEST_KEY }}
         run: python notion_health.py
       - name: Rebuild Mac Mini Schedule table
         env:
