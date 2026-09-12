@@ -793,7 +793,7 @@ def probe_one_clock_lambda(log_group="/aws/lambda/gh-dispatcher",
                   f"{len(dispatches)} dispatches/{dispatch_window_h}h, 0 errors")
 
 
-def probe_rsync_log(log_path, max_age_h=36, **_):
+def probe_rsync_log(log_path, max_age_h=36, min_files=1, **_):
     """The LAST rsync run in an append-only backup log actually copied a real tree.
 
     Replaces launchd_exit on the T7 backup (2026-09-12). Three independent things
@@ -803,9 +803,27 @@ def probe_rsync_log(log_path, max_age_h=36, **_):
       2. rsync errored mid-transfer   -> `sync done (exit 23)`, which has happened
          twice in this log, not exit 0.
       3. The Google-Drive source never mounted -> rsync walks an EMPTY tree, copies
-         nothing, and exits 0. `Number of files: 0` is the only tell. This is the
-         failure that matters most: it is completely silent, and it is discovered
-         on the one day you actually need to restore.
+         nothing, and exits 0. This is the failure that matters most: it is
+         completely silent, and it is discovered on the one day you actually need
+         to restore.
+
+    RED-TEAM FIX 2026-09-12. The first version of this probe asserted
+    `Number of files >= 1` and was a FALSE GREEN, verified against rsync 3.4.4:
+
+        $ rsync -a --stats empty_src/ dst/   # mount point exists, volume gone
+        Number of files: 1 (dir: 1)          # <- the source dir counts as a file
+        exit 0
+
+    Only a source directory that does not EXIST gives `0` + exit 23. An unmounted
+    volume whose mount point survives - the common macOS shape, and the exact T7
+    case - gives 1 and exit 0, and the old floor passed it.
+
+    So the assertion is now a BASELINE on the `reg:` sub-count, not a floor on the
+    total. `Number of files: 31,007 (reg: 26,975, dir: 4,030, link: 2)` is the live
+    shape; an empty tree prints `1 (dir: 1)` with no `reg:` group at all, so a
+    missing `reg:` group is itself the unmounted signal. `min_files` is per-row and
+    deliberately well below the true count (deleting a big folder must not page),
+    but far above what a partial or absent mount can produce.
 
     Grades only the FINAL run block. The log is append-only, so an unscoped regex
     would cheerfully match a healthy run from last March and call the backup well.
@@ -843,17 +861,25 @@ def probe_rsync_log(log_path, max_age_h=36, **_):
     if code != 0:
         return False, f"rsync exited {code} at {stamp} (23 = partial transfer)"
 
-    nfiles = re.search(r"^Number of files: ([\d,]+)", block, re.M)
+    nfiles = re.search(r"^Number of files: ([\d,]+)(?: \(([^)]*)\))?", block, re.M)
     if not nfiles:
         return False, f"no rsync --stats block in the {stamp} run"
     count = int(nfiles.group(1).replace(",", ""))
-    if count < 1:
-        return False, f"rsync saw 0 files at {stamp} — source tree empty/unmounted"
+    # The `reg:` sub-count is the only number that means "real files were walked".
+    # No `reg:` group at all => the tree held nothing but directories => unmounted.
+    reg = re.search(r"reg: ([\d,]+)", nfiles.group(2) or "")
+    if not reg:
+        return False, (f"rsync saw {count} entries but NO regular files at {stamp} "
+                       f"— source tree empty/unmounted")
+    reg_n = int(reg.group(1).replace(",", ""))
+    if reg_n < min_files:
+        return False, (f"rsync saw only {reg_n:,} regular files at {stamp} "
+                       f"(baseline {min_files:,}) — partial or unmounted source")
 
     moved = re.search(r"^Number of regular files transferred: ([\d,]+)", block, re.M)
     moved_n = int(moved.group(1).replace(",", "")) if moved else -1
-    return True, (f"{stamp}, {count:,} files seen, "
-                  f"{moved_n:,} transferred, {age:.0f}h ago")
+    return True, (f"{stamp}, {reg_n:,} regular files seen "
+                  f"(baseline {min_files:,}), {moved_n:,} transferred, {age:.0f}h ago")
 
 
 def probe_cloudwatch_marker(log_group, log_grep, max_age_h=30, **_):
@@ -1221,6 +1247,13 @@ FLEET = [
     # non-zero file count, so an unmounted source now FAILS.
     {"name": "T7 Google-Drive backup (real tree copied)", "repo": None,
      "probe": "rsync_log", "log_path": "/Volumes/T7Files/sync.log",
+     # Live reg-count has sat at 26,968-26,975 across every run in the log.
+     # 20,000 is a ~26% floor: deleting a large folder must not page, but an
+     # unmounted source (reg: absent) or a half-mounted one cannot reach it.
+     # Raised from the old `>= 1` floor, which a red team proved was a false
+     # green -- rsync prints `Number of files: 1 (dir: 1)`, exit 0, on an
+     # empty tree whose mount point still exists.
+     "min_files": 20000,
      "max_age_h": 36,
      "weak_ok": None},
     {"name": "zinger-bot (Telegram bot on Vercel)", "repo": "zinger-bot",
@@ -1594,6 +1627,15 @@ def _cfg_line(item) -> str:
 
 
 def run_checks() -> list:
+    # The lint runs HERE, not only in main(). A red team (2026-09-12) pointed out
+    # that a programmatic caller doing `from fleet_health import run_checks` would
+    # bypass main() entirely and execute an unwaived liveness-only row -- which is
+    # the exact route by which a backbench-shaped false green re-enters the board.
+    # The guard belongs on the door the rows actually walk through.
+    bad = lint_roster()
+    if bad:
+        names = ", ".join(i["name"] for i in bad)
+        raise SystemExit(f"roster lint: liveness-only rows need weak_ok: {names}")
     results = []
     for item in FLEET:
         fn = PROBE_FNS[item["probe"]]
