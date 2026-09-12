@@ -84,8 +84,12 @@ CATALOG = {
         "what": "6:00 AM check: if results/daily/$TODAY.json is absent from the mental-models repo (GitHub's 05:10 UTC cron dropped the run), dispatches daily.yml via gh. The artifact check is the dedupe guard — the workflow's own skip-guard covers schedule events only, so a dispatch always runs; the guard still no-ops a LATE cron that fires after a backstop dispatch",
         "logs": "~/Library/Logs/mental-models-backstop.log",
         "notes": "Added 2026-08-28 after GitHub Actions schedule proved unreliable for this repo (fired +31m, +34m, +11h14m late, then never on 08-28). This is the delivery guarantee; GitHub's cron is now best-effort first-attempt. Markers MM-BACKSTOP OK/DISPATCHED date=… are date-pinned and graded by fleet-health's log_marker probe (runs after the 5 AM check, so yesterday's marker is the one graded)."},
+    # RETIRED 2026-09-12 — Jalal: "this is done and finished now, not required
+    # nightly, may need later down the road". Job unloaded, plist parked in
+    # ~/Library/LaunchAgents/_disabled-2026-09-12/, fleet-health row commented
+    # out. Catalog entry KEPT so reviving it restores its documentation too.
     "com.jalal.notebooklm-drip": {
-        "title": "Gemini Notebook podcast drip",
+        "title": "Gemini Notebook podcast drip (RETIRED 2026-09-12)",
         "what": "Fires Audio+Video Overview generation (3+3/day free-tier quota) for book notebooks in ~/PycharmProjects/notebooklm-library/index.tsv; backlog CLEARED 2026-08-09 (all 39 have podcast+video) so it now no-ops in seconds and only picks up newly added books",
         "logs": "~/PycharmProjects/notebooklm-library/drip.log",
         "notes": "Kaiser burner account via notebooklm-py CLI. Second slot moved 4 PM → 11:30 PM on 2026-08-09 (quota hedge that never paid off; no jobs in working hours), then 11:30 PM → 12:45 AM on 2026-08-24 when Jalal fixed the fleet window as midnight–7 AM. Still a transient-failure retry, not a quota retry (reset always landed before 4 AM). Idempotent, so a wasted run is free."},
