@@ -895,9 +895,20 @@ def probe_cloudwatch_marker(log_group, log_grep, max_age_h=30, **_):
     today = datetime.date.today()
     dates = "|".join(d.isoformat() for d in
                      (today, today - datetime.timedelta(days=1)))
+
+    # {today} vs {date}: {date} carries the usual today|yesterday buffer, which
+    # every row whose slot can land after the 5 AM check needs. This job does NOT
+    # need it — the Lambda fires 04:15 and the check runs 05:00 — and taking the
+    # buffer anyway costs a full day of blindness: with a 30 h read window, a day
+    # where the Lambda never ran leaves YESTERDAY's 04:15 lines sitting 24 h 45 m
+    # back, inside the window, satisfying "yesterday", and the row reports a
+    # report that was never sent. {today} pins to today alone so a missed day
+    # fails the same morning; the wide read window is kept so a late-but-delivered
+    # report is still found.
     patterns = [log_grep] if isinstance(log_grep, str) else list(log_grep)
     missing = [pat for pat in patterns
-               if not re.search(pat.replace("{date}", f"(?:{dates})"), text)]
+               if not re.search(pat.replace("{today}", today.isoformat())
+                                   .replace("{date}", f"(?:{dates})"), text)]
     if missing:
         return False, (f"delivery marker missing in {max_age_h}h of CloudWatch "
                        f"({', '.join(repr(m) for m in missing)})")
@@ -1178,7 +1189,7 @@ FLEET = [
      "probe": "cloudwatch_marker",
      "log_group": "/aws/lambda/financial-telegram-report", "max_age_h": 30,
      "log_grep": [r"REPORT_DELIVERED ok=true",
-                  r"Report sent at {date} \d\d:\d\d:\d\d"]},
+                  r"Report sent at {today} \d\d:\d\d:\d\d"]},
     # Liveness-only ON PURPOSE, and this is the declared reason the lint wants:
     # this workflow's healthy output is "I did nothing, the Lambda had it". There
     # is no success marker to assert, and asserting the skip-line would go RED on
