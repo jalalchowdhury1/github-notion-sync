@@ -39,10 +39,16 @@ export HEALTH_BOT_TOKEN="$(grep '^HEALTH_BOT_TOKEN=' \
 
 # From 6 AM on this invocation is the retry slot: fleet_health.py exits early
 # if the 5 AM run already sent today's digest, or backs off if that run is
-# still going (lock file). (Manual runs: call `python3 fleet_health.py`
-# directly — no flag, always runs.)
+# still going (lock file).
+#
+# --force is the bypass for a deliberate catch-up (catchup-overnight, the
+# overnight blackout guard). Without it a daytime re-run SILENTLY NO-OPS:
+# --retry-slot sees today's digest already sent, prints "skipping", exits 0
+# and rewrites nothing — so the caller gets a success that graded nothing and
+# health.json keeps the older run's verdicts. Found 2026-09-12 re-running this
+# after a morning catch-up. Use --force whenever the point is to re-grade.
 EXTRA=""
-if (( 10#$(date +%H) >= 6 )); then EXTRA="--retry-slot"; fi
+if (( 10#$(date +%H) >= 6 )) && [ "${1:-}" != "--force" ]; then EXTRA="--retry-slot"; fi
 python3 fleet_health.py $EXTRA
 # Snapshot the Mac's actual job schedule (launchd/cron/Time Machine) →
 # schedule.json; commits+pushes only when the job list changed.
