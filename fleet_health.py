@@ -1717,7 +1717,7 @@ FLEET = [
     # mtime; publish stamps every line and gets the stronger dated marker.
     {"name": "tranche-nag (07:10 reminder)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/tranche-nag.log",
-     "last_line": r"^(?:sent \d+ chars|nothing due)$",
+     "last_line": r"^(?:sent \d+ chars|nothing due \([1-9]\d* rows parsed\))$",
      "max_age_h": 30},
     {"name": "tranche-publish (07:12 board publish)", "repo": None,
      "probe": "log_marker", "log_path": "~/Library/Logs/tranche-publish.log",
