@@ -1150,7 +1150,7 @@ FLEET = [
     # without that rule, running a manual test would paint the row ✅ while the
     # nightly cron was dead. index=A->B in the marker is the proof of real work;
     # a run that sent a message but did not advance is NOT a healthy night.
-    {"name": "mental-models (nightly 3 models + audio)", "repo": "mental-models",
+    {"name": "mental-models (nightly 3 models)", "repo": "mental-models",
      "probe": "gh_run", "workflow": "daily.yml", "max_age_h": 24,
      # date={date}, not an unpinned \d{4}-..: on 2026-08-28 GitHub's cron never
      # fired at all, yet the previous day's runs were still inside max_age_h, so
