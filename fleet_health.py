@@ -793,6 +793,174 @@ def probe_one_clock_lambda(log_group="/aws/lambda/gh-dispatcher",
                   f"{len(dispatches)} dispatches/{dispatch_window_h}h, 0 errors")
 
 
+def probe_rsync_log(log_path, max_age_h=36, **_):
+    """The LAST rsync run in an append-only backup log actually copied a real tree.
+
+    Replaces launchd_exit on the T7 backup (2026-09-12). Three independent things
+    can go wrong here and an exit status sees only one of them:
+
+      1. The job never ran            -> no run block dated inside max_age_h.
+      2. rsync errored mid-transfer   -> `sync done (exit 23)`, which has happened
+         twice in this log, not exit 0.
+      3. The Google-Drive source never mounted -> rsync walks an EMPTY tree, copies
+         nothing, and exits 0. `Number of files: 0` is the only tell. This is the
+         failure that matters most: it is completely silent, and it is discovered
+         on the one day you actually need to restore.
+
+    Grades only the FINAL run block. The log is append-only, so an unscoped regex
+    would cheerfully match a healthy run from last March and call the backup well.
+
+    A missing/unreadable log is itself a failure: it means the T7 volume is not
+    mounted, which is exactly the state where nothing is being backed up.
+    """
+    path = os.path.expanduser(log_path)
+    try:
+        text = open(path, errors="replace").read()
+    except FileNotFoundError:
+        return False, f"{log_path} unreachable — T7 volume not mounted?"
+
+    starts = list(re.finditer(r"^=== (\d{4}-\d\d-\d\d) ([\d:]+) sync start ",
+                              text, re.M))
+    if not starts:
+        return False, "no rsync run block found in log"
+    last = starts[-1]
+    block = text[last.start():]
+
+    done = re.search(r"^=== (\d{4}-\d\d-\d\d) ([\d:]+) sync done \(exit (\d+)\) ===",
+                     block, re.M)
+    if not done:
+        return False, f"run started {last.group(1)} {last.group(2)} never finished"
+
+    stamp = f"{done.group(1)} {done.group(2)}"
+    code = int(done.group(3))
+    try:
+        ts = datetime.datetime.strptime(stamp, "%Y-%m-%d %H:%M:%S").timestamp()
+    except ValueError:
+        return False, f"unparseable finish stamp {stamp!r}"
+    age = _age_hours(ts)
+    if age > max_age_h:
+        return False, f"last backup finished {age:.0f}h ago (limit {max_age_h}h)"
+    if code != 0:
+        return False, f"rsync exited {code} at {stamp} (23 = partial transfer)"
+
+    nfiles = re.search(r"^Number of files: ([\d,]+)", block, re.M)
+    if not nfiles:
+        return False, f"no rsync --stats block in the {stamp} run"
+    count = int(nfiles.group(1).replace(",", ""))
+    if count < 1:
+        return False, f"rsync saw 0 files at {stamp} — source tree empty/unmounted"
+
+    moved = re.search(r"^Number of regular files transferred: ([\d,]+)", block, re.M)
+    moved_n = int(moved.group(1).replace(",", "")) if moved else -1
+    return True, (f"{stamp}, {count:,} files seen, "
+                  f"{moved_n:,} transferred, {age:.0f}h ago")
+
+
+def probe_cloudwatch_marker(log_group, log_grep, max_age_h=30, **_):
+    """A Lambda's own success marker in CloudWatch, for work that leaves NO trace
+    on GitHub.
+
+    Added 2026-09-12 for financial-telegram-bot's daily report — the weakest row
+    on the board while being one of the most important jobs on it.
+
+    Why gh_run cannot do this one: the GitHub workflow is a 30-minute BACKSTOP
+    that defers to the AWS Lambda. On a normal day its entire log is "Lambda
+    already delivered today — skipping runner send (no double-report)". There is
+    no marker to grep because the workflow deliberately did nothing, and grading
+    it green proved only that the backstop correctly stood down. The actual proof
+    that a report reached Jalal's phone is REPORT_DELIVERED, in CloudWatch.
+
+    Nor can the skip-line be asserted instead: on the one day the Lambda fails,
+    the backstop DOES send and prints something else, so a probe keyed to the
+    skip-line would go red exactly when the safety net worked.
+
+    Same conventions as probe_gh_run: `log_grep` is one regex or a list and ALL
+    must match; `{date}` expands to today|yesterday. An aws-CLI failure RAISES
+    (infra retry path) rather than reporting a missing marker — an unreadable log
+    is not a log without markers. Runs as claude-ops, CloudWatchLogsReadOnly.
+    """
+    start_ms = int((time.time() - max_age_h * 3600) * 1000)
+    p = subprocess.run(
+        ["aws", "logs", "filter-log-events",
+         "--log-group-name", log_group,
+         "--start-time", str(start_ms),
+         "--query", "events[].message", "--output", "text"],
+        capture_output=True, text=True, timeout=120)
+    if p.returncode != 0:
+        raise RuntimeError(f"aws logs failed: {p.stderr.strip()[:150]}")
+    text = p.stdout or ""
+    if not text.strip():
+        return False, f"no log events in {log_group} for {max_age_h}h"
+
+    today = datetime.date.today()
+    dates = "|".join(d.isoformat() for d in
+                     (today, today - datetime.timedelta(days=1)))
+    patterns = [log_grep] if isinstance(log_grep, str) else list(log_grep)
+    missing = [pat for pat in patterns
+               if not re.search(pat.replace("{date}", f"(?:{dates})"), text)]
+    if missing:
+        return False, (f"delivery marker missing in {max_age_h}h of CloudWatch "
+                       f"({', '.join(repr(m) for m in missing)})")
+
+    # ok=false means the Lambda ran and FAILED to deliver — the exact state a
+    # green Lambda invocation hides. Surface errors=N without failing on it: a
+    # partial report still reached him, and paging on one bad section would
+    # train him to ignore this row.
+    if re.search(r"REPORT_DELIVERED ok=false", text):
+        return False, "REPORT_DELIVERED ok=false — Lambda ran but did not deliver"
+    errs = re.findall(r"REPORT_DELIVERED ok=true sections=(\d+) errors=(\d+)", text)
+    if errs:
+        sections, errors = errs[-1]
+        note = f"delivered, {sections} sections"
+        if int(errors):
+            note += f", {errors} section error(s) — report went but incomplete"
+        return True, note
+    return True, "delivery marker confirmed"
+
+
+def probe_log_block(log_path, block_re, log_grep, max_age_h, **_):
+    """Assert markers inside the LAST run block of an append-only log.
+
+    Added 2026-09-12 for toolcheck, which had no probe at all. The generic
+    problem it solves: `probe_log_marker` pins {date} to today|yesterday, which
+    is right for a daily job and useless for a WEEKLY one — toolcheck runs
+    Sundays, so on a Tuesday there is no today/yesterday marker to find and the
+    row would page every week. Dropping the date pin instead is worse: the log is
+    append-only, so a bare "24 passed, 0 failed" would match a healthy run from
+    August and report a toolbox that has been broken for a month as fine.
+
+    So: isolate the newest block, check ITS timestamp against max_age_h, and
+    require every marker inside that block only.
+
+    `block_re` must capture a parseable "YYYY-MM-DD HH:MM:SS" as group 1.
+    """
+    path = os.path.expanduser(log_path)
+    try:
+        text = open(path, errors="replace").read()
+    except FileNotFoundError:
+        return False, f"{log_path} missing"
+    blocks = list(re.finditer(block_re, text, re.M))
+    if not blocks:
+        return False, "no run block found in log"
+    last = blocks[-1]
+    try:
+        ts = datetime.datetime.strptime(last.group(1), "%Y-%m-%d %H:%M:%S").timestamp()
+    except (ValueError, IndexError):
+        return False, f"unparseable block stamp {last.group(0)[:60]!r}"
+    age = _age_hours(ts)
+    if age > max_age_h:
+        return False, (f"last run {age/24:.1f}d ago "
+                       f"(limit {max_age_h/24:.1f}d) — job has stopped firing")
+    block = text[last.start():]
+    patterns = [log_grep] if isinstance(log_grep, str) else list(log_grep)
+    missing = [pat for pat in patterns if not re.search(pat, block, re.M)]
+    if missing:
+        tail = " / ".join(l for l in block.strip().splitlines()[-2:])
+        return False, (f"last run {age/24:.1f}d ago but marker missing "
+                       f"({', '.join(repr(m) for m in missing)}) — tail: {tail[:100]}")
+    return True, f"clean run {age/24:.1f}d ago"
+
+
 PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
              "one_clock_lambda": probe_one_clock_lambda,
              "local_stamp": probe_local_stamp, "launchd_exit": probe_launchd_exit,
@@ -802,7 +970,10 @@ PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
              "log_marker": probe_log_marker,
              "telegram_webhook": probe_telegram_webhook,
              "nuts": probe_nuts,
-             "nuts_radar": probe_nuts_radar}
+             "nuts_radar": probe_nuts_radar,
+             "rsync_log": probe_rsync_log,
+             "cloudwatch_marker": probe_cloudwatch_marker,
+             "log_block": probe_log_block}
 
 # ── the fleet roster ────────────────────────────────────────────────────────
 # repo: GitHub repo name for the Notion row (None = not a repo, Telegram-only).
@@ -890,21 +1061,35 @@ FLEET = [
     # watches this Mac; this row watches health.yml back, and expect_event
     # confirms AWS (one-clock-notion-health, 12:37 UTC) is what fires it —
     # mutual watching, so neither side can die silently.
+    # Marker added 2026-09-12. The job prints its own dated confirmation after the
+    # Notion write, so {date} is pinnable — a green run that wrote nothing fails.
     {"name": "github-notion-sync (daily health stamp)", "repo": "github-notion-sync",
      "probe": "gh_run", "workflow": "health.yml", "max_age_h": 36,
+     "log_grep": r"Notion updated: \d+ rows.*checked {date}",
      "expect_event": "workflow_dispatch"},
     # Watchdog for the AAII scrape. Un-rostered before 2026-08-29 — the thing
     # that catches a silent scrape miss could itself go silent unnoticed.
     # AWS one-clock-sentiment-watchdog 19:30 UTC; GH 20:00 backstop.
+    # Marker added 2026-09-12. The watchdog's whole job is to say FRESH or STALE.
+    # A green run that printed STALE is the watchdog WORKING and the data being
+    # broken — which must page. Asserting FRESH is therefore the data check, and
+    # there is no date to pin: it reports a relative age, not an absolute stamp.
     {"name": "sentiment-scraper (evening watchdog)", "repo": "sentiment-scraper",
      "probe": "gh_run", "workflow": "watchdog.yml", "max_age_h": 36,
+     "log_grep": r"FRESH: last write [\d.]+h ago",
      "expect_event": "workflow_dispatch"},
     # ────────────────────────────────────────────────────────────────────────
     # sentiment-scraper: cron 08:00 UTC, actually runs 09:51-11:17 (10 days).
     {"name": "sentiment-scraper (AAII weekly data)", "repo": "sentiment-scraper",
      # NO expect_event: only sentiment-scraper's WATCHDOG moved to AWS
      # (one-clock-sentiment-watchdog); this daily scrape is still GitHub-cron.
-     "probe": "gh_run", "workflow": "daily-scrape.yml", "max_age_h": 36},
+     # Marker added 2026-09-12. Deliberately NOT pinned to {date}: the date in
+     # this line is AAII's SURVEY date, which lags the run by days on a weekly
+     # release. Pinning it to today would page every day of a normal week. What
+     # this proves is that the run reached the sheet with real percentages; the
+     # data's own freshness is the WATCHDOG row's job, not this one.
+     "probe": "gh_run", "workflow": "daily-scrape.yml", "max_age_h": 36,
+     "log_grep": r"Wrote to sheet: .*bull=[\d.]+%.*bear=[\d.]+%"},
     # ynab-budget-brief: cron 11:00 UTC, actually runs 12:00-13:40 (10 days).
     # Since the 2026-08-19 quota redesign the run sends TWO messages (Eating
     # Out, then Aoife+Nabila). Each marker is printed only AFTER its
@@ -914,8 +1099,14 @@ FLEET = [
      "probe": "gh_run", "workflow": "daily_brief.yml", "max_age_h": 36,
      "log_grep": [r"Sent eating-out brief:", r"Sent family brief:"],
      "expect_event": "workflow_dispatch"},
+    # Markers added 2026-09-12, as a PAIR. The slot line carries the date and
+    # which half of the day it is; the append line carries the metric count. Both
+    # must match: the slot alone proves only that the job picked a slot, and the
+    # append alone could be a stale re-run of yesterday's slot.
     {"name": "financial-dashboard-history (2x-daily snapshots)", "repo": "financial-dashboard-history",
      "probe": "gh_run", "workflow": "scraper.yml", "max_age_h": 36,
+     "log_grep": [r"slot {date}-(?:AM|PM)",
+                  r"Data successfully appended to Google Sheet\. \(\d+ metrics"],
      "expect_event": "workflow_dispatch"},
     # vix-fear-greed: RETIRED + ARCHIVED 2026-08-29, probe deliberately removed.
     # Its whole job was writing the FEAR/GREED tag into the VIX sheet's cell C2.
@@ -934,8 +1125,15 @@ FLEET = [
     # last Friday run is ~60-64h old by the time the Monday 5am ET (09:00 UTC)
     # check runs, and both repos' Monday crons fire AFTER it. 48 would page every
     # Monday morning.
+    # Marker added 2026-09-12: the committed result file for today. NOTE the trap
+    # this relies on probe_gh_run's earlier-run fallback to survive — hedgelab has
+    # a duplicate guard, so the NEWEST green run of the day is often just
+    # "Today's plan already committed — skipping duplicate." with no marker at
+    # all. The fallback re-checks earlier runs inside max_age_h and finds the one
+    # that did the work. Grading the latest run alone would page on a healthy day.
     {"name": "hedgelab (noon hedge check)", "repo": "hedgelab",
-     "probe": "gh_run", "workflow": "daily.yml", "max_age_h": 72},
+     "probe": "gh_run", "workflow": "daily.yml", "max_age_h": 72,
+     "log_grep": r"results/daily/{date}\.json"},
     # Rebuilt 2026-08-24 to read NUTS's /evaluate instead of its own drifted
     # tree (it had been reporting BIL while NUTS was TQQQ). It is now SILENT
     # unless the holding changed, so silence in Telegram is indistinguishable
@@ -973,10 +1171,28 @@ FLEET = [
     # unrostered. Its own health-check Telegrams on warn/critical, but nothing
     # watched whether that health check still RUNS — a monitor that dies is
     # indistinguishable from a healthy fleet. Roster the monitor itself.
-    {"name": "financial-telegram-bot (daily report)", "repo": "financial-telegram-bot",
-     "probe": "gh_run", "workflow": "daily_report.yml", "max_age_h": 36},
+    # 2026-09-12: SPLIT INTO TWO ROWS, because "the report was delivered" and "the
+    # backstop still works" are different facts and used to be conflated into one
+    # green row that proved neither. See probe_cloudwatch_marker's docstring.
+    {"name": "financial-telegram-bot (report DELIVERED)", "repo": "financial-telegram-bot",
+     "probe": "cloudwatch_marker",
+     "log_group": "/aws/lambda/financial-telegram-report", "max_age_h": 30,
+     "log_grep": [r"REPORT_DELIVERED ok=true",
+                  r"Report sent at {date} \d\d:\d\d:\d\d"]},
+    # Liveness-only ON PURPOSE, and this is the declared reason the lint wants:
+    # this workflow's healthy output is "I did nothing, the Lambda had it". There
+    # is no success marker to assert, and asserting the skip-line would go RED on
+    # the one day the backstop actually saves the report. Delivery is proven by
+    # the CloudWatch row above; this row only answers "is the safety net loaded".
+    {"name": "financial-telegram-bot (backstop workflow alive)", "repo": "financial-telegram-bot",
+     "probe": "gh_run", "workflow": "daily_report.yml", "max_age_h": 36,
+     "weak_ok": "backstop: healthy output is a no-op; delivery proven in CloudWatch"},
+    # Marker added 2026-09-12. "Overall: ok" is printed only after all 17 endpoint
+    # checks pass; a green run where an endpoint was unhealthy prints "Overall:
+    # degraded" and now fails the row instead of passing it.
     {"name": "financial-telegram-bot (self-health monitor)", "repo": "financial-telegram-bot",
      "probe": "gh_run", "workflow": "health-check.yml", "max_age_h": 36,
+     "log_grep": r"Overall: ok",
      "expect_event": "workflow_dispatch"},
     # The BACKUP needs two probes because neither failure mode implies the other.
     # `launchd_exit` alone was a probe that could essentially never fail: the script
@@ -986,12 +1202,19 @@ FLEET = [
     # nothing was backed up. mtime catches "not running / drive gone"; exit status
     # catches "ran but rsync errored". A silently dead backup is the worst class of
     # failure here: it is only discovered when you need to restore.
-    {"name": "T7 Google-Drive backup (ran recently)", "repo": None,
-     "probe": "file_mtime", "path": "/Volumes/T7Files/sync.log", "max_age_h": 36},
-    {"name": "T7 Google-Drive backup (rsync exit status)", "repo": None,
-     "probe": "launchd_exit", "label": "com.jalal.t7-drive-sync"},
+    # 2026-09-12: these were TWO weak rows — file_mtime ("the log was touched")
+    # and launchd_exit ("rsync exited 0"). Neither could see the failure that
+    # actually matters: if the Google-Drive source does not mount, rsync walks an
+    # empty tree, copies nothing, touches the log, and exits 0. Both rows stayed
+    # green. probe_rsync_log grades the final run block instead and asserts a
+    # non-zero file count, so an unmounted source now FAILS.
+    {"name": "T7 Google-Drive backup (real tree copied)", "repo": None,
+     "probe": "rsync_log", "log_path": "/Volumes/T7Files/sync.log",
+     "max_age_h": 36,
+     "weak_ok": None},
     {"name": "zinger-bot (Telegram bot on Vercel)", "repo": "zinger-bot",
-     "probe": "web_200", "url": "https://zinger-bot.vercel.app"},
+     "probe": "web_200", "url": "https://zinger-bot.vercel.app",
+     "weak_ok": "root serves even when the handler is dead; the telegram_webhook row is the real check"},
     # The web_200 above probes the ROOT, which a dead handler still serves — a
     # gap noted in AGENTS.md and closed here 2026-08-25. Same two-independent-
     # deaths reasoning as voices-bot: the function can stop serving, OR Telegram
@@ -1000,26 +1223,37 @@ FLEET = [
      "probe": "telegram_webhook", "token_env": "ZINGER_BOT_TOKEN",
      "expect_url": "https://zinger-bot.vercel.app/api/webhook"},
     {"name": "aoife-math (daily game site)", "repo": "aoife-math",
-     "probe": "web_200", "url": "https://aoife-math.vercel.app"},
+     "probe": "web_200", "url": "https://aoife-math.vercel.app",
+     "weak_ok": "static game — being reachable IS the job"},
     {"name": "aoife-columns (site)", "repo": "aoife-columns",
-     "probe": "web_200", "url": "https://aoife-columns.vercel.app"},
+     "probe": "web_200", "url": "https://aoife-columns.vercel.app",
+     "weak_ok": "static game — being reachable IS the job"},
     {"name": "aoife-frameworks (site)", "repo": "aoife-frameworks",
-     "probe": "web_200", "url": "https://aoife-frameworks.vercel.app"},
+     "probe": "web_200", "url": "https://aoife-frameworks.vercel.app",
+     "weak_ok": "static game — being reachable IS the job"},
     {"name": "nafis-mortgage (site)", "repo": "nafis-mortgage",
-     "probe": "web_200", "url": "https://nafis-mortgage.vercel.app"},
+     "probe": "web_200", "url": "https://nafis-mortgage.vercel.app",
+     "weak_ok": "finished work, nothing scheduled; reachable IS the job"},
     # Rostered 2026-08-25 during a coverage audit: aoife-math/columns/frameworks
     # were watched while these three equally-live sisters were not — coverage by
     # accident of when each was built, not by risk. aoife-puzzles matters most:
     # it is the WISC-V prep game, and a broken level reads to Jalal as a real
     # weakness in Aoife rather than a bug (see feedback-puzzle-validity-sacred).
     {"name": "aoife-puzzles (site)", "repo": "aoife-puzzles",
-     "probe": "web_200", "url": "https://aoife-puzzles.vercel.app"},
+     "probe": "web_200", "url": "https://aoife-puzzles.vercel.app",
+     "weak_ok": "static game — being reachable IS the job"},
     {"name": "aoife-algebra (site)", "repo": "aoife-algebra",
-     "probe": "web_200", "url": "https://aoife-algebra.vercel.app"},
+     "probe": "web_200", "url": "https://aoife-algebra.vercel.app",
+     "weak_ok": "static game — being reachable IS the job"},
     {"name": "aoife-order (site)", "repo": "aoife-order",
-     "probe": "web_200", "url": "https://aoife-order.vercel.app"},
-    {"name": "backbench (daily trading brief)", "repo": "backbench",
-     "probe": "web_200", "url": "https://backbench.vercel.app"},
+     "probe": "web_200", "url": "https://aoife-order.vercel.app",
+     "weak_ok": "static game — being reachable IS the job"},
+    # backbench — ROW RETIRED 2026-09-12. It read `web_200` on backbench.vercel.app
+    # and reported "daily trading brief: OK" because the static site answers. There
+    # is no GitHub repo (404), no launchd job, and the local folder was retired the
+    # same day. No brief has been sent. A green row for a job that does not exist is
+    # worse than no row: it spends your trust. If backbench is ever revived, roster
+    # it on the marker the brief PRINTS when it sends, not on the site responding.
     # Added 2026-08-17 alongside the Aoife's Planner rebuild. live_since is a
     # deliberate grace period: /api/plan-get (the plan-half endpoint the
     # backup script fetches) only goes live 2026-08-18, so the script's plan
@@ -1075,7 +1309,8 @@ FLEET = [
     # loses milestones Jalal believes were recorded; the Sheet is master and it
     # simply stops gaining rows, which looks exactly like a quiet week.
     {"name": "aoife-milestones-bot (function serving)", "repo": "aoife-milestones-bot",
-     "probe": "web_200", "url": "https://aoife-milestones-bot.vercel.app/api/webhook"},
+     "probe": "web_200", "url": "https://aoife-milestones-bot.vercel.app/api/webhook",
+     "weak_ok": "paired with the telegram_webhook row; two independent deaths"},
     {"name": "aoife-milestones-bot (telegram webhook registered)", "repo": None,
      "probe": "telegram_webhook", "token_env": "MILESTONES_BOT_TOKEN",
      "expect_url": "https://aoife-milestones-bot.vercel.app/api/webhook",
@@ -1200,7 +1435,8 @@ FLEET = [
     # a dead function still has a valid webhook registration, and an unhooked
     # bot still serves 200 on a GET.
     {"name": "voices-bot (function serving)", "repo": "voices-bot",
-     "probe": "web_200", "url": "https://voices-bot.vercel.app/api/webhook"},
+     "probe": "web_200", "url": "https://voices-bot.vercel.app/api/webhook",
+     "weak_ok": "paired with the telegram_webhook row; two independent deaths"},
     # (b) — the one that actually happened, twice, on 2026-08-24.
     {"name": "voices-bot (telegram webhook registered)", "repo": None,
      "probe": "telegram_webhook", "token_env": "VOICES_BOT_TOKEN",
@@ -1220,7 +1456,8 @@ FLEET = [
     # nuts-sooty, NOT nuts.vercel.app — that is an unrelated old app that would
     # serve a cheerful 200 forever (see reference-nuts-algo).
     {"name": "NUTS (visualizer site)", "repo": None,
-     "probe": "web_200", "url": "https://nuts-sooty.vercel.app"},
+     "probe": "web_200", "url": "https://nuts-sooty.vercel.app",
+     "weak_ok": "site only; the SIGNAL is graded by the nuts probe row"},
     # nuts-radar's risk is not uptime, it is a stale copy of NUTS's tree shape
     # silently reporting the wrong consequences — so this runs the repo's own
     # selfcheck.js against live /evaluate. See probe_nuts_radar.
@@ -1256,6 +1493,20 @@ FLEET = [
     # overnight row in this roster stops happening — the single highest-
     # leverage probe the fleet was missing. launchd_running, not launchd_exit:
     # see that function's docstring for why the exit column lies here.
+    # toolcheck — rostered 2026-09-12. It was NOT redundant with fleet health, as
+    # first suspected: fleet health grades the JOBS, toolcheck grades the TOOLS the
+    # jobs are built on (24 CLI checks: arm64 brew, keys in the right .env, uv,
+    # node, vercel). A broken tool surfaces through fleet health only later, as
+    # whichever job happened to need it failing for a reason that reads unrelated.
+    # Weekly (Sundays 04:40), hence log_block with an 8-day limit: one missed
+    # Sunday reads ~8d and pages, a normal Saturday reads ~6d and does not.
+    # "0 failed" is asserted, not just "it ran" — toolcheck's whole output is a
+    # pass/fail count, so a run that found 20 broken tools must NOT read green.
+    {"name": "toolcheck (weekly CLI toolbox physical)", "repo": None,
+     "probe": "log_block", "log_path": "~/Library/Logs/toolcheck.log",
+     "block_re": r"^===== (\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\s+\(exit \d+\) =====",
+     "log_grep": r"\d+ passed, 0 failed",
+     "max_age_h": 192},
     {"name": "keepawake (Mac stays awake for overnight jobs)", "repo": None,
      "probe": "launchd_running", "label": "com.jalal.keepawake"},
     # The always-on `claude remote-control` session. Its death is invisible
@@ -1271,7 +1522,8 @@ FLEET = [
     # the whole failure mode worth catching (an unloaded guard is a silent
     # return to the blackout nights it exists to prevent).
     {"name": "overnight-blackout-check (guard registered)", "repo": None,
-     "probe": "launchd_exit", "label": "com.jalal.overnight-blackout-check"},
+     "probe": "launchd_exit", "label": "com.jalal.overnight-blackout-check",
+     "weak_ok": "RunAtLoad with no interval — a dated marker would page every no-reboot week"},
 
     # aoife-typing coach: every 15 min, and `--quiet` sends nothing to stdout,
     # which is why the launchd .out.log is empty and looked dead. The real log
@@ -1292,14 +1544,16 @@ FLEET = [
     # 72 h clears the weekend and still catches a genuine multi-day stall.
     {"name": "rubber-band (weekday evening check)", "repo": None,
      "probe": "file_mtime", "path": "~/Library/Logs/rubber-band.log",
-     "max_age_h": 72},
+     "max_age_h": 72,
+     "weak_ok": "prints no success marker; mtime is the only signal the job emits"},
 
     # The tranche pair. 07:12 publish is the one Jalal would actually notice
     # missing. nag prints no date ("sent N chars" / "nothing due"), so it gets
     # mtime; publish stamps every line and gets the stronger dated marker.
     {"name": "tranche-nag (07:10 reminder)", "repo": None,
      "probe": "file_mtime", "path": "~/Library/Logs/tranche-nag.log",
-     "max_age_h": 30},
+     "max_age_h": 30,
+     "weak_ok": "prints no success marker; mtime is the only signal the job emits"},
     {"name": "tranche-publish (07:12 board publish)", "repo": None,
      "probe": "log_marker", "log_path": "~/Library/Logs/tranche-publish.log",
      "log_grep": [r"{date}T\d\d:\d\d:\d\d tranche\.json: \d+ steps"]},
@@ -1307,7 +1561,8 @@ FLEET = [
     # aoife-reads was the one Aoife site with no uptime probe while its eight
     # siblings all had one.
     {"name": "aoife-reads (site)", "repo": "aoife-reads",
-     "probe": "web_200", "url": "https://aoife-reads.vercel.app"},
+     "probe": "web_200", "url": "https://aoife-reads.vercel.app",
+     "weak_ok": "static game — being reachable IS the job"},
     # money-moves is deliberately NOT rostered: it has no reachable public URL.
     # money-moves.vercel.app 404s (no production alias assigned) and the
     # deployment URL 302s into Vercel SSO. There is nothing a probe could
@@ -1581,8 +1836,45 @@ def _lock_is_fresh() -> bool:
         return False
 
 
+# ── roster lint ─────────────────────────────────────────────────────────────
+# Probes that assert LIVENESS, not WORK. Each is fine in the right place and
+# useless in the wrong one, and the wrong one is invisible: a green row reads
+# identically either way.
+#
+# Why this exists (2026-09-12): the roster carried a row called "backbench
+# (daily trading brief)" that probed web_200 on a static site. It reported OK
+# every morning for weeks. There was no repo, no scheduled job, and no brief had
+# ever been sent. Nothing in the file flagged it, because choosing a weak probe
+# looked exactly like choosing a strong one.
+#
+# So a weak probe is now a DECISION SOMEONE HAD TO TYPE. Add `weak_ok` with the
+# reason liveness is genuinely sufficient for that row, or the monitor refuses to
+# start. This cannot catch a wrong reason — it can only make the choice visible,
+# which is the whole failure mode it is aimed at.
+LIVENESS_ONLY = {"web_200", "launchd_exit", "file_mtime"}
+
+
+def lint_roster(fleet=None):
+    """Every liveness-only row must say why liveness is enough. Returns offenders."""
+    offenders = []
+    for item in (FLEET if fleet is None else fleet):
+        weak = (item["probe"] in LIVENESS_ONLY
+                or (item["probe"] == "gh_run" and not item.get("log_grep")))
+        if weak and not item.get("weak_ok"):
+            offenders.append(item)
+    return offenders
+
+
 def main(argv=()) -> None:
     now = datetime.datetime.now()
+    bad = lint_roster()
+    if bad:
+        print("=== ROSTER LINT FAILED — refusing to run ===")
+        for item in bad:
+            print(f"  {item['name']}: probe {item['probe']!r} only proves liveness. "
+                  f"Give it a real success marker, or add "
+                  f'weak_ok="<why liveness is enough>".')
+        raise SystemExit(2)
     if "--retry-slot" in argv:
         if already_ran_today():
             print(f"=== {now:%Y-%m-%d %H:%M} retry slot: already ran today — skipping ===")
