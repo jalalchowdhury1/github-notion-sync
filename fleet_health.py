@@ -363,7 +363,13 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None,
         _today = datetime.date.today()
         _dates = "|".join(d.isoformat() for d in
                           (_today, _today - datetime.timedelta(days=1)))
-        patterns = [p.replace("{date}", f"(?:{_dates})") for p in patterns]
+        # {today} pins to today alone, no buffer — same token probe_cloudwatch_marker
+        # uses. Added here 2026-09-12 (red team round 3) for rows where the
+        # today|yesterday buffer is too loose to mean anything. Safe because this
+        # monitor runs at 05:00 ET, when the local date and the UTC date agree;
+        # it would NOT be safe if fleet-health ever ran between 20:00 and midnight.
+        patterns = [p.replace("{today}", _today.isoformat())
+                     .replace("{date}", f"(?:{_dates})") for p in patterns]
         lp = subprocess.run(
             ["gh", "run", "view", str(run["databaseId"]), "-R",
              f"{GH_USER}/{repo}", "--log"],
@@ -928,13 +934,37 @@ def probe_cloudwatch_marker(log_group, log_grep, max_age_h=30, **_):
         ["aws", "logs", "filter-log-events",
          "--log-group-name", log_group,
          "--start-time", str(start_ms),
-         "--query", "events[].message", "--output", "text"],
+         "--query", "events[].[timestamp,message]", "--output", "text"],
         capture_output=True, text=True, timeout=120)
     if p.returncode != 0:
         raise RuntimeError(f"aws logs failed: {p.stderr.strip()[:150]}")
-    text = p.stdout or ""
-    if not text.strip():
+    raw = p.stdout or ""
+    # Keep the WIDE read window (it distinguishes "log group unreachable" from
+    # "the Lambda produced nothing today"), but correlate the markers to TODAY's
+    # events. Red team round 3: with --query events[].message the timestamps were
+    # discarded and every pattern was matched against 30h of concatenated text, so
+    # two markers that must describe the SAME run could be satisfied by two
+    # different runs a day apart. Nothing here was a live false green -- the
+    # {today} pin and the explicit ok=false check closed the reachable paths --
+    # but this is the only proof the daily report was delivered, and it should
+    # not depend on a second assertion to stay honest.
+    _today_d = datetime.date.today()
+    _today_lines, _cur_is_today = [], False
+    for line in raw.splitlines():
+        head = line.split("\t", 1)
+        if len(head) == 2 and head[0].strip().isdigit() and len(head[0].strip()) >= 12:
+            ev_ms = int(head[0].strip())
+            _cur_is_today = (datetime.date.fromtimestamp(ev_ms / 1000) == _today_d)
+            if _cur_is_today:
+                _today_lines.append(head[1])
+        elif _cur_is_today:
+            _today_lines.append(line)          # continuation of a multi-line event
+    text = "\n".join(_today_lines)
+    if not raw.strip():
         return False, f"no log events in {log_group} for {max_age_h}h"
+    if not text.strip():
+        return False, (f"{log_group} has events in the last {max_age_h}h but NONE "
+                       f"from today ({_today_d}) — the Lambda did not run")
 
     today = datetime.date.today()
     dates = "|".join(d.isoformat() for d in
@@ -1171,9 +1201,16 @@ FLEET = [
      # ways it proves its slot: it appended, or its dedupe guard found the slot
      # already done by an earlier run and correctly skipped the append.
      "no_rescue": True,
-     "log_grep": [r"slot {date}-(?:AM|PM)",
+     # {today}, not {date} (red team round 3). The job labels its slots by UTC
+     # date (a run at 01:30 UTC prints slot <UTC-today>-AM, which is 21:30 the
+     # previous evening ET). Combined with the today|yesterday buffer and
+     # (?:AM|PM), ONE marker accepted FOUR different slot strings -- so three of
+     # the four snapshots in the window could be missing and the row stayed green.
+     # Pinned to today, the alternation is safe: at the 05:00 ET check only the
+     # AM slot can exist yet, so a missed AM now goes red the same morning.
+     "log_grep": [r"slot {today}-(?:AM|PM)",
                   r"(?:Data successfully appended to Google Sheet\. \(\d+ metrics"
-                  r"|dedupe guard: slot {date}-(?:AM|PM) already has a successful run)"],
+                  r"|dedupe guard: slot {today}-(?:AM|PM) already has a successful run)"],
      "expect_event": "workflow_dispatch"},
     # vix-fear-greed: RETIRED + ARCHIVED 2026-08-29, probe deliberately removed.
     # Its whole job was writing the FEAR/GREED tag into the VIX sheet's cell C2.
