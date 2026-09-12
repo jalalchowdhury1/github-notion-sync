@@ -1,5 +1,5 @@
 {
- "checked": "2026-09-12 15:45",
+ "checked": "2026-09-12 16:29",
  "telegram": "sent",
  "results": [
   {
@@ -7,7 +7,7 @@
    "repo": "dhaka-flights",
    "probe": "web_fresh",
    "ok": true,
-   "detail": "data 6h old",
+   "detail": "data 7h old",
    "cfg": "probe=web_fresh \u00b7 repo=dhaka-flights \u00b7 url=https://raw.githubusercontent.com/jalalchowdhury1/dhaka-flights/main/site/data.json \u00b7 json_key=updated \u00b7 max_age_h=36"
   },
   {
@@ -55,7 +55,7 @@
    "repo": "one-clock",
    "probe": "one_clock_lambda",
    "ok": true,
-   "detail": "5 pings/75m, 14 dispatches/26h, 0 errors",
+   "detail": "5 pings/75m, 13 dispatches/26h, 0 errors",
    "cfg": "probe=one_clock_lambda \u00b7 repo=one-clock"
   },
   {
@@ -71,7 +71,7 @@
    "repo": "sentiment-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 24h ago, data confirmed (newest run (workflow_dispatch) failure 0h ago, but the workflow_dispatch run 24h ago succeeded \u2014 redundant-trigger blip, work was done)",
+   "detail": "success 25h ago, data confirmed (newest run (workflow_dispatch) failure 1h ago, but the workflow_dispatch run 25h ago succeeded \u2014 redundant-trigger blip, work was done)",
    "cfg": "probe=gh_run \u00b7 repo=sentiment-scraper \u00b7 workflow=watchdog.yml \u00b7 max_age_h=36 \u00b7 log_grep=FRESH: last write (?:[0-9]|[1-3][0-9]|4[0-7])(?:\\.\\d+)?h ago"
   },
   {
@@ -79,7 +79,7 @@
    "repo": "sentiment-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 8h ago, data confirmed",
+   "detail": "success 9h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=sentiment-scraper \u00b7 workflow=daily-scrape.yml \u00b7 max_age_h=36 \u00b7 log_grep=Wrote to sheet: .*bull=[\\d.]+%.*bear=[\\d.]+%"
   },
   {
@@ -87,7 +87,7 @@
    "repo": "ynab-budget-brief",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 4h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/ynab-budget-brief/actions/runs/34689895404",
+   "detail": "success 5h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/ynab-budget-brief/actions/runs/34689895404",
    "cfg": "probe=gh_run \u00b7 repo=ynab-budget-brief \u00b7 workflow=daily_brief.yml \u00b7 max_age_h=36 \u00b7 log_grep=Sent eating-out brief: + Sent family brief:"
   },
   {
@@ -95,7 +95,7 @@
    "repo": "financial-dashboard-history",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 3h ago, data confirmed",
+   "detail": "success 4h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=financial-dashboard-history \u00b7 workflow=scraper.yml \u00b7 max_age_h=36 \u00b7 log_grep=slot {today}-(?:AM|PM) + (?:Data successfully appended to Google Sheet\\. \\(\\d+ metrics; carried_forward=(?:1[0-8]|[0-9]),|dedupe guard: slot {today}-(?:AM|PM) already has a successful run)"
   },
   {
@@ -103,7 +103,7 @@
    "repo": "hedgelab",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 24h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/hedgelab/actions/runs/34637188452",
+   "detail": "success 25h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/hedgelab/actions/runs/34637188452",
    "cfg": "probe=gh_run \u00b7 repo=hedgelab \u00b7 workflow=daily.yml \u00b7 max_age_h=72 \u00b7 log_grep=results/daily/{date}\\.json"
   },
   {
@@ -119,7 +119,7 @@
    "repo": "reddit-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 7h ago, data confirmed",
+   "detail": "success 8h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=reddit-scraper \u00b7 workflow=daily_scrape.yml \u00b7 max_age_h=36 \u00b7 log_grep=last data/ commit: [^$\\n]+ \u2014 proceeding|data/ already updated today \\([^$\\n]+\\) \u2014 skipping + DATA PUSHED: [1-9]\\d* data files|data/ already updated today \\([^$\\n]+\\) \u2014 skipping"
   },
   {
@@ -129,6 +129,14 @@
    "ok": true,
    "detail": "delivered, 2 sections",
    "cfg": "probe=cloudwatch_marker \u00b7 repo=financial-telegram-bot \u00b7 max_age_h=30 \u00b7 log_grep=REPORT_DELIVERED ok=true + Report sent at {today} \\d\\d:\\d\\d:\\d\\d"
+  },
+  {
+   "name": "financial-telegram-bot (report reached Telegram in the digest card)",
+   "repo": "financial-telegram-bot",
+   "probe": "web_fresh",
+   "ok": true,
+   "detail": "data 12h old",
+   "cfg": "probe=web_fresh \u00b7 repo=financial-telegram-bot \u00b7 url=https://jalal-health.vercel.app/api/health \u00b7 json_key=digest_report_at \u00b7 max_age_h=30"
   },
   {
    "name": "financial-telegram-bot (backstop workflow alive)",
@@ -143,16 +151,17 @@
    "repo": "financial-telegram-bot",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 3h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/financial-telegram-bot/actions/runs/34696613890",
+   "detail": "success 4h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/financial-telegram-bot/actions/runs/34696613890",
    "cfg": "probe=gh_run \u00b7 repo=financial-telegram-bot \u00b7 workflow=health-check.yml \u00b7 max_age_h=36 \u00b7 log_grep=Overall: ok"
   },
   {
    "name": "T7 Google-Drive backup (real tree copied)",
    "repo": null,
    "probe": "rsync_log",
-   "ok": true,
-   "detail": "2026-09-11 04:00:08, 26,975 regular files seen (baseline 20,000), 86 transferred, 36h ago",
-   "cfg": "probe=rsync_log \u00b7 max_age_h=36 \u00b7 log_path=/Volumes/T7Files/sync.log"
+   "ok": false,
+   "detail": "last backup finished 36h ago (limit 36h)",
+   "cfg": "probe=rsync_log \u00b7 max_age_h=36 \u00b7 log_path=/Volumes/T7Files/sync.log",
+   "failing_since": "2026-09-12"
   },
   {
    "name": "zinger-bot (Telegram bot on Vercel)",
@@ -171,28 +180,36 @@
    "cfg": "probe=telegram_webhook \u00b7 token_env=ZINGER_BOT_TOKEN \u00b7 expect_url=https://zinger-bot.vercel.app/api/webhook"
   },
   {
+   "name": "zinger-bot (synthetic message gets a real reply)",
+   "repo": null,
+   "probe": "bot_selftest",
+   "ok": true,
+   "detail": "synthetic message got a real reply (1 captured, nothing sent)",
+   "cfg": "probe=bot_selftest \u00b7 url=https://zinger-bot.vercel.app/api/webhook"
+  },
+  {
    "name": "aoife-math (daily game site)",
    "repo": "aoife-math",
-   "probe": "web_200",
+   "probe": "web_render",
    "ok": true,
-   "detail": "HTTP 200 + app shell",
-   "cfg": "probe=web_200 \u00b7 repo=aoife-math \u00b7 url=https://aoife-math.vercel.app"
+   "detail": "rendered with no JS errors, 'Try 1 of 2' on the page",
+   "cfg": "probe=web_render \u00b7 repo=aoife-math \u00b7 url=https://aoife-math.vercel.app"
   },
   {
    "name": "aoife-columns (site)",
    "repo": "aoife-columns",
-   "probe": "web_200",
+   "probe": "web_render",
    "ok": true,
-   "detail": "HTTP 200 + app shell",
-   "cfg": "probe=web_200 \u00b7 repo=aoife-columns \u00b7 url=https://aoife-columns.vercel.app"
+   "detail": "rendered with no JS errors, 'Solve big sums the column way' on the page",
+   "cfg": "probe=web_render \u00b7 repo=aoife-columns \u00b7 url=https://aoife-columns.vercel.app"
   },
   {
    "name": "aoife-frameworks (site)",
    "repo": "aoife-frameworks",
-   "probe": "web_200",
+   "probe": "web_render",
    "ok": true,
-   "detail": "HTTP 200 + app shell",
-   "cfg": "probe=web_200 \u00b7 repo=aoife-frameworks \u00b7 url=https://aoife-frameworks.vercel.app"
+   "detail": "rendered with no JS errors, 'Pick a puzzle.' on the page",
+   "cfg": "probe=web_render \u00b7 repo=aoife-frameworks \u00b7 url=https://aoife-frameworks.vercel.app"
   },
   {
    "name": "nafis-mortgage (site)",
@@ -205,26 +222,26 @@
   {
    "name": "aoife-puzzles (site)",
    "repo": "aoife-puzzles",
-   "probe": "web_200",
+   "probe": "web_render",
    "ok": true,
-   "detail": "HTTP 200 + app shell",
-   "cfg": "probe=web_200 \u00b7 repo=aoife-puzzles \u00b7 url=https://aoife-puzzles.vercel.app"
+   "detail": "rendered with no JS errors, 'Aoife Puzzles' on the page",
+   "cfg": "probe=web_render \u00b7 repo=aoife-puzzles \u00b7 url=https://aoife-puzzles.vercel.app"
   },
   {
    "name": "aoife-algebra (site)",
    "repo": "aoife-algebra",
-   "probe": "web_200",
+   "probe": "web_render",
    "ok": true,
-   "detail": "HTTP 200 + app shell",
-   "cfg": "probe=web_200 \u00b7 repo=aoife-algebra \u00b7 url=https://aoife-algebra.vercel.app"
+   "detail": "rendered with no JS errors, 'A letter is just a mystery box' on the page",
+   "cfg": "probe=web_render \u00b7 repo=aoife-algebra \u00b7 url=https://aoife-algebra.vercel.app"
   },
   {
    "name": "aoife-order (site)",
    "repo": "aoife-order",
-   "probe": "web_200",
+   "probe": "web_render",
    "ok": true,
-   "detail": "HTTP 200 + app shell",
-   "cfg": "probe=web_200 \u00b7 repo=aoife-order \u00b7 url=https://aoife-order.vercel.app"
+   "detail": "rendered with no JS errors, 'builds a bag' on the page",
+   "cfg": "probe=web_render \u00b7 repo=aoife-order \u00b7 url=https://aoife-order.vercel.app"
   },
   {
    "name": "aoife-planner-backup (nightly KV snapshot)",
@@ -259,6 +276,14 @@
    "cfg": "probe=telegram_webhook \u00b7 token_env=SCHOOL_BOT_TOKEN \u00b7 expect_url=https://aoife-school-bot.vercel.app/api/webhook"
   },
   {
+   "name": "aoife-school-bot (synthetic preview gets a real reply)",
+   "repo": null,
+   "probe": "bot_selftest",
+   "ok": true,
+   "detail": "synthetic message got a real reply (1 captured, nothing sent)",
+   "cfg": "probe=bot_selftest \u00b7 url=https://aoife-school-bot.vercel.app/api/webhook"
+  },
+  {
    "name": "aoife-milestones-bot (function serving)",
    "repo": "aoife-milestones-bot",
    "probe": "web_200",
@@ -273,6 +298,14 @@
    "ok": true,
    "detail": "webhook registered, 0 pending",
    "cfg": "probe=telegram_webhook \u00b7 token_env=MILESTONES_BOT_TOKEN \u00b7 expect_url=https://aoife-milestones-bot.vercel.app/api/webhook"
+  },
+  {
+   "name": "aoife-milestones-bot (synthetic /recent gets a real reply)",
+   "repo": null,
+   "probe": "bot_selftest",
+   "ok": true,
+   "detail": "synthetic message got a real reply (1 captured, nothing sent)",
+   "cfg": "probe=bot_selftest \u00b7 url=https://aoife-milestones-bot.vercel.app/api/webhook"
   },
   {
    "name": "aoife-gcal-sync (nightly Google Calendar publish)",
@@ -303,15 +336,15 @@
    "repo": "sheets-backup",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 9h ago, data confirmed",
-   "cfg": "probe=gh_run \u00b7 repo=sheets-backup \u00b7 workflow=backup.yml \u00b7 max_age_h=24 \u00b7 log_grep=BACKUP OK: \\d+ owned tabs, \\d+ public sources"
+   "detail": "success 10h ago, data confirmed",
+   "cfg": "probe=gh_run \u00b7 repo=sheets-backup \u00b7 workflow=backup.yml \u00b7 max_age_h=28 \u00b7 log_grep=BACKUP OK: \\d+ owned tabs, \\d+ public sources"
   },
   {
    "name": "mental-models (nightly 3 models)",
    "repo": "mental-models",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 10h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/mental-models/actions/runs/34672302110",
+   "detail": "success 11h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/mental-models/actions/runs/34672302110",
    "cfg": "probe=gh_run \u00b7 repo=mental-models \u00b7 workflow=daily.yml \u00b7 max_age_h=24 \u00b7 log_grep=MENTAL-MODELS OK [1-3]/3 date={date} index=\\d+->\\d+"
   },
   {
@@ -331,11 +364,19 @@
    "cfg": "probe=telegram_webhook \u00b7 token_env=VOICES_BOT_TOKEN \u00b7 expect_url=https://voices-bot.vercel.app/api/webhook"
   },
   {
+   "name": "voices-bot (synthetic /nuts gets a real reply)",
+   "repo": null,
+   "probe": "bot_selftest",
+   "ok": true,
+   "detail": "synthetic message got a real reply (1 captured, nothing sent)",
+   "cfg": "probe=bot_selftest \u00b7 url=https://voices-bot.vercel.app/api/webhook"
+  },
+  {
    "name": "NUTS (trading signal API)",
    "repo": "NUTS",
    "probe": "nuts",
    "ok": true,
-   "detail": "TQQQ via ftlt \u00b7 unit_test pass \u00b7 prices 2026-09-11 (1.7d, 22 tickers) \u00b7 eval 1h old",
+   "detail": "TQQQ via ftlt \u00b7 unit_test pass \u00b7 prices 2026-09-11 (1.7d, 22 tickers) \u00b7 eval 0h old",
    "cfg": "probe=nuts \u00b7 repo=NUTS \u00b7 url=https://ju9t7h8903.execute-api.us-east-1.amazonaws.com/evaluate"
   },
   {
@@ -351,7 +392,7 @@
    "repo": "nuts-radar",
    "probe": "nuts_radar",
    "ok": true,
-   "detail": "tree shape matches NUTS \u00b7 book TQQQ + BIL \u00b7 2 catalysts (6h old)",
+   "detail": "tree shape matches NUTS \u00b7 book TQQQ + BIL \u00b7 2 catalysts (7h old)",
    "cfg": "probe=nuts_radar \u00b7 repo=nuts-radar \u00b7 url=https://nuts-radar.vercel.app"
   },
   {
@@ -369,6 +410,14 @@
    "ok": true,
    "detail": "webhook registered, 0 pending",
    "cfg": "probe=telegram_webhook \u00b7 token_env=HEALTH_BOT_TOKEN \u00b7 expect_url=https://jalal-health.vercel.app/api/telegram"
+  },
+  {
+   "name": "health-hub (synthetic /status gets a real reply)",
+   "repo": null,
+   "probe": "bot_selftest",
+   "ok": true,
+   "detail": "synthetic message got a real reply (1 captured, nothing sent)",
+   "cfg": "probe=bot_selftest \u00b7 url=https://jalal-health.vercel.app/api/telegram"
   },
   {
    "name": "toolcheck (weekly CLI toolbox physical)",
@@ -415,7 +464,7 @@
    "repo": "aoife-typing",
    "probe": "log_tail",
    "ok": true,
-   "detail": "written 0h ago, ended '2026-09-12T19:38:55.076Z wrote coach: \ud83d\udc7b '",
+   "detail": "written 0h ago, ended '2026-09-12T20:22:27.679Z wrote coach: \ud83d\udc1f '",
    "cfg": "probe=log_tail \u00b7 repo=aoife-typing \u00b7 path=~/Library/Logs/aoife-typing-coach.log \u00b7 max_age_h=2"
   },
   {
@@ -454,10 +503,10 @@
   {
    "name": "aoife-reads (site)",
    "repo": "aoife-reads",
-   "probe": "web_200",
+   "probe": "web_render",
    "ok": true,
-   "detail": "HTTP 200 + app shell",
-   "cfg": "probe=web_200 \u00b7 repo=aoife-reads \u00b7 url=https://aoife-reads.vercel.app"
+   "detail": "rendered with no JS errors, 'Find Your Reading Powers' on the page",
+   "cfg": "probe=web_render \u00b7 repo=aoife-reads \u00b7 url=https://aoife-reads.vercel.app"
   }
  ]
 }
