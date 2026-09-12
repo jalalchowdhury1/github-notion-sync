@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-11 05:02",
+ "updated": "2026-09-12 09:34",
  "jobs": [
   {
    "key": "com.jalal.aoife-gcal-sync",
@@ -10,16 +10,6 @@
    "what": "One-way nightly publish of the aoifes-schedule planner (weekly template, dated one-offs, travel/off periods) into the shared 'Aoife's School' Google Calendar",
    "logs": "~/Library/Logs/aoife-gcal-sync.log",
    "notes": "4:10 AM, between the 3:40 backup and the 5:00 fleet check. One-way only — events say 'do not edit here', and the sync overwrites anything edited in Google Calendar. It touches ONLY events carrying its own extendedProperties.private.aoifeSync=v1, so the family's own entries on that calendar are safe. Prints one of three 'GCAL-SYNC WAITING …' markers and exits 0 while the Google-side setup is pending, one per step in the order they clear: calendar-api-disabled (enable Google Calendar API in cloud project hoa-tracker-494016 — the service account cannot enable it itself), calendar-not-shared-yet (a calendar named exactly \"Aoife's School\" shared with claude-sheets@hoa-tracker-494016.iam.gserviceaccount.com), write-permission (shared as 'See all event details' instead of 'Make changes to events'). The fleet probe greps 'GCAL-SYNC OK' with a grace period to 2026-08-20, so a still-unshared calendar gets reported rather than sitting silent."
-  },
-  {
-   "key": "com.jalal.aoife-library-reminder",
-   "title": "Aoife library holds — 4-week habit reminder",
-   "when": "7:05 AM",
-   "frequency": "Daily",
-   "mechanism": "launchd com.jalal.aoife-library-reminder → ~/.local/bin/aoife-library-reminder.sh",
-   "what": "Every-3-days 07:05 Telegram nudge (launchd fires daily; the script only sends on day 1,4,7…28) to the 📡 alerts chat reminding Jalal the concierge can place/swap Warwick library holds for Aoife (project memory project-aoife-library-holds). Runs 2026-09-02 → 2026-09-29 then unloads itself",
-   "logs": "~/Library/Logs/aoife-library-reminder.log",
-   "notes": "TEMPORARY by design — a habit-forming nudge, not a monitor. Deliberately daytime (07:05, next to the 7:00 budget brief) because a human has to read it. Self-terminates after Sep 29 2026 via launchctl bootout inside the script; STOP PHRASE from Jalal = \"stop the library reminders\" → run `aoife-library-reminder.sh stop` (touches ~/.local/state/aoife-library-reminder.stop + bootout); expect Frequency=Removed after that. Do not add a fleet-health probe"
   },
   {
    "key": "com.jalal.aoife-planner-backup",
@@ -42,13 +32,13 @@
    "notes": "07:00–21:30 ET is DELIBERATE and is the one standing exception to the overnight-only house rule: this job exists to talk to the family during the school day, so it cannot run at 3 AM. Slots with nothing to send log 'TICK OK <date> none' and cost one HTTP call; the fleet probe greps 'TICK OK' specifically, because a tick that cannot reach the planner still answers 200 and writes 'TICK FAIL'. The TICK_SECRET is read from the repo's gitignored .env by scripts/tick.sh and passed to curl through a config file on stdin, so it appears in neither the plist nor `ps`."
   },
   {
-   "key": "com.jalal.biom-cancel-reminder",
-   "title": "com.jalal.biom-cancel-reminder",
-   "when": "7:05 AM",
+   "key": "com.jalal.aoife-typing-coach",
+   "title": "com.jalal.aoife-typing-coach",
+   "when": "every 15 min, 12:05 AM–12:50 AM",
    "frequency": "Daily",
-   "mechanism": "launchd com.jalal.biom-cancel-reminder → ~/.local/bin/biom-cancel-reminder.sh",
+   "mechanism": "launchd com.jalal.aoife-typing-coach → /usr/local/bin/node",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
-   "logs": "~/Library/Logs/biom-cancel-reminder.log",
+   "logs": "~/Library/Logs/aoife-typing-coach.out.log",
    "notes": ""
   },
   {
@@ -162,16 +152,6 @@
    "notes": "Added 2026-08-28 after GitHub Actions schedule proved unreliable for this repo (fired +31m, +34m, +11h14m late, then never on 08-28). This is the delivery guarantee; GitHub's cron is now best-effort first-attempt. Markers MM-BACKSTOP OK/DISPATCHED date=… are date-pinned and graded by fleet-health's log_marker probe (runs after the 5 AM check, so yesterday's marker is the one graded)."
   },
   {
-   "key": "com.jalal.money-radar-reminder",
-   "title": "Money Radar site — every-3-days green-light nag",
-   "when": "7:05 AM",
-   "frequency": "Daily",
-   "mechanism": "launchd com.jalal.money-radar-reminder → ~/.local/bin/money-radar-reminder.sh",
-   "what": "Every-3-days 07:05 Telegram nudge (launchd fires daily; the script sends on day 1, 4, 7 …; Jalal chose the cadence 2026-09-02) to the 📡 alerts chat until Jalal green-lights or parks the Money Radar maintenance site (plan: Notion page 3cf24bb1172e814cb5bee0e0d0ccf2fa + ~/PycharmProjects/money-radar/PLAN.md). Runs 2026-09-02 → 2026-09-30 then unloads itself",
-   "logs": "~/Library/Logs/money-radar-reminder.log",
-   "notes": "TEMPORARY by design — a decision nag, not a monitor. Deliberately daytime (07:05, same slot as the library reminder) because a human has to read it. STOP PHRASE from Jalal = \"stop the tracker reminders\" → run `money-radar-reminder.sh stop` (touches ~/.local/state/money-radar-reminder.stop + bootout); GREEN-LIGHT phrase = \"build the money radar\". Expect Frequency=Removed after either. Do not add a fleet-health probe"
-  },
-  {
    "key": "com.jalal.notebooklm-drip",
    "title": "Gemini Notebook podcast drip",
    "when": "4:00 AM (retries 12:45 AM)",
@@ -190,6 +170,16 @@
    "what": "Rebuilds catalysts.json for nuts-radar.vercel.app from official calendars (FRED release dates, the Fed's FOMC calendar, Nasdaq earnings), deploys it, then Telegrams the day's events plus the link to the 📡 alerts chat",
    "logs": "~/PycharmProjects/nuts-radar/job/run.log",
    "notes": "04:30, deliberately BEFORE the 5:00 fleet check so a failed build is caught the same morning (it was 05:45 first, which put it after the check and made the 6:30 retry slot useless — fleet_health exits early once the digest has gone). Deterministic on purpose — no language model touches it, because an invented earnings date on a page read before the open is worse than an empty section. Build → deploy → message, in that order, so the link already shows today's rows. A failed build leaves yesterday's file and sends nothing; fleet-health's nuts_radar probe then calls the staleness (limit 30 h, which tolerates the 5:00 check seeing a 23 h-old file). deploy.sh always content-stamps the assets first — a cached assets/tree.js would self-check the OLD tree shape and pass silently"
+  },
+  {
+   "key": "com.jalal.overnight-blackout-check",
+   "title": "Overnight blackout check — logged-out-Mac alarm",
+   "when": "—",
+   "frequency": "Always on",
+   "mechanism": "launchd com.jalal.overnight-blackout-check → ~/.local/bin/overnight-blackout-check.sh",
+   "what": "Fires on login (RunAtLoad, no calendar interval) and, once between 06:00-22:00, checks whether every overnight job (Dhaka flights, hotel rates, CarMax, catalyst radar, fleet health, daily trackers, mac-audit, Aoife calendar sync) has a run dated today; if any are missing it sends ONE loud Telegram message to the alerts chat naming them plus the replay command",
+   "logs": "~/Library/Logs/overnight-blackout-check.log",
+   "notes": "Added 2026-09-11 after macOS logged the user out at 23:57 to install 15.7.9, the install failed with a boot-policy error, the Mac restarted, and FileVault held it at the login screen until 09:01 — every overnight job is a *user* LaunchAgent and needs a logged-in session, so none of them ran. The non-obvious trap: launchd only replays a missed StartCalendarInterval when the agent was already loaded and the machine merely slept; with no session at midnight the agents did not exist at all, so when they finally loaded at 09:01 they just scheduled their next run for tonight — the whole night vanished with no error anywhere, and fleet-health, the thing that would normally have caught it, was itself a user agent and died with everything else. EVENT-DRIVEN, not scheduled — it has no calendar slot to grade, and it is SILENT on every normal day (session loads, all jobs already ran, nothing sent), so like the temporary reminder jobs above, do NOT add a fleet-health probe: a probe here would false-alarm on every quiet day. Deliberately does not run the scrapers itself (they drive Chrome for 10-35 min and would seize the machine mid-morning — no daytime scheduling). Companion manual command: `catchup-overnight` (~/.local/bin/catchup-overnight.sh, aliased in ~/.zshrc), which Jalal runs himself to replay whatever was missed"
   },
   {
    "key": "com.jalal.rubber-band",
