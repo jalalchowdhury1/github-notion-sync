@@ -107,11 +107,30 @@ def probe_web_fresh(url, json_key, max_age_h, rows_key=None, **_):
                                             f" (limit {max_age_h}h, raw {json_key}={raw!r})")
 
 
-def probe_web_200(url, **_):
+def probe_web_200(url, expect_text=None, **_):
+    """HTTP 200 from the host we asked, optionally carrying expect_text.
+
+    Red team round 4 (2026-09-12): urlopen FOLLOWS redirects, including to other
+    hosts, and reports the final status. Verified: google.com -> www.google.com
+    comes back 200. So a site that got Vercel Deployment Protection switched on
+    -- a 302 into the vercel.com login page -- read HTTP 200 and stayed green
+    while nobody could open it. The final URL must stay on the requested host.
+    expect_text proves the right app answered, not a placeholder or a login wall.
+    Still liveness: it cannot prove the page RUNS (a runtime JS error serves 200).
+    """
     req = urllib.request.Request(url, method="GET")
     with urllib.request.urlopen(req, timeout=30) as r:
-        ok = r.status == 200
-        return ok, f"HTTP {r.status}"
+        want = urllib.parse.urlsplit(url).netloc
+        got = urllib.parse.urlsplit(r.url).netloc
+        if got != want:
+            return False, f"HTTP {r.status} but redirected off-host to {got} (login wall?)"
+        if r.status != 200:
+            return False, f"HTTP {r.status}"
+        if expect_text:
+            body = r.read(500_000).decode("utf-8", "replace")
+            if expect_text not in body:
+                return False, f"HTTP 200 but {expect_text!r} not in page — wrong app or placeholder"
+        return True, f"HTTP {r.status}" + (" + app shell" if expect_text else "")
 
 
 def probe_local_stamp(path, max_age_h, **_):
@@ -1029,7 +1048,7 @@ def probe_log_block(log_path, block_re, log_grep, max_age_h, **_):
         return False, "no run block found in log"
     last = blocks[-1]
     try:
-        ts = datetime.datetime.strptime(last.group(1), "%Y-%m-%d %H:%M:%S").timestamp()
+        ts = datetime.datetime.strptime(last.group(1).replace("T", " "), "%Y-%m-%d %H:%M:%S").timestamp()
     except (ValueError, IndexError):
         return False, f"unparseable block stamp {last.group(0)[:60]!r}"
     age = _age_hours(ts)
@@ -1044,6 +1063,28 @@ def probe_log_block(log_path, block_re, log_grep, max_age_h, **_):
         return False, (f"last run {age/24:.1f}d ago but marker missing "
                        f"({', '.join(repr(m) for m in missing)}) — tail: {tail[:100]}")
     return True, f"clean run {age/24:.1f}d ago"
+
+
+def probe_log_tail(path, last_line, max_age_h, **_):
+    """Fresh log whose LAST non-empty line is a success shape.
+
+    For a job that prints a one-line outcome but no timestamp (tranche-nag:
+    `sent N chars` or `nothing due`). mtime proves it ran; the last line proves
+    the run ENDED in a success state rather than a traceback. Added red team
+    round 4, 2026-09-12, replacing a file_mtime row whose waiver claimed the job
+    "prints no success marker" -- which was not true.
+    """
+    p = os.path.expanduser(path)
+    if not os.path.exists(p):
+        return False, f"{path} missing"
+    age = _age_hours(os.path.getmtime(p))
+    if age > max_age_h:
+        return False, f"stale: last written {age/24:.1f}d ago (limit {max_age_h}h)"
+    lines = [l for l in open(p, errors="replace").read().splitlines() if l.strip()]
+    last = lines[-1].strip() if lines else ""
+    if not re.search(last_line, last):
+        return False, f"written {age:.0f}h ago but last line is not a success: {last[:90]!r}"
+    return True, f"written {age:.0f}h ago, ended {last[:40]!r}"
 
 
 PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
@@ -1062,6 +1103,8 @@ PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
 
 # ── the fleet roster ────────────────────────────────────────────────────────
 # repo: GitHub repo name for the Notion row (None = not a repo, Telegram-only).
+PROBE_FNS["log_tail"] = probe_log_tail
+
 FLEET = [
     {"name": "dhaka-flights (nightly trip tracker)", "repo": "dhaka-flights",
      "probe": "web_fresh", "url": "https://raw.githubusercontent.com/jalalchowdhury1/dhaka-flights/main/site/data.json",
@@ -1335,16 +1378,19 @@ FLEET = [
      "expect_url": "https://zinger-bot.vercel.app/api/webhook"},
     {"name": "aoife-math (daily game site)", "repo": "aoife-math",
      "probe": "web_200", "url": "https://aoife-math.vercel.app",
-     "weak_ok": "static game — being reachable IS the job"},
+     "expect_text": "_next/static/",
+     "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
     {"name": "aoife-columns (site)", "repo": "aoife-columns",
      "probe": "web_200", "url": "https://aoife-columns.vercel.app",
-     "weak_ok": "static game — being reachable IS the job"},
+     "expect_text": "_next/static/",
+     "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
     {"name": "aoife-frameworks (site)", "repo": "aoife-frameworks",
      "probe": "web_200", "url": "https://aoife-frameworks.vercel.app",
-     "weak_ok": "static game — being reachable IS the job"},
+     "expect_text": "_next/static/",
+     "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
     {"name": "nafis-mortgage (site)", "repo": "nafis-mortgage",
      "probe": "web_200", "url": "https://nafis-mortgage.vercel.app",
-     "weak_ok": "finished work, nothing scheduled; reachable IS the job"},
+     "weak_ok": "finished work, nothing scheduled; proves it is served from its own host, not that the page renders"},
     # Rostered 2026-08-25 during a coverage audit: aoife-math/columns/frameworks
     # were watched while these three equally-live sisters were not — coverage by
     # accident of when each was built, not by risk. aoife-puzzles matters most:
@@ -1352,13 +1398,16 @@ FLEET = [
     # weakness in Aoife rather than a bug (see feedback-puzzle-validity-sacred).
     {"name": "aoife-puzzles (site)", "repo": "aoife-puzzles",
      "probe": "web_200", "url": "https://aoife-puzzles.vercel.app",
-     "weak_ok": "static game — being reachable IS the job"},
+     "expect_text": "_next/static/",
+     "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
     {"name": "aoife-algebra (site)", "repo": "aoife-algebra",
      "probe": "web_200", "url": "https://aoife-algebra.vercel.app",
-     "weak_ok": "static game — being reachable IS the job"},
+     "expect_text": "_next/static/",
+     "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
     {"name": "aoife-order (site)", "repo": "aoife-order",
      "probe": "web_200", "url": "https://aoife-order.vercel.app",
-     "weak_ok": "static game — being reachable IS the job"},
+     "expect_text": "_next/static/",
+     "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
     # backbench — ROW RETIRED 2026-09-12. It read `web_200` on backbench.vercel.app
     # and reported "daily trading brief: OK" because the static site answers. There
     # is no GitHub repo (404), no launchd job, and the local folder was retired the
@@ -1653,18 +1702,23 @@ FLEET = [
     # rubber-band is weekdays 18:30 ONLY, so a Monday 05:00 check is looking at
     # Friday evening — ~58 h. A dated marker would page every Monday. mtime at
     # 72 h clears the weekend and still catches a genuine multi-day stall.
+    # Was file_mtime with weak_ok "prints no success marker". Not true (red team
+    # round 4): every run prints `published -> <gist raw URL>` after the gist
+    # write succeeds. Graded on the newest run block only; 72h covers Fri 18:30
+    # to the Monday 05:00 check.
     {"name": "rubber-band (weekday evening check)", "repo": None,
-     "probe": "file_mtime", "path": "~/Library/Logs/rubber-band.log",
-     "max_age_h": 72,
-     "weak_ok": "prints no success marker; mtime is the only signal the job emits"},
+     "probe": "log_block", "log_path": "~/Library/Logs/rubber-band.log",
+     "block_re": r"^rubber-band run (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)",
+     "log_grep": r"^\s*published → https://gist\.githubusercontent\.com/",
+     "max_age_h": 72},
 
     # The tranche pair. 07:12 publish is the one Jalal would actually notice
     # missing. nag prints no date ("sent N chars" / "nothing due"), so it gets
     # mtime; publish stamps every line and gets the stronger dated marker.
     {"name": "tranche-nag (07:10 reminder)", "repo": None,
-     "probe": "file_mtime", "path": "~/Library/Logs/tranche-nag.log",
-     "max_age_h": 30,
-     "weak_ok": "prints no success marker; mtime is the only signal the job emits"},
+     "probe": "log_tail", "path": "~/Library/Logs/tranche-nag.log",
+     "last_line": r"^(?:sent \d+ chars|nothing due)$",
+     "max_age_h": 30},
     {"name": "tranche-publish (07:12 board publish)", "repo": None,
      "probe": "log_marker", "log_path": "~/Library/Logs/tranche-publish.log",
      "log_grep": [r"{date}T\d\d:\d\d:\d\d tranche\.json: \d+ steps"]},
@@ -1673,7 +1727,8 @@ FLEET = [
     # siblings all had one.
     {"name": "aoife-reads (site)", "repo": "aoife-reads",
      "probe": "web_200", "url": "https://aoife-reads.vercel.app",
-     "weak_ok": "static game — being reachable IS the job"},
+     "expect_text": "_next/static/",
+     "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
     # money-moves is deliberately NOT rostered: it has no reachable public URL.
     # money-moves.vercel.app 404s (no production alias assigned) and the
     # deployment URL 302s into Vercel SSO. There is nothing a probe could
