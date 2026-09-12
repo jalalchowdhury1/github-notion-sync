@@ -1169,11 +1169,11 @@ FLEET = [
     # lateness beyond anything observed.
     {"name": "leasehackr-scraper (daily deals)", "repo": "leasehackr-scraper",
      "probe": "gh_run", "workflow": "daily_scraper.yml", "max_age_h": 24,
-     "log_grep": [r"unique deal cards across \d+ regions",
-                  r"Scraped \d+ deals total"]},
+     "log_grep": [r"Found [1-9]\d* unique deal cards across [1-9]\d* regions",
+                  r"Scraped [1-9]\d* deals total"]},
     {"name": "leasehackr-scraper (historical sheet)", "repo": "leasehackr-scraper",
      "probe": "gh_run", "workflow": "weekly_scraper.yml", "max_age_h": 24,
-     "log_grep": [r"unique deal cards across \d+ regions",
+     "log_grep": [r"Found [1-9]\d* unique deal cards across [1-9]\d* regions",
                   r"refreshed the dashboard with [1-9]\d* sorted deals"]},
     # 48 -> 36 on the three daily entries below (2026-08-06). Their runs land
     # AFTER the 09:00 UTC check, so the freshest run the check can ever see is
@@ -1193,7 +1193,7 @@ FLEET = [
     # Notion write, so {date} is pinnable — a green run that wrote nothing fails.
     {"name": "github-notion-sync (daily health stamp)", "repo": "github-notion-sync",
      "probe": "gh_run", "workflow": "health.yml", "max_age_h": 36,
-     "log_grep": r"Notion updated: \d+ rows.*checked {date}",
+     "log_grep": r"Notion updated: [1-9]\d* rows.*checked {date}",
      "expect_event": "workflow_dispatch"},
     # Watchdog for the AAII scrape. Un-rostered before 2026-08-29 — the thing
     # that catches a silent scrape miss could itself go silent unnoticed.
@@ -1252,7 +1252,11 @@ FLEET = [
      # Pinned to today, the alternation is safe: at the 05:00 ET check only the
      # AM slot can exist yet, so a missed AM now goes red the same morning.
      "log_grep": [r"slot {today}-(?:AM|PM)",
-                  r"(?:Data successfully appended to Google Sheet\. \(\d+ metrics"
+                  # carried_forward capped under half of the 38 metrics (producer-side red
+                  # team 2026-09-12): with every fetcher down, apply_fallbacks copies the
+                  # last row forward and still prints "successfully appended". Normal is
+                  # 0-3 (last 20 appends).
+                  r"(?:Data successfully appended to Google Sheet\. \(\d+ metrics; carried_forward=(?:1[0-8]|[0-9]),"
                   r"|dedupe guard: slot {today}-(?:AM|PM) already has a successful run)"],
      "expect_event": "workflow_dispatch"},
     # vix-fear-greed: RETIRED + ARCHIVED 2026-08-29, probe deliberately removed.
@@ -1304,7 +1308,9 @@ FLEET = [
     # was blind to it. The workflow has TWO legitimate shapes (03:00 scrape,
     # 09:00 retry that dedupes itself), so each marker is an either/or:
     #   1. the guard step actually PRINTED its decision, and
-    #   2. the scrapers actually started (or the run was the legitimate no-op).
+    #   2. the push landed at least one data file (or the run was the legitimate
+    #      no-op). It used to grep "Google News Aggregator", a banner printed when
+    #      that scraper STARTS -- proof of nothing (producer-side red team 2026-09-12).
     # `[^$\n]+` is load-bearing: Actions echoes the step's source in the log, so
     # a plain "already updated today" would match `echo "…($LAST)…"` on every
     # run and never fail. Excluding `$` keeps the echoed source out.
@@ -1312,7 +1318,7 @@ FLEET = [
      "probe": "gh_run", "workflow": "daily_scrape.yml", "max_age_h": 36,
      "log_grep": [r"last data/ commit: [^$\n]+ — proceeding"
                   r"|data/ already updated today \([^$\n]+\) — skipping",
-                  r"Google News Aggregator"
+                  r"DATA PUSHED: [1-9]\d* data files"
                   r"|data/ already updated today \([^$\n]+\) — skipping"]},
     # financial-telegram-bot is the owner's most important repo and was entirely
     # unrostered. Its own health-check Telegrams on warn/critical, but nothing
@@ -1665,7 +1671,7 @@ FLEET = [
     {"name": "toolcheck (weekly CLI toolbox physical)", "repo": None,
      "probe": "log_block", "log_path": "~/Library/Logs/toolcheck.log",
      "block_re": r"^===== (\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\s+\(exit \d+\) =====",
-     "log_grep": r"\d+ passed, 0 failed",
+     "log_grep": r"[1-9]\d* passed, 0 failed",
      "max_age_h": 192},
     {"name": "keepawake (Mac stays awake for overnight jobs)", "repo": None,
      "probe": "launchd_running", "label": "com.jalal.keepawake"},
@@ -1689,8 +1695,15 @@ FLEET = [
     # which is why the launchd .out.log is empty and looked dead. The real log
     # is written by the script itself and carries an ISO stamp per run.
     {"name": "aoife-typing (15-min coach loop)", "repo": "aoife-typing",
-     "probe": "log_marker", "log_path": "~/Library/Logs/aoife-typing-coach.log",
-     "log_grep": [r"^{date}T\d\d:\d\d"]},
+     # log_tail, not "any line stamped today" (producer-side red team 2026-09-12):
+     # coach.mjs stamps EVERY log() call, so "ERROR <stack>", "no state yet" (state
+     # fetch broken) and "no APP_KEY" all matched as proof. It fires at :05/:20/
+     # :35/:50 around the clock, so the newest line must be a FINISHED state: a
+     # mission written, one already built, or a round still inside its hour.
+     "probe": "log_tail", "path": "~/Library/Logs/aoife-typing-coach.log",
+     "last_line": r"^\d{4}-\d\d-\d\dT[\d:.]+Z (?:wrote coach: |\d{4}-\d\d-\d\d: "
+                  r"(?:mission already built$|last round \d+ min ago \S+ waiting for the hour$))",
+     "max_age_h": 2},
 
     # financial-telegram-bot's two LOCAL launchd jobs. The two existing
     # financial-telegram-bot rows grade the cloud daily report and the
@@ -1720,8 +1733,14 @@ FLEET = [
      "last_line": r"^(?:sent \d+ chars|nothing due \([1-9]\d* rows parsed\))$",
      "max_age_h": 30},
     {"name": "tranche-publish (07:12 board publish)", "repo": None,
-     "probe": "log_marker", "log_path": "~/Library/Logs/tranche-publish.log",
-     "log_grep": [r"{date}T\d\d:\d\d:\d\d tranche\.json: \d+ steps"]},
+     # log_block, not log_marker (producer-side red team 2026-09-12): the
+     # "tranche.json: N steps" line prints BEFORE the gist upload, so a failed
+     # publish still left a matching marker, and "0 steps" matched too. The newest
+     # run block must now show a non-empty feed AND the upload that followed it.
+     "probe": "log_block", "log_path": "~/Library/Logs/tranche-publish.log",
+     "block_re": r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d) tranche\.json: \d+ steps",
+     "log_grep": [r"tranche\.json: [1-9]\d* steps", r"^gist updated \(encrypted\):"],
+     "max_age_h": 30},
 
     # aoife-reads was the one Aoife site with no uptime probe while its eight
     # siblings all had one.
