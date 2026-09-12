@@ -37,6 +37,20 @@ export MILESTONES_BOT_TOKEN="$(grep '^TELEGRAM_TOKEN=' \
 export HEALTH_BOT_TOKEN="$(grep '^HEALTH_BOT_TOKEN=' \
   "$HOME/.config/secrets.env" 2>/dev/null | cut -d= -f2-)"
 
+# Webhook secrets for the bot_selftest rows (2026-09-12). Same by-name extraction,
+# same reason: never `set -a; source` a bot .env here. Sent only as a request
+# header to each bot's own webhook; never logged, never put in the roster.
+export ZINGER_WEBHOOK_SECRET="$(grep '^WEBHOOK_SECRET=' \
+  /Users/jalalchowdhury/PycharmProjects/zinger-bot/.env 2>/dev/null | cut -d= -f2-)"
+export VOICES_WEBHOOK_SECRET="$(grep '^WEBHOOK_SECRET=' \
+  /Users/jalalchowdhury/PycharmProjects/voices-bot/.env 2>/dev/null | cut -d= -f2-)"
+export SCHOOL_WEBHOOK_SECRET="$(grep '^WEBHOOK_SECRET=' \
+  /Users/jalalchowdhury/PycharmProjects/aoife-school-bot/.env 2>/dev/null | cut -d= -f2-)"
+export MILESTONES_WEBHOOK_SECRET="$(grep '^WEBHOOK_SECRET=' \
+  /Users/jalalchowdhury/PycharmProjects/aoife-milestones-bot/.env 2>/dev/null | cut -d= -f2-)"
+export HEALTH_WEBHOOK_SECRET="$(grep '^WEBHOOK_SECRET=' \
+  /Users/jalalchowdhury/PycharmProjects/health-hub/.env 2>/dev/null | cut -d= -f2-)"
+
 # From 6 AM on this invocation is the retry slot: fleet_health.py exits early
 # if the 5 AM run already sent today's digest, or backs off if that run is
 # still going (lock file).

@@ -36,6 +36,9 @@ import datetime
 import json
 import os
 import re
+import html as _html
+import tempfile
+import glob
 import subprocess
 import sys
 import time
@@ -98,6 +101,8 @@ def probe_web_fresh(url, json_key, max_age_h, rows_key=None, **_):
         raw = min(stamps, key=lambda s: _parse_stamp(s).timestamp())
         label = f"oldest of {len(stamps)} {rows_key}"
     else:
+        if not data.get(json_key):
+            return False, f"no {json_key!r} in the response"
         raw = str(data.get(json_key, ""))
         label = "data"
     ts = _parse_stamp(raw).timestamp()
@@ -386,7 +391,8 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None,
         # uses. Added here 2026-09-12 (red team round 3) for rows where the
         # today|yesterday buffer is too loose to mean anything. Safe because this
         # monitor runs at 05:00 ET, when the local date and the UTC date agree;
-        # it would NOT be safe if fleet-health ever ran between 20:00 and midnight.
+        # it would NOT be safe if fleet-health ever ran between 20:00 (19:00 once DST
+        # ends) and midnight.
         patterns = [p.replace("{today}", _today.isoformat())
                      .replace("{date}", f"(?:{_dates})") for p in patterns]
         lp = subprocess.run(
@@ -1087,7 +1093,90 @@ def probe_log_tail(path, last_line, max_age_h, **_):
     return True, f"written {age:.0f}h ago, ended {last[:40]!r}"
 
 
+def probe_bot_selftest(url, secret_env, **_):
+    """A synthetic message through the bot's REAL handler produced a real reply.
+
+    Red team 2026-09-12. telegram_webhook proves the hook points at the function
+    and the guard bites, but every bot answers Telegram 200 even when its handler
+    raised or fell back to an apology ("brain's lagging", "the planner isn't
+    answering", a caught error) -- so a bot that could not reply stayed green.
+
+    Each bot's webhook takes `X-Selftest: 1` plus its webhook secret (header only,
+    never ?s=). It then runs one fixed, read-only message (zinger: a text;
+    voices: /nuts; milestones: /recent; school: preview today; health-hub:
+    /status) through the real handler with every Bot API call captured instead
+    of sent, and answers {"ok", "sent", "why"} -- a verdict and a count, never
+    the reply text. Nobody is messaged and nothing is written.
+
+    The secret comes from the environment (run_health.sh reads it by name from
+    each bot's .env). THIS REPO IS PUBLIC: never put a secret in the roster and
+    never echo one in a detail string.
+    """
+    secret = os.environ.get(secret_env)
+    if not secret:
+        return False, f"{secret_env} not set (see run_health.sh)"
+    req = urllib.request.Request(url, data=b"{}", method="POST", headers={
+        "Content-Type": "application/json", "X-Selftest": "1",
+        "X-Telegram-Bot-Api-Secret-Token": secret})
+    try:
+        with urllib.request.urlopen(req, timeout=90) as r:
+            body = json.load(r)
+    except urllib.error.HTTPError as e:
+        return False, f"selftest answered HTTP {e.code}" + (" (secret rejected)" if e.code in (401, 403) else "")
+    except ValueError:
+        return False, "selftest answered non-JSON (old deploy without the selftest?)"
+    if body.get("ok") is True and int(body.get("sent") or 0) >= 1:
+        return True, f"synthetic message got a real reply ({body['sent']} captured, nothing sent)"
+    return False, f"selftest failed: {str(body.get('why') or 'no verdict')[:100]}"
+
+
+def _headless_browser():
+    """chrome-headless-shell exits by itself after --dump-dom (about 1 s); full
+    Chrome 153 dumps the DOM and then never exits, so it is only the fallback."""
+    shells = sorted(glob.glob(os.path.expanduser(
+        "~/Library/Caches/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell")))
+    if shells:
+        return shells[-1], []
+    return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", ["--headless=new"]
+
+
+def probe_web_render(url, expect_text, **_):
+    """Render the page in a headless browser and prove the app RAN.
+
+    Red team 2026-09-12: web_200 proved the host served an app shell, and a game
+    whose JavaScript throws still serves that shell with a 200. This runs the JS
+    (8 s of virtual time) and fails on an uncaught error in the console, on Next's
+    "Application error: a client-side exception" page, or when expect_text (body
+    text, <head> excluded) is missing -- a login wall or a blank page.
+    """
+    exe, extra = _headless_browser()
+    with tempfile.TemporaryDirectory() as prof:
+        cmd = [exe, *extra, "--disable-gpu", "--no-first-run", f"--user-data-dir={prof}",
+               "--enable-logging=stderr", "--v=0", "--virtual-time-budget=8000", "--dump-dom", url]
+        try:
+            p = subprocess.run(cmd, capture_output=True, timeout=45)
+            dom, log = p.stdout, p.stderr
+        except subprocess.TimeoutExpired as e:       # full Chrome: DOM already dumped
+            dom, log = e.stdout or b"", e.stderr or b""
+    dom = dom.decode("utf-8", "replace")
+    log = log.decode("utf-8", "replace")
+    if len(dom) < 200:
+        return False, f"no rendered page ({len(dom)} bytes from {os.path.basename(exe)})"
+    if "Application error: a client-side exception" in dom:
+        return False, "the app crashed in the browser (Next.js client exception page)"
+    errs = [l for l in log.splitlines() if "CONSOLE" in l and "Uncaught" in l]
+    if errs:
+        m = re.search(r'"(Uncaught[^"]{0,110})', errs[0])
+        return False, f"JS error on load: {m.group(1) if m else errs[0][-110:]}"
+    body = re.sub(r"<head\b.*?</head>|<(script|style)\b[^>]*>.*?</\1>", " ", dom, flags=re.S | re.I)
+    text = re.sub(r"\s+", " ", _html.unescape(re.sub(r"<[^>]+>", " ", body)))
+    if expect_text not in text:
+        return False, f"rendered, but {expect_text!r} is not on the page (wrong app, login wall or blank)"
+    return True, f"rendered with no JS errors, {expect_text!r} on the page"
+
+
 PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
+             "web_render": probe_web_render, "bot_selftest": probe_bot_selftest,
              "one_clock_lambda": probe_one_clock_lambda,
              "local_stamp": probe_local_stamp, "launchd_exit": probe_launchd_exit,
              "file_mtime": probe_file_mtime, "gh_run": probe_gh_run,
@@ -1332,6 +1421,13 @@ FLEET = [
      "log_group": "/aws/lambda/financial-telegram-report", "max_age_h": 30,
      "log_grep": [r"REPORT_DELIVERED ok=true",
                   r"Report sent at {today} \d\d:\d\d:\d\d"]},
+    # REPORT_DELIVERED means "stored for the digest card", not "reached Telegram"
+    # (red team 2026-09-12). health-hub stamps a sender only after Telegram accepts
+    # a card carrying it. At 05:00 this grades YESTERDAY's card (sent 06:50-10:00 ET,
+    # so 19-22 h old); 30 h covers a late card and the 25-hour DST day.
+    {"name": "financial-telegram-bot (report reached Telegram in the digest card)", "repo": "financial-telegram-bot",
+     "probe": "web_fresh", "url": "https://jalal-health.vercel.app/api/health",
+     "json_key": "digest_report_at", "max_age_h": 30},
     # Liveness-only ON PURPOSE, and this is the declared reason the lint wants:
     # this workflow's healthy output is "I did nothing, the Lambda had it". There
     # is no success marker to assert, and asserting the skip-line would go RED on
@@ -1382,17 +1478,19 @@ FLEET = [
     {"name": "zinger-bot (telegram webhook registered)", "repo": None,
      "probe": "telegram_webhook", "token_env": "ZINGER_BOT_TOKEN",
      "expect_url": "https://zinger-bot.vercel.app/api/webhook"},
+    {"name": "zinger-bot (synthetic message gets a real reply)", "repo": None,
+     "probe": "bot_selftest", "url": "https://zinger-bot.vercel.app/api/webhook", "secret_env": "ZINGER_WEBHOOK_SECRET"},
     {"name": "aoife-math (daily game site)", "repo": "aoife-math",
-     "probe": "web_200", "url": "https://aoife-math.vercel.app",
-     "expect_text": "_next/static/",
+     "probe": "web_render", "url": "https://aoife-math.vercel.app",
+     "expect_text": "Try 1 of 2",
      "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
     {"name": "aoife-columns (site)", "repo": "aoife-columns",
-     "probe": "web_200", "url": "https://aoife-columns.vercel.app",
-     "expect_text": "_next/static/",
+     "probe": "web_render", "url": "https://aoife-columns.vercel.app",
+     "expect_text": "Solve big sums the column way",
      "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
     {"name": "aoife-frameworks (site)", "repo": "aoife-frameworks",
-     "probe": "web_200", "url": "https://aoife-frameworks.vercel.app",
-     "expect_text": "_next/static/",
+     "probe": "web_render", "url": "https://aoife-frameworks.vercel.app",
+     "expect_text": "Pick a puzzle.",
      "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
     {"name": "nafis-mortgage (site)", "repo": "nafis-mortgage",
      "probe": "web_200", "url": "https://nafis-mortgage.vercel.app",
@@ -1403,16 +1501,16 @@ FLEET = [
     # it is the WISC-V prep game, and a broken level reads to Jalal as a real
     # weakness in Aoife rather than a bug (see feedback-puzzle-validity-sacred).
     {"name": "aoife-puzzles (site)", "repo": "aoife-puzzles",
-     "probe": "web_200", "url": "https://aoife-puzzles.vercel.app",
-     "expect_text": "_next/static/",
+     "probe": "web_render", "url": "https://aoife-puzzles.vercel.app",
+     "expect_text": "Aoife Puzzles",
      "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
     {"name": "aoife-algebra (site)", "repo": "aoife-algebra",
-     "probe": "web_200", "url": "https://aoife-algebra.vercel.app",
-     "expect_text": "_next/static/",
+     "probe": "web_render", "url": "https://aoife-algebra.vercel.app",
+     "expect_text": "A letter is just a mystery box",
      "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
     {"name": "aoife-order (site)", "repo": "aoife-order",
-     "probe": "web_200", "url": "https://aoife-order.vercel.app",
-     "expect_text": "_next/static/",
+     "probe": "web_render", "url": "https://aoife-order.vercel.app",
+     "expect_text": "builds a bag",
      "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
     # backbench — ROW RETIRED 2026-09-12. It read `web_200` on backbench.vercel.app
     # and reported "daily trading brief: OK" because the static site answers. There
@@ -1469,6 +1567,8 @@ FLEET = [
      "probe": "telegram_webhook", "token_env": "SCHOOL_BOT_TOKEN",
      "expect_url": "https://aoife-school-bot.vercel.app/api/webhook",
      "require_guard": True},
+    {"name": "aoife-school-bot (synthetic preview gets a real reply)", "repo": None,
+     "probe": "bot_selftest", "url": "https://aoife-school-bot.vercel.app/api/webhook", "secret_env": "SCHOOL_WEBHOOK_SECRET"},
     # aoife-milestones-bot had NO probe of any kind before 2026-08-25 — the only
     # live service in the fleet that was entirely unwatched. It is voice-driven
     # and write-through (voice → draft → ✓ → Sheet → Doc + Notion), so a deaf bot
@@ -1481,6 +1581,8 @@ FLEET = [
      "probe": "telegram_webhook", "token_env": "MILESTONES_BOT_TOKEN",
      "expect_url": "https://aoife-milestones-bot.vercel.app/api/webhook",
      "require_guard": True},
+    {"name": "aoife-milestones-bot (synthetic /recent gets a real reply)", "repo": None,
+     "probe": "bot_selftest", "url": "https://aoife-milestones-bot.vercel.app/api/webhook", "secret_env": "MILESTONES_WEBHOOK_SECRET"},
     # notebooklm-drip — RETIRED 2026-09-12. The drip finished its job: the 41
     # notebooks are populated and Jalal does not need it nightly any more, but
     # wants it available later. com.jalal.notebooklm-drip is unloaded and its
@@ -1569,8 +1671,13 @@ FLEET = [
     # printed only after every fetch passed sanity_check, so a garbage/partial
     # night cannot paint the row green. Marker shape is anchored by a unit test
     # in sheets-backup — change both sides together.
+    # 28, not 24 (DST replay 2026-09-12). The 06:10 UTC cron really lands 10:29-11:11
+    # UTC, AFTER the 05:00 check, so the check always grades the previous run. At
+    # 05:00 EST (10:00 UTC) that age is ~23.5 h, and one early run (before 10:00 UTC)
+    # next to a normal one tips 24 h into a false red. Detection is not delayed: a
+    # missed run is still red at the next morning's check either way.
     {"name": "sheets-backup (nightly sheets -> git)", "repo": "sheets-backup",
-     "probe": "gh_run", "workflow": "backup.yml", "max_age_h": 24,
+     "probe": "gh_run", "workflow": "backup.yml", "max_age_h": 28,
      "log_grep": r"BACKUP OK: \d+ owned tabs, \d+ public sources"},
     # ── ported off n8n 2026-08-24 ───────────────────────────────────────────
     # mental-models: cron 05:10 UTC (00:10 EST / 01:10 EDT), so by the 09:00 UTC
@@ -1607,6 +1714,8 @@ FLEET = [
     {"name": "voices-bot (telegram webhook registered)", "repo": None,
      "probe": "telegram_webhook", "token_env": "VOICES_BOT_TOKEN",
      "expect_url": "https://voices-bot.vercel.app/api/webhook"},
+    {"name": "voices-bot (synthetic /nuts gets a real reply)", "repo": None,
+     "probe": "bot_selftest", "url": "https://voices-bot.vercel.app/api/webhook", "secret_env": "VOICES_WEBHOOK_SECRET"},
     # NUTS — rostered 2026-08-25 after Jalal spotted it missing. It is the
     # highest-consequence thing in the fleet (it models a live ~$178k Composer
     # symphony) and was the ONLY unwatched link in a chain whose watched end was
@@ -1647,6 +1756,8 @@ FLEET = [
      "probe": "telegram_webhook", "token_env": "HEALTH_BOT_TOKEN",
      "expect_url": "https://jalal-health.vercel.app/api/telegram",
      "require_guard": True},
+    {"name": "health-hub (synthetic /status gets a real reply)", "repo": None,
+     "probe": "bot_selftest", "url": "https://jalal-health.vercel.app/api/telegram", "secret_env": "HEALTH_WEBHOOK_SECRET"},
 
     # ── 2026-09-12 coverage audit ───────────────────────────────────────────
     # A full inventory of every launchd job and cloud cron found ten live jobs
@@ -1745,8 +1856,8 @@ FLEET = [
     # aoife-reads was the one Aoife site with no uptime probe while its eight
     # siblings all had one.
     {"name": "aoife-reads (site)", "repo": "aoife-reads",
-     "probe": "web_200", "url": "https://aoife-reads.vercel.app",
-     "expect_text": "_next/static/",
+     "probe": "web_render", "url": "https://aoife-reads.vercel.app",
+     "expect_text": "Find Your Reading Powers",
      "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
     # money-moves is deliberately NOT rostered: it has no reachable public URL.
     # money-moves.vercel.app 404s (no production alias assigned) and the
