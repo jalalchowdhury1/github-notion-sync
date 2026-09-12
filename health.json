@@ -1,5 +1,5 @@
 {
- "checked": "2026-09-11 05:02",
+ "checked": "2026-09-12 09:42",
  "telegram": "sent",
  "results": [
   {
@@ -7,7 +7,7 @@
    "repo": "dhaka-flights",
    "probe": "web_fresh",
    "ok": true,
-   "detail": "data 4h old",
+   "detail": "data 33h old",
    "cfg": "probe=web_fresh \u00b7 repo=dhaka-flights \u00b7 url=https://raw.githubusercontent.com/jalalchowdhury1/dhaka-flights/main/site/data.json \u00b7 json_key=updated \u00b7 max_age_h=36"
   },
   {
@@ -15,7 +15,7 @@
    "repo": null,
    "probe": "web_fresh",
    "ok": true,
-   "detail": "oldest of 19 rows 29h old",
+   "detail": "oldest of 19 rows 34h old",
    "cfg": "probe=web_fresh \u00b7 url=https://raw.githubusercontent.com/jalalchowdhury1/dhaka-flights/main/site/hotel_rates.json \u00b7 json_key=checked \u00b7 max_age_h=96"
   },
   {
@@ -23,23 +23,24 @@
    "repo": "carmax-scraper",
    "probe": "local_stamp",
    "ok": true,
-   "detail": "last success 2026-09-11",
+   "detail": "last success 2026-09-12",
    "cfg": "probe=local_stamp \u00b7 repo=carmax-scraper \u00b7 path=~/PycharmProjects/carmax-scraper/.last_success_date \u00b7 max_age_h=36"
   },
   {
    "name": "mac-audit (nightly security posture)",
    "repo": "mac-audit",
    "probe": "local_stamp",
-   "ok": true,
-   "detail": "last success 2026-09-11",
-   "cfg": "probe=local_stamp \u00b7 repo=mac-audit \u00b7 path=~/PycharmProjects/mac-audit/state/last_success \u00b7 max_age_h=24"
+   "ok": false,
+   "detail": "last success 2026-09-11 (1.4d ago)",
+   "cfg": "probe=local_stamp \u00b7 repo=mac-audit \u00b7 path=~/PycharmProjects/mac-audit/state/last_success \u00b7 max_age_h=24",
+   "failing_since": "2026-09-12"
   },
   {
    "name": "leasehackr-scraper (daily deals)",
    "repo": "leasehackr-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 1h ago, data confirmed",
+   "detail": "success 6h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=leasehackr-scraper \u00b7 workflow=daily_scraper.yml \u00b7 max_age_h=24 \u00b7 log_grep=unique deal cards across \\d+ regions + Scraped \\d+ deals total"
   },
   {
@@ -47,7 +48,7 @@
    "repo": "leasehackr-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 1h ago, data confirmed",
+   "detail": "success 6h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=leasehackr-scraper \u00b7 workflow=weekly_scraper.yml \u00b7 max_age_h=24 \u00b7 log_grep=unique deal cards across \\d+ regions + refreshed the dashboard with [1-9]\\d* sorted deals"
   },
   {
@@ -55,7 +56,7 @@
    "repo": "one-clock",
    "probe": "one_clock_lambda",
    "ok": true,
-   "detail": "5 pings/75m, 23 dispatches/26h, 0 errors",
+   "detail": "5 pings/75m, 26 dispatches/26h, 0 errors",
    "cfg": "probe=one_clock_lambda \u00b7 repo=one-clock"
   },
   {
@@ -63,7 +64,7 @@
    "repo": "github-notion-sync",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 16h ago",
+   "detail": "newest run (workflow_dispatch) failure 1h ago, but the workflow_dispatch run 25h ago succeeded \u2014 redundant-trigger blip, work was done",
    "cfg": "probe=gh_run \u00b7 repo=github-notion-sync \u00b7 workflow=health.yml \u00b7 max_age_h=36"
   },
   {
@@ -71,7 +72,7 @@
    "repo": "sentiment-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 11h ago",
+   "detail": "success 15h ago",
    "cfg": "probe=gh_run \u00b7 repo=sentiment-scraper \u00b7 workflow=watchdog.yml \u00b7 max_age_h=36"
   },
   {
@@ -79,7 +80,7 @@
    "repo": "sentiment-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 20h ago",
+   "detail": "success 2h ago",
    "cfg": "probe=gh_run \u00b7 repo=sentiment-scraper \u00b7 workflow=daily-scrape.yml \u00b7 max_age_h=36"
   },
   {
@@ -87,7 +88,7 @@
    "repo": "ynab-budget-brief",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 16h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/ynab-budget-brief/actions/runs/34468989163",
+   "detail": "success 3h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=ynab-budget-brief \u00b7 workflow=daily_brief.yml \u00b7 max_age_h=36 \u00b7 log_grep=Sent eating-out brief: + Sent family brief:"
   },
   {
@@ -95,7 +96,7 @@
    "repo": "financial-dashboard-history",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 2h ago",
+   "detail": "success 0h ago",
    "cfg": "probe=gh_run \u00b7 repo=financial-dashboard-history \u00b7 workflow=scraper.yml \u00b7 max_age_h=36"
   },
   {
@@ -103,7 +104,7 @@
    "repo": "hedgelab",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 13h ago",
+   "detail": "success 18h ago",
    "cfg": "probe=gh_run \u00b7 repo=hedgelab \u00b7 workflow=daily.yml \u00b7 max_age_h=72"
   },
   {
@@ -111,7 +112,7 @@
    "repo": "trading-algorithm-",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 11h ago, data confirmed",
+   "detail": "success 16h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=trading-algorithm- \u00b7 workflow=trading_alert.yml \u00b7 max_age_h=72 \u00b7 log_grep=NUTS-SIGNAL (OK unchanged=|CHANGED )"
   },
   {
@@ -127,7 +128,7 @@
    "repo": "financial-telegram-bot",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 19h ago",
+   "detail": "success 1h ago",
    "cfg": "probe=gh_run \u00b7 repo=financial-telegram-bot \u00b7 workflow=daily_report.yml \u00b7 max_age_h=36"
   },
   {
@@ -135,7 +136,7 @@
    "repo": "financial-telegram-bot",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 16h ago",
+   "detail": "success 0h ago",
    "cfg": "probe=gh_run \u00b7 repo=financial-telegram-bot \u00b7 workflow=health-check.yml \u00b7 max_age_h=36"
   },
   {
@@ -143,7 +144,7 @@
    "repo": null,
    "probe": "file_mtime",
    "ok": true,
-   "detail": "written 1h ago",
+   "detail": "written 30h ago",
    "cfg": "probe=file_mtime \u00b7 path=/Volumes/T7Files/sync.log \u00b7 max_age_h=36"
   },
   {
@@ -319,15 +320,15 @@
    "repo": "sheets-backup",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 22h ago, data confirmed",
+   "detail": "success 3h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=sheets-backup \u00b7 workflow=backup.yml \u00b7 max_age_h=24 \u00b7 log_grep=BACKUP OK: \\d+ owned tabs, \\d+ public sources"
   },
   {
-   "name": "mental-models (nightly 3 models + audio)",
+   "name": "mental-models (nightly 3 models)",
    "repo": "mental-models",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 5h ago, data confirmed",
+   "detail": "success 4h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/mental-models/actions/runs/34672302110",
    "cfg": "probe=gh_run \u00b7 repo=mental-models \u00b7 workflow=daily.yml \u00b7 max_age_h=24 \u00b7 log_grep=MENTAL-MODELS OK [1-3]/3 date={date} index=\\d+->\\d+"
   },
   {
@@ -351,7 +352,7 @@
    "repo": "NUTS",
    "probe": "nuts",
    "ok": true,
-   "detail": "TQQQ via ftlt \u00b7 unit_test pass \u00b7 prices 2026-09-10 (1.2d, 22 tickers) \u00b7 eval 0h old",
+   "detail": "TQQQ via ftlt \u00b7 unit_test pass \u00b7 prices 2026-09-11 (1.4d, 22 tickers) \u00b7 eval 1h old",
    "cfg": "probe=nuts \u00b7 repo=NUTS \u00b7 url=https://ju9t7h8903.execute-api.us-east-1.amazonaws.com/evaluate"
   },
   {
@@ -367,7 +368,7 @@
    "repo": "nuts-radar",
    "probe": "nuts_radar",
    "ok": true,
-   "detail": "tree shape matches NUTS \u00b7 book TQQQ + BIL \u00b7 3 catalysts (1h old)",
+   "detail": "tree shape matches NUTS \u00b7 book TQQQ + BIL \u00b7 2 catalysts (0h old)",
    "cfg": "probe=nuts_radar \u00b7 repo=nuts-radar \u00b7 url=https://nuts-radar.vercel.app"
   },
   {
