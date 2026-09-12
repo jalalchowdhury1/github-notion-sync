@@ -232,7 +232,8 @@ def _failed_log_tail(repo, run_id, max_chars=1200, keep=14):
         return ""
 
 
-def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None, **_):
+def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None,
+                 no_rescue=False, **_):
     """Latest workflow run: recent + successful; optionally grep the log for
     data-level markers proving real work happened, not just a green exit.
 
@@ -291,7 +292,18 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None, **
         # a SUCCESS inside max_age_h, and (when expect_event is set) via the
         # PRIMARY trigger specifically. A genuinely broken job has no such success
         # and stays red, which is the case this must not soften.
+        #
+        # no_rescue (2026-09-12, red team). The rescue assumes every run of the
+        # workflow does the SAME work. True for a redundant trigger, FALSE for a
+        # workflow whose runs are distinct jobs -- financial-dashboard-history
+        # takes an AM and a PM snapshot, and a failed PM was greening off the AM
+        # run's log. Rows whose runs are not interchangeable must say so.
         rescue = None
+        if no_rescue:
+            tail = _failed_log_tail(repo, run["databaseId"])
+            return False, (f"last run {run['conclusion']} ({age:.0f}h ago); no_rescue "
+                           f"-- an earlier run does different work here\nrun: {run_url}"
+                           + (f"\n{tail}" if tail else ""))
         for r in runs[1:]:
             if r.get("conclusion") != "success":
                 continue
@@ -379,7 +391,13 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None, **
         # from today's same freshness window already proved the work happened.
         # Bounded to max_age_h so this can't reach back into a stale prior day
         # and paper over an actually-broken "latest" run.
-        for cand in runs[1:]:
+        #
+        # no_rescue gates THIS path too (red team, 2026-09-12). Same assumption,
+        # quieter failure: the newest run is GREEN, so nothing looks wrong -- only
+        # its own log lacks the marker, and a sibling run supplies it. hedgelab
+        # DEPENDS on this fallback (duplicate guard, see its row) and so does not
+        # set no_rescue; dashboard-history's AM/PM runs are distinct and does.
+        for cand in ([] if no_rescue else runs[1:]):
             if cand.get("status") != "completed" or cand.get("conclusion") != "success":
                 continue
             cand_ts = datetime.datetime.strptime(cand["createdAt"][:16], "%Y-%m-%dT%H:%M")
@@ -1113,7 +1131,11 @@ FLEET = [
     # there is no date to pin: it reports a relative age, not an absolute stamp.
     {"name": "sentiment-scraper (evening watchdog)", "repo": "sentiment-scraper",
      "probe": "gh_run", "workflow": "watchdog.yml", "max_age_h": 36,
-     "log_grep": r"FRESH: last write [\d.]+h ago",
+     # Bounded, not [\d.]+ (red team, 2026-09-12). The watchdog decides FRESH vs
+     # STALE itself; an unbounded number meant a mis-set threshold printing
+     # "FRESH: last write 740h ago" would still match and go green. 0-47.9h
+     # re-derives the freshness claim instead of trusting the watchdog's word.
+     "log_grep": r"FRESH: last write (?:[0-9]|[1-3][0-9]|4[0-7])(?:\.\d+)?h ago",
      "expect_event": "workflow_dispatch"},
     # ────────────────────────────────────────────────────────────────────────
     # sentiment-scraper: cron 08:00 UTC, actually runs 09:51-11:17 (10 days).
@@ -1142,8 +1164,16 @@ FLEET = [
     # append alone could be a stale re-run of yesterday's slot.
     {"name": "financial-dashboard-history (2x-daily snapshots)", "repo": "financial-dashboard-history",
      "probe": "gh_run", "workflow": "scraper.yml", "max_age_h": 36,
+     # no_rescue + either/or (red team, 2026-09-12). The AM and PM runs are
+     # DIFFERENT snapshots, so the earlier-run fallbacks above were greening a
+     # missing PM off the AM run's slot line. With the fallbacks off, the row must
+     # be provable from the newest run's OWN log -- and there are two legitimate
+     # ways it proves its slot: it appended, or its dedupe guard found the slot
+     # already done by an earlier run and correctly skipped the append.
+     "no_rescue": True,
      "log_grep": [r"slot {date}-(?:AM|PM)",
-                  r"Data successfully appended to Google Sheet\. \(\d+ metrics"],
+                  r"(?:Data successfully appended to Google Sheet\. \(\d+ metrics"
+                  r"|dedupe guard: slot {date}-(?:AM|PM) already has a successful run)"],
      "expect_event": "workflow_dispatch"},
     # vix-fear-greed: RETIRED + ARCHIVED 2026-08-29, probe deliberately removed.
     # Its whole job was writing the FEAR/GREED tag into the VIX sheet's cell C2.
