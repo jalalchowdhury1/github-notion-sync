@@ -151,6 +151,34 @@ def probe_launchd_exit(label, **_):
     return False, "job not loaded"
 
 
+def probe_launchd_running(label, **_):
+    """An always-on daemon is actually ALIVE right now, not merely registered.
+
+    `launchd_exit` is the wrong tool for a KeepAlive daemon: its second column
+    is the LAST exit status, which stays "0" long after the process is gone, so
+    a dead daemon reads exactly like a healthy one. The first column is the
+    live PID, or "-" when nothing is running. That is the only column that
+    distinguishes the two, so this probe reads that one.
+
+    Added 2026-09-12. keepawake is the reason: it is a bare `caffeinate -s`
+    holding the Mac out of sleep, and if it dies every overnight job in this
+    roster silently stops happening. Nothing here noticed that, which made it
+    the highest-leverage missing probe in the fleet.
+    """
+    p = subprocess.run(["launchctl", "list"], capture_output=True, text=True,
+                       timeout=15)
+    if p.returncode != 0:
+        raise RuntimeError(f"launchctl list failed: {p.stderr.strip()[:120]}")
+    for line in p.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[2] == label:
+            pid, code = parts[0], parts[1]
+            if pid == "-":
+                return False, f"NOT RUNNING (loaded, last exit {code})"
+            return True, f"alive, pid {pid}"
+    return False, "job not loaded"
+
+
 # `--log-failed` keeps the failed job's *housekeeping* steps too, and those run
 # last — so a naive tail shows git-credential cleanup instead of the error. This
 # bit me on 2026-08-05: the leasehackr digest tailed 8 lines of `git config
@@ -769,6 +797,7 @@ PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
              "one_clock_lambda": probe_one_clock_lambda,
              "local_stamp": probe_local_stamp, "launchd_exit": probe_launchd_exit,
              "file_mtime": probe_file_mtime, "gh_run": probe_gh_run,
+             "launchd_running": probe_launchd_running,
              "planner_backup": probe_planner_backup,
              "log_marker": probe_log_marker,
              "telegram_webhook": probe_telegram_webhook,
@@ -1051,14 +1080,17 @@ FLEET = [
      "probe": "telegram_webhook", "token_env": "MILESTONES_BOT_TOKEN",
      "expect_url": "https://aoife-milestones-bot.vercel.app/api/webhook",
      "require_guard": True},
-    # notebooklm-drip: daily 04:00 with a 00:45 retry slot, both landing before
-    # this 05:00 check. Grade the marker generate_all.py PRINTS ON COMPLETION,
-    # correlated to a dated run header — a bare FINISHED would match a stale one
-    # from last week, and drip.log's mtime only proves the wrapper woke up.
-    {"name": "notebooklm-drip (nightly Gemini Notebook drip)", "repo": None,
-     "probe": "log_marker",
-     "log_path": "~/PycharmProjects/notebooklm-library/drip.log",
-     "log_grep": r"=== drip {date}[\s\S]*?FINISHED types_still_open="},
+    # notebooklm-drip — RETIRED 2026-09-12. The drip finished its job: the 41
+    # notebooks are populated and Jalal does not need it nightly any more, but
+    # wants it available later. com.jalal.notebooklm-drip is unloaded and its
+    # plist parked in ~/Library/LaunchAgents/_disabled-2026-09-12/. This row is
+    # kept commented rather than deleted so reviving the job is one un-comment
+    # here plus `launchctl bootstrap` on the parked plist — a deleted row would
+    # mean a revived job silently runs unwatched.
+    # {"name": "notebooklm-drip (nightly Gemini Notebook drip)", "repo": None,
+    #  "probe": "log_marker",
+    #  "log_path": "~/PycharmProjects/notebooklm-library/drip.log",
+    #  "log_grep": r"=== drip {date}[\s\S]*?FINISHED types_still_open="},
     # Added 2026-08-18 with the Google Calendar sync (launchd
     # com.jalal.aoife-gcal-sync, scripts/gcal-sync/run.sh, 04:10 daily — after
     # the 03:40 planner backup, before this 05:00 check, so TODAY's marker is
@@ -1212,6 +1244,75 @@ FLEET = [
      "probe": "telegram_webhook", "token_env": "HEALTH_BOT_TOKEN",
      "expect_url": "https://jalal-health.vercel.app/api/telegram",
      "require_guard": True},
+
+    # ── 2026-09-12 coverage audit ───────────────────────────────────────────
+    # A full inventory of every launchd job and cloud cron found ten live jobs
+    # the roster had never watched. They were unwatched by accident of when
+    # each was built, not by risk — the same finding as the 2026-08-25 audit.
+    # The three daemons come FIRST because everything above them depends on
+    # the Mac being awake and reachable.
+
+    # keepawake is `caffeinate -s`. If it dies the Mac sleeps and EVERY
+    # overnight row in this roster stops happening — the single highest-
+    # leverage probe the fleet was missing. launchd_running, not launchd_exit:
+    # see that function's docstring for why the exit column lies here.
+    {"name": "keepawake (Mac stays awake for overnight jobs)", "repo": None,
+     "probe": "launchd_running", "label": "com.jalal.keepawake"},
+    # The always-on `claude remote-control` session. Its death is invisible
+    # until Jalal tries to reach the Mac from his phone and cannot.
+    {"name": "claude-concierge (remote session alive)", "repo": None,
+     "probe": "launchd_running", "label": "com.jalal.claude-concierge"},
+    {"name": "supervisor (autonomous worker alive)", "repo": None,
+     "probe": "launchd_running", "label": "com.jalal.supervisor"},
+    # The blackout guard is RunAtLoad with NO interval — it fires on boot or
+    # login, so on a week with no reboot it correctly never runs. Grading a
+    # dated marker would therefore page on a perfectly healthy quiet week.
+    # Assert only that it is still REGISTERED and last exited clean; that is
+    # the whole failure mode worth catching (an unloaded guard is a silent
+    # return to the blackout nights it exists to prevent).
+    {"name": "overnight-blackout-check (guard registered)", "repo": None,
+     "probe": "launchd_exit", "label": "com.jalal.overnight-blackout-check"},
+
+    # aoife-typing coach: every 15 min, and `--quiet` sends nothing to stdout,
+    # which is why the launchd .out.log is empty and looked dead. The real log
+    # is written by the script itself and carries an ISO stamp per run.
+    {"name": "aoife-typing (15-min coach loop)", "repo": "aoife-typing",
+     "probe": "log_marker", "log_path": "~/Library/Logs/aoife-typing-coach.log",
+     "log_grep": [r"^{date}T\d\d:\d\d"]},
+
+    # financial-telegram-bot's two LOCAL launchd jobs. The two existing
+    # financial-telegram-bot rows grade the cloud daily report and the
+    # self-health monitor; neither sees these, on the highest-stakes
+    # automation in the fleet.
+    {"name": "defensive-nag (hourly risk prompt)", "repo": None,
+     "probe": "log_marker", "log_path": "~/Library/Logs/defensive-nag.log",
+     "log_grep": [r"defensive-trigger nag {date}T"]},
+    # rubber-band is weekdays 18:30 ONLY, so a Monday 05:00 check is looking at
+    # Friday evening — ~58 h. A dated marker would page every Monday. mtime at
+    # 72 h clears the weekend and still catches a genuine multi-day stall.
+    {"name": "rubber-band (weekday evening check)", "repo": None,
+     "probe": "file_mtime", "path": "~/Library/Logs/rubber-band.log",
+     "max_age_h": 72},
+
+    # The tranche pair. 07:12 publish is the one Jalal would actually notice
+    # missing. nag prints no date ("sent N chars" / "nothing due"), so it gets
+    # mtime; publish stamps every line and gets the stronger dated marker.
+    {"name": "tranche-nag (07:10 reminder)", "repo": None,
+     "probe": "file_mtime", "path": "~/Library/Logs/tranche-nag.log",
+     "max_age_h": 30},
+    {"name": "tranche-publish (07:12 board publish)", "repo": None,
+     "probe": "log_marker", "log_path": "~/Library/Logs/tranche-publish.log",
+     "log_grep": [r"{date}T\d\d:\d\d:\d\d tranche\.json: \d+ steps"]},
+
+    # aoife-reads was the one Aoife site with no uptime probe while its eight
+    # siblings all had one.
+    {"name": "aoife-reads (site)", "repo": "aoife-reads",
+     "probe": "web_200", "url": "https://aoife-reads.vercel.app"},
+    # money-moves is deliberately NOT rostered: it has no reachable public URL.
+    # money-moves.vercel.app 404s (no production alias assigned) and the
+    # deployment URL 302s into Vercel SSO. There is nothing a probe could
+    # asserted that would mean "Jalal can open his tax page". Fix the alias
+    # first, then add a web_200 row here.
 ]
 
 
