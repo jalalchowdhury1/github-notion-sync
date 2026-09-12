@@ -1,5 +1,5 @@
 {
- "checked": "2026-09-12 16:29",
+ "checked": "2026-09-12 16:34",
  "telegram": "sent",
  "results": [
   {
@@ -15,7 +15,7 @@
    "repo": null,
    "probe": "web_fresh",
    "ok": true,
-   "detail": "oldest of 19 rows 16h old",
+   "detail": "oldest of 19 rows 17h old",
    "cfg": "probe=web_fresh \u00b7 url=https://raw.githubusercontent.com/jalalchowdhury1/dhaka-flights/main/site/hotel_rates.json \u00b7 json_key=checked \u00b7 max_age_h=96"
   },
   {
@@ -111,7 +111,7 @@
    "repo": "trading-algorithm-",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 22h ago, data confirmed",
+   "detail": "success 23h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=trading-algorithm- \u00b7 workflow=trading_alert.yml \u00b7 max_age_h=72 \u00b7 log_grep=NUTS-SIGNAL (OK unchanged=|CHANGED )"
   },
   {
@@ -158,10 +158,9 @@
    "name": "T7 Google-Drive backup (real tree copied)",
    "repo": null,
    "probe": "rsync_log",
-   "ok": false,
-   "detail": "last backup finished 36h ago (limit 36h)",
-   "cfg": "probe=rsync_log \u00b7 max_age_h=36 \u00b7 log_path=/Volumes/T7Files/sync.log",
-   "failing_since": "2026-09-12"
+   "ok": true,
+   "detail": "2026-09-12 16:32:37, 26,979 regular files seen (baseline 20,000), 93 transferred, 0h ago",
+   "cfg": "probe=rsync_log \u00b7 max_age_h=36 \u00b7 log_path=/Volumes/T7Files/sync.log"
   },
   {
    "name": "zinger-bot (Telegram bot on Vercel)",
