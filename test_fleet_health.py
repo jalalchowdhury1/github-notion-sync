@@ -3,9 +3,11 @@
 Run: python3 -m unittest test_fleet_health -v   (stdlib only, no deps)
 """
 import datetime
+import json
 import os
 import tempfile
 import time
+import types
 import unittest
 
 import fleet_health as fh
@@ -164,3 +166,77 @@ class RsyncLogReadTest(unittest.TestCase):
         self.assertFalse(ok)
         self.assertLess(time.time() - t0, 10)
         self.assertIn("Removable Volumes", detail)
+
+
+def _iso(minutes_ago):
+    t = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=minutes_ago)
+    return t.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+class GhRunInProgressTest(unittest.TestCase):
+    """2026-09-14: a manual 09:30 fleet check landed seconds after One Clock's
+    09:30 dispatches and paged two healthy repos as 'likely HUNG'."""
+
+    def _probe(self, runs):
+        orig = fh.subprocess.run
+        fh.subprocess.run = lambda *a, **k: types.SimpleNamespace(
+            returncode=0, stdout=json.dumps(runs), stderr="")
+        try:
+            return fh.probe_gh_run("repo", "wf.yml", max_age_h=36)
+        finally:
+            fh.subprocess.run = orig
+
+    def test_a_run_started_minutes_ago_is_not_called_hung(self):
+        ok, detail = self._probe([
+            {"status": "in_progress", "conclusion": "", "createdAt": _iso(1),
+             "databaseId": 2, "event": "workflow_dispatch"},
+            {"status": "completed", "conclusion": "success", "createdAt": _iso(600),
+             "databaseId": 1, "event": "schedule"}])
+        self.assertTrue(ok, detail)
+        self.assertNotIn("HUNG", detail)
+
+    def test_a_run_stuck_for_hours_is_still_hung(self):
+        ok, detail = self._probe([
+            {"status": "in_progress", "conclusion": "", "createdAt": _iso(180),
+             "databaseId": 2, "event": "workflow_dispatch"},
+            {"status": "completed", "conclusion": "success", "createdAt": _iso(900),
+             "databaseId": 1, "event": "schedule"}])
+        self.assertFalse(ok)
+        self.assertIn("likely HUNG", detail)
+
+
+class WeekdayDateTokenTest(unittest.TestCase):
+    """hedgelab runs weekdays only; {date} (today|yesterday) paged it every
+    Sunday and Monday morning on Friday's perfectly good plan."""
+
+    def test_monday_reaches_back_to_friday(self):
+        self.assertEqual(fh._weekday_dates(datetime.date(2026, 9, 14)),
+                         ["2026-09-14", "2026-09-11"])
+
+    def test_sunday_reaches_back_to_friday(self):
+        self.assertEqual(fh._weekday_dates(datetime.date(2026, 9, 13)),
+                         ["2026-09-13", "2026-09-11"])
+
+    def test_tuesday_is_today_or_monday(self):
+        self.assertEqual(fh._weekday_dates(datetime.date(2026, 9, 15)),
+                         ["2026-09-15", "2026-09-14"])
+
+
+class TrancheNagSuccessLineTest(unittest.TestCase):
+    """tranche-nag's success line grew ' in N message(s)' on 2026-09-12; the row
+    kept the old shape and paged two delivered reminders as failures."""
+
+    def _pattern(self):
+        return next(r for r in fh.FLEET if r["name"].startswith("tranche-nag"))["last_line"]
+
+    def test_current_success_lines_pass(self):
+        for line in ("sent 3160 chars in 1 message(s)",
+                     "sent 5200 chars in 2 message(s) plain-fallback",
+                     "nothing due (50 rows parsed)"):
+            self.assertRegex(line, self._pattern())
+
+    def test_failure_lines_still_fail(self):
+        for line in ("nothing due (0 rows parsed)",
+                     "PARSE FAIL: 0 rows matched ROW_RE in TRANCHE-EXECUTION.md",
+                     "Traceback (most recent call last):"):
+            self.assertNotRegex(line, self._pattern())

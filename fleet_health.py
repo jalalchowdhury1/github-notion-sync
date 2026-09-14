@@ -64,6 +64,15 @@ def _age_hours(ts: float) -> float:
     return (datetime.datetime.now().timestamp() - ts) / 3600
 
 
+def _weekday_dates(today: datetime.date) -> list:
+    """Today plus the most recent weekday before it — the `{weekday}` log_grep token,
+    for weekday-only jobs whose newest output on a Sunday or Monday morning is Friday's."""
+    prev = today - datetime.timedelta(days=1)
+    while prev.weekday() >= 5:
+        prev -= datetime.timedelta(days=1)
+    return [today.isoformat(), prev.isoformat()]
+
+
 def _parse_stamp(raw):
     """"YYYY-MM-DD HH:MM" (or the same with a T) — and bare "YYYY-MM-DD".
 
@@ -272,6 +281,7 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None,
     it produced: an unpinned `date=\\d{4}-\\d{2}-\\d{2}` proves only that the
     job printed A date, so a pipeline whose cron quietly stopped keeps passing
     on yesterday's marker until the run itself ages out of max_age_h.
+    `{weekday}` widens that to today|the previous weekday, for weekday-only jobs.
 
     `expect_event` (One Clock, 2026-08-29) names the trigger that SHOULD be
     firing this workflow — "workflow_dispatch" for anything whose primary is now
@@ -294,9 +304,17 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None,
         return False, "no runs found"
     run = runs[0]
     _rescue_note = None
-    run_url = f"https://github.com/{GH_USER}/{repo}/actions/runs/{run['databaseId']}"
     ts = datetime.datetime.strptime(run["createdAt"][:16], "%Y-%m-%dT%H:%M")
     age = _age_hours(ts.replace(tzinfo=datetime.timezone.utc).timestamp())
+    # A run that started under an hour ago is just RUNNING, not hung. 2026-09-14: a
+    # manual 09:30 fleet check landed seconds after One Clock's 09:30 dispatches and
+    # paged two healthy repos as "likely HUNG". Grade the newest finished run instead.
+    done = [r for r in runs[1:] if r.get("status") == "completed"]
+    if run.get("status") != "completed" and age < 1 and done:
+        run = done[0]
+        ts = datetime.datetime.strptime(run["createdAt"][:16], "%Y-%m-%dT%H:%M")
+        age = _age_hours(ts.replace(tzinfo=datetime.timezone.utc).timestamp())
+    run_url = f"https://github.com/{GH_USER}/{repo}/actions/runs/{run['databaseId']}"
     # An in-progress run has conclusion "" — without this branch it rendered as
     # "last run  (1h ago)", which reads like a failure and hides the real story.
     # A hang needs the opposite remedy from a failure (cancel + find the wedged
@@ -394,7 +412,10 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None,
         # monitor runs at 05:00 ET, when the local date and the UTC date agree;
         # it would NOT be safe if fleet-health ever ran between 20:00 (19:00 once DST
         # ends) and midnight.
+        # {weekday} = today|the previous weekday, for weekday-only jobs (hedgelab):
+        # {date}'s one-day buffer paged Friday's good plan every Sunday and Monday.
         patterns = [p.replace("{today}", _today.isoformat())
+                     .replace("{weekday}", f"(?:{'|'.join(_weekday_dates(_today))})")
                      .replace("{date}", f"(?:{_dates})") for p in patterns]
         lp = subprocess.run(
             ["gh", "run", "view", str(run["databaseId"]), "-R",
@@ -1401,7 +1422,7 @@ FLEET = [
     # that did the work. Grading the latest run alone would page on a healthy day.
     {"name": "hedgelab (noon hedge check)", "repo": "hedgelab",
      "probe": "gh_run", "workflow": "daily.yml", "max_age_h": 72,
-     "log_grep": r"results/daily/{date}\.json"},
+     "log_grep": r"results/daily/{weekday}\.json"},  # weekday-only: Sun/Mon see Friday's
     # Rebuilt 2026-08-24 to read NUTS's /evaluate instead of its own drifted
     # tree (it had been reporting BIL while NUTS was TQQQ). It is now SILENT
     # unless the holding changed, so silence in Telegram is indistinguishable
@@ -1869,7 +1890,9 @@ FLEET = [
     # mtime; publish stamps every line and gets the stronger dated marker.
     {"name": "tranche-nag (07:10 reminder)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/tranche-nag.log",
-     "last_line": r"^(?:sent \d+ chars|nothing due \([1-9]\d* rows parsed\))$",
+     # tranche-nag.py prints "sent N chars in N message(s)[ plain-fallback]" since 2026-09-12.
+     "last_line": r"^(?:sent \d+ chars(?: in \d+ message\(s\)(?: plain-fallback)?)?"
+                  r"|nothing due \([1-9]\d* rows parsed\))$",
      "max_age_h": 30},
     {"name": "tranche-publish (07:12 board publish)", "repo": None,
      # log_block, not log_marker (producer-side red team 2026-09-12): the
