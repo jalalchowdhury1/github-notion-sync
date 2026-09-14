@@ -7,6 +7,10 @@ export HOME=/Users/jalalchowdhury USER=jalalchowdhury
 export PATH="/opt/homebrew/bin:/usr/local/bin:/Library/Developer/CommandLineTools/usr/bin:$PATH"
 cd /Users/jalalchowdhury/PycharmProjects/github-notion-sync
 
+# Unbuffered, so a hung probe leaves its last line in health.log. On 2026-09-13
+# the 05:00 run froze 27h inside open() and the log showed nothing at all.
+export PYTHONUNBUFFERED=1
+
 # Daily runs would grow health.log forever — truncate IN PLACE (same inode;
 # launchd's O_APPEND fd keeps working) when it passes ~400 KB.
 if [ -f health.log ] && [ "$(wc -c < health.log)" -gt 400000 ]; then

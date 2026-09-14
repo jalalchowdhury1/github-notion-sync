@@ -41,6 +41,7 @@ import tempfile
 import glob
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -842,7 +843,7 @@ def probe_one_clock_lambda(log_group="/aws/lambda/gh-dispatcher",
                   f"{len(dispatches)} dispatches/{dispatch_window_h}h, 0 errors")
 
 
-def probe_rsync_log(log_path, max_age_h=36, min_files=1, **_):
+def probe_rsync_log(log_path, max_age_h=36, min_files=1, read_timeout_s=60, **_):
     """The LAST rsync run in an append-only backup log actually copied a real tree.
 
     Replaces launchd_exit on the T7 backup (2026-09-12). Three independent things
@@ -881,10 +882,37 @@ def probe_rsync_log(log_path, max_age_h=36, min_files=1, **_):
     mounted, which is exactly the state where nothing is being backed up.
     """
     path = os.path.expanduser(log_path)
-    try:
-        text = open(path, errors="replace").read()
-    except FileNotFoundError:
+    # Read on a daemon thread with a deadline, so a blocked open() cannot freeze
+    # the whole run. 2026-09-13: the first launchd run after this probe shipped sat
+    # 27h inside open() — macOS held the read behind a Removable Volumes permission
+    # prompt for python3.14 (terminal runs pass on iTerm/tmux's own grant) that
+    # nobody was awake to click, so health.json was never pushed and the Actions
+    # watchdog paged a day later. A brew python upgrade re-arms that prompt. The
+    # read stays in THIS process on purpose: the launchd TCC log attributes it to
+    # python3.14 itself, the binary holding the grant; a child like /bin/cat would
+    # be a separate request whose attribution was never verified.
+    box = {}
+
+    def _read():
+        try:
+            with open(path, errors="replace") as f:
+                box["text"] = f.read()
+        except OSError as e:
+            box["err"] = e
+
+    reader = threading.Thread(target=_read, daemon=True)
+    reader.start()
+    reader.join(read_timeout_s)
+    if reader.is_alive():
+        return False, (f"reading {log_path} blocked >{read_timeout_s}s — most likely "
+                       f"a macOS permission prompt: allow "
+                       f"{os.path.realpath(sys.executable)} under System Settings › "
+                       f"Privacy & Security › Files & Folders › Removable Volumes")
+    if isinstance(box.get("err"), FileNotFoundError):
         return False, f"{log_path} unreachable — T7 volume not mounted?"
+    if "err" in box:
+        return False, f"{log_path} unreadable: {box['err']}"
+    text = box["text"]
 
     starts = list(re.finditer(r"^=== (\d{4}-\d\d-\d\d) ([\d:]+) sync start ",
                               text, re.M))

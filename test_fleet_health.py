@@ -2,6 +2,10 @@
 
 Run: python3 -m unittest test_fleet_health -v   (stdlib only, no deps)
 """
+import datetime
+import os
+import tempfile
+import time
 import unittest
 
 import fleet_health as fh
@@ -118,3 +122,45 @@ class WebhookGuardProbe(unittest.TestCase):
     def test_5xx_on_the_guard_post_is_an_infra_error_not_a_verdict(self):
         with self.assertRaises(RuntimeError):
             self._run("https://b.vercel.app/api/webhook", 503)
+
+
+class RsyncLogReadTest(unittest.TestCase):
+    """probe_rsync_log must never hang the whole fleet run on a blocked read.
+
+    2026-09-13: the first launchd run after the T7 probe shipped sat 27h inside
+    open() on /Volumes/T7Files/sync.log — macOS held the read behind a Removable
+    Volumes permission prompt nobody was awake to click, so health.json was never
+    pushed. A FIFO with no writer blocks open() the same way.
+    """
+
+    def _log(self, tmp):
+        now = datetime.datetime.now()
+        start = (now - datetime.timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+        done = (now - datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+        path = os.path.join(tmp, "sync.log")
+        with open(path, "w") as f:
+            f.write(f"=== {start} sync start ===\n"
+                    "Number of files: 31,007 (reg: 26,975, dir: 4,030, link: 2)\n"
+                    "Number of regular files transferred: 12\n"
+                    f"=== {done} sync done (exit 0) ===\n")
+        return path
+
+    def test_healthy_log_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ok, detail = fh.probe_rsync_log(self._log(tmp), min_files=1000)
+        self.assertTrue(ok, detail)
+
+    def test_missing_log_reads_as_unmounted(self):
+        ok, detail = fh.probe_rsync_log("/nonexistent/T7Files/sync.log")
+        self.assertFalse(ok)
+        self.assertIn("not mounted", detail)
+
+    def test_a_blocked_read_fails_the_probe_instead_of_hanging_the_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fifo = os.path.join(tmp, "sync.log")
+            os.mkfifo(fifo)
+            t0 = time.time()
+            ok, detail = fh.probe_rsync_log(fifo, read_timeout_s=1)
+        self.assertFalse(ok)
+        self.assertLess(time.time() - t0, 10)
+        self.assertIn("Removable Volumes", detail)
