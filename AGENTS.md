@@ -65,8 +65,13 @@ sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
   (network blip, gh failure) → retried 3× with 20 s pauses; a returned
   False (stale data, red run) is real signal, never retried. If the script
   itself crashes, a 🚨 panic Telegram goes out and it exits nonzero.
-  Commits+pushes `health.json` (records `telegram: sent/failed` — an
-  undelivered digest makes the 6:30 slot rerun — and `failing_since` per
+  Commits+pushes `health.json` (records `telegram: sent/failed` — read by
+  the Dead-Mac watchdog below, unchanged meaning; `telegram_mode:
+  digest/direct/null`, added 2026-09-15 — a Silent-digest hand-off only
+  QUEUES the card, so `already_ran_today()` requires `direct` to skip the
+  6:30 retry, letting a 5:00 finding that self-heals by 6:30 — e.g. the
+  mental-models 6 AM backstop — get re-checked and corrected before the
+  card actually reaches Jalal at 06:50-07:30 — and `failing_since` per
   failing system, carried across days by `annotate_history`). Probes live
   in the `FLEET` list — add new automations there.
 - `notion_health.py` + `.github/workflows/health.yml` (daily 13:07 UTC) —

@@ -2136,17 +2136,27 @@ def digest_post(item_id, text, parse_mode="HTML", photo=None, caption=None) -> b
         return False
 
 
-def _telegram_send(text, silent=False) -> bool:
+def _telegram_send(text, silent=False) -> str:
     """Plain-text send (no parse_mode — log excerpts would break Markdown),
-    3 attempts. silent=True = no buzz (the 05:00 digest; alerts stay loud)."""
+    3 attempts. silent=True = no buzz (the 05:00 digest; alerts stay loud).
+
+    Returns "digest" (queued in health-hub's Silent digest — NOT yet in front
+    of Jalal; the card itself goes out 06:50-07:30, see WINDOW in
+    health-hub/lib/digest.js), "direct" (a real Telegram send — genuinely
+    delivered), or "" on failure. already_ran_today() cares about this
+    distinction (2026-09-15): a "digest" hand-off must not skip the 6:30 retry,
+    or a problem that self-heals between 5:00 and 6:30 (e.g. the mental-models
+    6 AM backstop) reaches Jalal's card still showing yesterday's — well,
+    this morning's — stale red.
+    """
     if silent and digest_post("fleet", text, ""):   # Silent digest card first (11 Sep 2026)
         print("handed to the Silent digest (health-hub)")
-        return True
+        return "digest"
     token = os.environ.get("TELEGRAM_TOKEN")
     chat = os.environ.get("TELEGRAM_CHAT_ID")
     if not (token and chat):
         print("(no Telegram creds — digest not sent)")
-        return False
+        return ""
     for attempt in range(1, 4):
         try:
             body = json.dumps({"chat_id": chat, "text": text,
@@ -2157,17 +2167,22 @@ def _telegram_send(text, silent=False) -> bool:
                 data=body, headers={"Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=15) as r:
                 print(f"Telegram digest: HTTP {r.status}")
-                return True
+                return "direct"
         except Exception as e:               # noqa: BLE001
             print(f"WARN: Telegram send attempt {attempt} failed: {e}")
             if attempt < 3:
                 time.sleep(15)
-    return False
+    return ""
 
 
-def publish(results, telegram_sent: bool) -> None:
+def publish(results, telegram_mode: str) -> None:
     payload = {"checked": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
-               "telegram": "sent" if telegram_sent else "failed",
+               # "sent"/"failed": unchanged contract — notion_health.py's Dead-Mac
+               # watchdog dies on anything but "sent". telegram_mode is the new,
+               # separate signal already_ran_today() actually needs: "digest" vs
+               # "direct" (see _telegram_send).
+               "telegram": "sent" if telegram_mode else "failed",
+               "telegram_mode": telegram_mode or None,
                "results": results}
     with open(HEALTH_FILE, "w") as f:
         json.dump(payload, f, indent=1)
@@ -2185,12 +2200,21 @@ def publish(results, telegram_sent: bool) -> None:
 
 
 def already_ran_today() -> bool:
-    """True if today's check completed AND its digest reached Telegram —
-    an undelivered digest makes the 6:30 AM retry slot rerun everything."""
+    """True if today's check completed AND actually reached Jalal.
+
+    2026-09-15: this used to accept telegram=="sent", which a Silent-digest
+    hand-off also sets — but a hand-off only QUEUES the item; the health-hub
+    card isn't delivered until its 06:50-07:30 autoFlush window. Treating that
+    as "delivered" let a 5:00 finding that self-heals by 6:30 (mental-models'
+    6 AM backstop is exactly this) reach the card still showing the stale red,
+    because the retry slot skipped instead of re-checking and overwriting it.
+    Only a "direct" send (no digest configured, or its hand-off failed) is
+    truly delivered already; "digest" must still fall through to a re-check.
+    """
     try:
         h = json.load(open(HEALTH_FILE))
         return (h.get("checked", "")[:10] == datetime.date.today().isoformat()
-                and h.get("telegram") == "sent")
+                and h.get("telegram_mode") == "direct")
     except Exception:                        # noqa: BLE001
         return False
 
@@ -2255,8 +2279,8 @@ def main(argv=()) -> None:
     try:
         results = run_checks()
         recovered = annotate_history(results)
-        sent = _telegram_send(format_digest(results, recovered), silent=True)   # 05:00 digest — no buzz (11 Sep 2026)
-        publish(results, sent)
+        mode = _telegram_send(format_digest(results, recovered), silent=True)   # 05:00 digest — no buzz (11 Sep 2026)
+        publish(results, mode)
     finally:
         try:
             os.remove(LOCK_FILE)

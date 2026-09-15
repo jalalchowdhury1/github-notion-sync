@@ -240,3 +240,57 @@ class TrancheNagSuccessLineTest(unittest.TestCase):
                      "PARSE FAIL: 0 rows matched ROW_RE in TRANCHE-EXECUTION.md",
                      "Traceback (most recent call last):"):
             self.assertNotRegex(line, self._pattern())
+
+
+class RetrySlotDigestModeTest(unittest.TestCase):
+    """2026-09-15: already_ran_today() used to accept telegram=="sent", which a
+    Silent-digest hand-off also set even though the card isn't delivered until
+    its 06:50-07:30 autoFlush window — so the 6:30 retry slot skipped instead
+    of re-checking, and a problem that self-healed between 5:00 and 6:30 (the
+    mental-models 6 AM backstop is exactly this) reached Jalal's card still
+    showing the stale 5:00 red."""
+
+    def setUp(self):
+        fd, self.path = tempfile.mkstemp()
+        os.close(fd)
+        self._orig = fh.HEALTH_FILE
+        fh.HEALTH_FILE = self.path
+
+    def tearDown(self):
+        fh.HEALTH_FILE = self._orig
+        os.remove(self.path)
+
+    def _write(self, checked, telegram_mode):
+        with open(self.path, "w") as f:
+            json.dump({"checked": checked, "telegram": "sent" if telegram_mode else "failed",
+                      "telegram_mode": telegram_mode, "results": []}, f)
+
+    def test_digest_handoff_does_not_skip_the_retry(self):
+        today = datetime.date.today().strftime("%Y-%m-%d %H:%M")
+        self._write(today, "digest")
+        self.assertFalse(fh.already_ran_today(),
+                         "a queued-not-yet-delivered digest hand-off must still retry")
+
+    def test_direct_send_skips_the_retry(self):
+        today = datetime.date.today().strftime("%Y-%m-%d %H:%M")
+        self._write(today, "direct")
+        self.assertTrue(fh.already_ran_today())
+
+    def test_failed_send_still_retries(self):
+        today = datetime.date.today().strftime("%Y-%m-%d %H:%M")
+        self._write(today, "")
+        self.assertFalse(fh.already_ran_today())
+
+    def test_yesterdays_direct_send_does_not_count_for_today(self):
+        yesterday = (datetime.date.today() - datetime.timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
+        self._write(yesterday, "direct")
+        self.assertFalse(fh.already_ran_today())
+
+    def test_publish_keeps_the_sent_failed_contract_for_the_dead_mac_watchdog(self):
+        """notion_health.py dies on telegram != "sent" — must not regress."""
+        fh.publish([], "digest")
+        self.assertEqual(json.load(open(self.path))["telegram"], "sent")
+        fh.publish([], "direct")
+        self.assertEqual(json.load(open(self.path))["telegram"], "sent")
+        fh.publish([], "")
+        self.assertEqual(json.load(open(self.path))["telegram"], "failed")
