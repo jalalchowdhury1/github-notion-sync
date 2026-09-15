@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-12 13:01",
+ "updated": "2026-09-15 05:02",
  "jobs": [
   {
    "key": "com.jalal.aoife-gcal-sync",
@@ -102,6 +102,26 @@
    "notes": "5:00 AM is the WAKE time — the job then sleeps a random 0-35 min, so it actually runs 05:00-05:35 (a fixed nightly cadence is itself a bot signature; never jitter EARLIER, that walks into the 04:00 flight slot). Because of that it now ALWAYS finishes after the 5:00 fleet check, which therefore grades YESTERDAY's file — by design, and why that probe allows 96 h. Own browser identity (BROWSE_SESSION=hotels); stands down if a flight run is still active, which is also what keeps the two jobs off each other's shared git index. At 19 properties (~5.7 min/run) Browserbase's 60 free min cover ~10 nights; the other ~20 run on local Chrome, paced and scattered (8-20 s between searches). Jalal chose to stay on the free tier 2026-08-22; the $20 Developer plan would make it all-remote"
   },
   {
+   "key": "com.jalal.dsh-retry-watcher",
+   "title": "com.jalal.dsh-retry-watcher",
+   "when": "—",
+   "frequency": "Always on",
+   "mechanism": "launchd com.jalal.dsh-retry-watcher → /opt/homebrew/bin/python3.14",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/dsh-retry-watcher.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.fleet-digest-check",
+   "title": "com.jalal.fleet-digest-check",
+   "when": "8:52 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.fleet-digest-check → ~/.local/bin/fleet-digest-check.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/fleet-digest-check.log",
+   "notes": ""
+  },
+  {
    "key": "com.jalal.fleet-health",
    "title": "Fleet health check (all repos)",
    "when": "5:00 AM (retries 6:30 AM)",
@@ -130,6 +150,16 @@
    "what": "Prevents system sleep (display may still sleep) so the midnight jobs always fire",
    "logs": "—",
    "notes": "KeepAlive restarts it if it dies; starts on login/reboot"
+  },
+  {
+   "key": "com.jalal.llm-balance-check",
+   "title": "com.jalal.llm-balance-check",
+   "when": "8:10 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.llm-balance-check → ~/.local/bin/llm-balance-check.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/llm-balance-check.log",
+   "notes": ""
   },
   {
    "key": "com.jalal.mac-audit",
