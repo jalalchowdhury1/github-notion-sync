@@ -1601,6 +1601,16 @@ FLEET = [
      "log_path": "~/Library/Logs/trigger-board.log",
      "log_grep": r"BOARD OK \w+ {date}",
      "live_since": "2026-09-10"},
+    # job-reaper (added 2026-09-15): launchd com.jalal.job-reaper runs every 5 min
+    # → ~/.local/bin/job-reaper.py, which stops scheduled jobs hung past their cap
+    # (one hung run blocks every later slot of that job). Each full pass ends with
+    # `JOB-REAPER OK watched=N running=N reaped=N`. block_re skips manual `dry-run`
+    # passes, and max_age_h=1 turns "the reaper itself stopped firing" red.
+    {"name": "job-reaper (5-min hung-job stopper)", "repo": None,
+     "probe": "log_block", "log_path": "~/Library/Logs/job-reaper.log",
+     "block_re": r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) JOB-REAPER OK watched=\d+ running=\d+ reaped=\d+$",
+     "log_grep": r"JOB-REAPER OK",
+     "max_age_h": 1},
     {"name": "aoife-school-bot (30-min Telegram tick)", "repo": "aoife-school-bot",
      "probe": "log_marker",
      "log_path": "~/Library/Logs/aoife-school-bot-tick.log",
