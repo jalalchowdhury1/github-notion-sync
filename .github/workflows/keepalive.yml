@@ -32,6 +32,7 @@ jobs:
   keepalive:
     name: Keep scheduled workflows alive
     runs-on: ubuntu-latest
+    timeout-minutes: 5  # 2026-09-15: guard against silent hangs
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
