@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-15 05:02",
+ "updated": "2026-09-16 05:02",
  "jobs": [
   {
    "key": "com.jalal.aoife-gcal-sync",
@@ -112,16 +112,6 @@
    "notes": ""
   },
   {
-   "key": "com.jalal.fleet-digest-check",
-   "title": "com.jalal.fleet-digest-check",
-   "when": "8:52 AM",
-   "frequency": "Daily",
-   "mechanism": "launchd com.jalal.fleet-digest-check → ~/.local/bin/fleet-digest-check.sh",
-   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
-   "logs": "~/Library/Logs/fleet-digest-check.log",
-   "notes": ""
-  },
-  {
    "key": "com.jalal.fleet-health",
    "title": "Fleet health check (all repos)",
    "when": "5:00 AM (retries 6:30 AM)",
@@ -140,6 +130,16 @@
    "what": "curls https://jalal-health.vercel.app/api/tick (secret from ~/.config/secrets.env), which sends Jalal's med nags with confirm buttons, eating-window open/warn/close alerts, and fridge prompts via @JalalHealthBot, all state in the shared Upstash KV (health:* keys)",
    "logs": "~/Library/Logs/health-tick.log",
    "notes": "PRIMARY trigger for the health-hub app (repo health-hub, built 2026-08-26); an hourly GH Actions tick.yml is the backstop, so a dead Mac degrades nags to hourly instead of killing them. Idempotent server-side — overlapping ticks can't double-send. Fleet-health grades the loop via last_tick on /api/health (max 3h)."
+  },
+  {
+   "key": "com.jalal.job-reaper",
+   "title": "Job reaper — stops hung scheduled jobs (every 5 min)",
+   "when": "every 5 min, 12:02 AM–12:57 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.job-reaper → ~/.local/bin/job-reaper.py",
+   "what": "Runs ~/.local/bin/job-reaper.py at :02, :07 … :57. Any scheduled job in its CAPS_MIN table that launchd still reports as running past its cap gets its process group TERMed, KILLed 30 s later if needed, and one silent note goes to the alerts thread.",
+   "logs": "~/Library/Logs/job-reaper.log (stderr: job-reaper.err)",
+   "notes": "Added 2026-09-15 after mental-models hung inside an OpenRouter call. launchd never starts a second copy of a job that is still running, so one hung run silently blocks every later slot. It is a central reaper rather than a wrapper in each plist because TCC grants follow the spawned binary: t7sync is a signed Mach-O and would lose Full Disk Access behind a bash wrapper. KeepAlive daemons and tranche-deepredteam are deliberately uncapped. When adding a scheduled job, add its cap to CAPS_MIN. `--dry-run` reports without killing. Silent on normal passes; fleet-health wants a clean pass within the last hour."
   },
   {
    "key": "com.jalal.keepawake",
@@ -212,16 +212,6 @@
    "notes": ""
   },
   {
-   "key": "com.jalal.supervisor",
-   "title": "Supervisor (mission watcher)",
-   "when": "—",
-   "frequency": "Always on",
-   "mechanism": "launchd com.jalal.supervisor → ~/supervisor/supervisor.py",
-   "what": "Watches Google Drive supervisor/inbox for MISSION.md files and runs an autonomous aider build loop; pings Telegram",
-   "logs": "~/supervisor/logs/supervisor.log",
-   "notes": "Idle unless a mission file is dropped in the inbox"
-  },
-  {
    "key": "com.jalal.t7-drive-sync",
    "title": "T7 drive sync",
    "when": "4:00 AM",
@@ -240,16 +230,6 @@
    "what": "Runs `toolcheck` (~/.local/bin/toolcheck), which functionally exercises the whole local CLI toolbox — pandoc, ripgrep, jq, fd, duckdb, sqlite3, htmlq, ghostscript, poppler, qpdf, img2pdf, tesseract, ocrmypdf, pdf2odt, LibreOffice headless, ffmpeg, exiftool, the arm64 PDF-signing venv, plus gh and notebooklm auth. Real round-trips rather than --version checks: it OCRs a rendered image and reads the text back, converts docx to pdf, stamps a signature onto a PDF, queries a CSV. Telegrams the alerts chat ONLY on failure",
    "logs": "~/Library/Logs/toolcheck.log",
    "notes": "SILENT BY DESIGN — no message means every tool passed, so the log is the only proof it ran. WEEKLY not nightly on purpose: these tools barely change, so nightly would be ~365 runs a year to catch maybe one event, and it spawns headless LibreOffice + an OCR pass each time. Added 2026-08-25 after PDF signing was found SILENTLY BROKEN for weeks — a Rosetta arch mismatch (Antigravity's terminal launched an Intel bash, so the venv's universal python loaded x86_64 and refused the arm64 PyMuPDF wheel); nothing would ever have surfaced it. Fires 04:40 Sunday, deliberately before the 05:00 fleet check. The runner reads TELEGRAM_TOKEN/TELEGRAM_CHAT_ID from Dhaka flights/.env BY NAME and must NEVER source it wholesale — that .env also defines BROWSERBASE_API_KEY, and exporting it would contaminate the very check that asserts Browserbase stays project-scoped. Baseline: 26 pass / 0 fail / 1 skip (twitter-cli is skipped because a live probe pops a Chrome Safe Storage Keychain modal at whoever is sitting there)"
-  },
-  {
-   "key": "com.jalal.tranche-deepredteam",
-   "title": "com.jalal.tranche-deepredteam",
-   "when": "9:00 PM",
-   "frequency": "Daily",
-   "mechanism": "launchd com.jalal.tranche-deepredteam → -lc",
-   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
-   "logs": "~/Library/Logs/tranche-deepredteam.log",
-   "notes": ""
   },
   {
    "key": "com.jalal.tranche-nag",
