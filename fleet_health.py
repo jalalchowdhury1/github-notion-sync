@@ -46,6 +46,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 
 REPO_DIR = os.path.dirname(os.path.abspath(__file__))
 HEALTH_FILE = os.path.join(REPO_DIR, "health.json")
@@ -55,6 +56,10 @@ PROBE_ATTEMPTS = 3          # total tries for probes that raise (infra errors)
 PROBE_RETRY_PAUSE_S = 20
 LOCK_STALE_S = 2 * 3600     # a lock older than this is a crashed run, ignore
 TELEGRAM_LIMIT = 4000       # hard cap is 4096; leave headroom for encoding
+
+# Where launchd plists live on this Mac — tests monkeypatch this list to point
+# at a temp dir instead of touching the real LaunchAgents folder.
+LAUNCHD_PLIST_DIRS = [Path.home() / "Library/LaunchAgents", Path("/Library/LaunchDaemons")]
 
 # ── probe implementations ───────────────────────────────────────────────────
 # Contract: return (ok, detail). Raise on infrastructure trouble (gets
@@ -171,6 +176,39 @@ def probe_file_mtime(path, max_age_h, **_):
                 else f"stale: last written {age/24:.1f}d ago (limit {max_age_h}h)")
 
 
+def _plist_state(label) -> str:
+    """"live" / "retired" / "missing" for a launchd label's plist on this Mac.
+
+    Retiring a job here is done by `launchctl unload` + renaming its plist to
+    `<label>.plist.retired` rather than deleting it (see
+    com.jalal.supervisor.plist.retired) — so a label absent from `launchctl
+    list` is not automatically a failure. This is what probe_launchd_exit and
+    probe_launchd_running check before reporting "not loaded" as broken.
+    """
+    if any((d / f"{label}.plist").exists() for d in LAUNCHD_PLIST_DIRS):
+        return "live"
+    if any((d / f"{label}.plist.retired").exists() for d in LAUNCHD_PLIST_DIRS):
+        return "retired"
+    return "missing"
+
+
+def _not_loaded_result(label):
+    """(ok, detail) for a label missing from `launchctl list` — retired on
+    purpose, still installed but not loaded, or actually gone. See
+    _plist_state's docstring for the retirement convention."""
+    state = _plist_state(label)
+    if state == "retired":
+        return True, (f"RETIRED — plist is {label}.plist.retired; "
+                       "delete this row from fleet_health.py")
+    if state == "live":
+        found = next((d for d in LAUNCHD_PLIST_DIRS if (d / f"{label}.plist").exists()),
+                     LAUNCHD_PLIST_DIRS[0])
+        return False, (f"plist present but NOT LOADED — launchctl load "
+                        f"{found / (label + '.plist')}")
+    return False, (f"no {label}.plist in ~/Library/LaunchAgents — "
+                    "job deleted? restore the plist or delete this row")
+
+
 def probe_launchd_exit(label, **_):
     """launchctl list: second column = last exit status (0 = clean)."""
     p = subprocess.run(["launchctl", "list"], capture_output=True, text=True,
@@ -182,7 +220,7 @@ def probe_launchd_exit(label, **_):
         if len(parts) >= 3 and parts[2] == label:
             code = parts[1]
             return code == "0", f"last exit {code}"
-    return False, "job not loaded"
+    return _not_loaded_result(label)
 
 
 def probe_launchd_running(label, **_):
@@ -210,7 +248,7 @@ def probe_launchd_running(label, **_):
             if pid == "-":
                 return False, f"NOT RUNNING (loaded, last exit {code})"
             return True, f"alive, pid {pid}"
-    return False, "job not loaded"
+    return _not_loaded_result(label)
 
 
 # `--log-failed` keeps the failed job's *housekeeping* steps too, and those run
@@ -1241,6 +1279,11 @@ PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
 
 # ── the fleet roster ────────────────────────────────────────────────────────
 # repo: GitHub repo name for the Notion row (None = not a repo, Telegram-only).
+# To retire a launchd job: `launchctl unload` it and rename its plist to
+# `<label>.plist.retired` (never delete the plist) — the launchd_exit/
+# launchd_running probes then report the row as retired instead of paging as
+# "job not loaded" (2026-09-17, after com.jalal.supervisor's row false-alarmed
+# for two days past its retirement).
 PROBE_FNS["log_tail"] = probe_log_tail
 
 FLEET = [
@@ -1849,8 +1892,6 @@ FLEET = [
     # until Jalal tries to reach the Mac from his phone and cannot.
     {"name": "claude-concierge (remote session alive)", "repo": None,
      "probe": "launchd_running", "label": "com.jalal.claude-concierge"},
-    {"name": "supervisor (autonomous worker alive)", "repo": None,
-     "probe": "launchd_running", "label": "com.jalal.supervisor"},
     # The blackout guard is RunAtLoad with NO interval — it fires on boot or
     # login, so on a week with no reboot it correctly never runs. Grading a
     # dated marker would therefore page on a perfectly healthy quiet week.
@@ -1973,9 +2014,21 @@ def run_checks() -> list:
 
 # ── reporting ───────────────────────────────────────────────────────────────
 
+def _is_retired(r) -> bool:
+    """A launchd row the probe found deliberately retired (see _plist_state) —
+    ok=True, but not a real "healthy" result: it still needs its roster row
+    deleted, so the digest must not fold it into either the healthy count or
+    a "recovered" banner."""
+    return bool(r.get("ok")) and str(r.get("detail", "")).startswith("RETIRED — ")
+
+
 def annotate_history(results) -> list:
     """Carry failing_since across days (before health.json is overwritten) and
-    return the systems that failed last run but are healthy now."""
+    return the systems that failed last run but are healthy now.
+
+    A row that flips from failing to RETIRED is not a recovery — the job was
+    deliberately shut down, not fixed — so it is excluded here too.
+    """
     try:
         prev = json.load(open(HEALTH_FILE))
     except Exception:                        # noqa: BLE001 — first run ever
@@ -1988,7 +2041,8 @@ def annotate_history(results) -> list:
         if not r["ok"]:
             r["failing_since"] = prev_bad.get(r["name"], today)
     return sorted(n.split(" (")[0] for n in prev_bad
-                  if any(r["name"] == n and r["ok"] for r in results))
+                  if any(r["name"] == n and r["ok"] and not _is_retired(r)
+                         for r in results))
 
 
 def _size(lines) -> int:
@@ -2068,19 +2122,47 @@ def format_digest(results, recovered=()) -> str:
     outage is exactly when the digest must not eat its own tail), and the
     "✅ the other N healthy" line always survives, so the message states the
     scope of the damage even when the detail had to be cut.
+
+    Retired launchd rows (ok=True, detail starts "RETIRED — ", see
+    _is_retired) are real signal too — a deleted-but-not-yet-removed roster
+    row — but they are not failures and not "healthy" either: they are pulled
+    out of both the healthy count and the "N of M FAILING" totals and listed
+    in their own "🗂 retired" line so the nag to delete the row survives even
+    on an otherwise all-clear day.
     """
     today = datetime.date.today().isoformat()
-    bad = [r for r in results if not r["ok"]]
-    if not bad:
-        text = f"✅ Fleet check {today} — all {len(results)} systems healthy"
+    retired = [r for r in results if _is_retired(r)]
+    retired_names = {r["name"] for r in retired}
+    counted = [r for r in results if r["name"] not in retired_names]
+    bad = [r for r in counted if not r["ok"]]
+
+    if not bad and not retired:
+        text = f"✅ Fleet check {today} — all {len(counted)} systems healthy"
         if recovered:
             text += f" · recovered: {', '.join(recovered)}"
         return text
-    header = f"🚨 FLEET CHECK {today}: {len(bad)} of {len(results)} FAILING"
+
+    def _retired_names() -> str:
+        return ", ".join(r["name"].split(" (")[0] for r in retired)
+
+    if not bad:
+        # Nothing is actually broken — the only news is a retired row that
+        # still needs its roster entry deleted. No 🚨: that emoji is reserved
+        # for a real failure, or the nag trains Jalal to ignore the alarm.
+        text = (f"🗂 Fleet check {today} — 0 of {len(counted)} FAILING · "
+                f"{len(retired)} retired: {_retired_names()} — delete "
+                f"{'this row' if len(retired) == 1 else 'these rows'}")
+        if recovered:
+            text += f" · recovered: {', '.join(recovered)}"
+        return text
+
+    header = f"🚨 FLEET CHECK {today}: {len(bad)} of {len(counted)} FAILING"
+    if retired:
+        header += f" · {len(retired)} retired"
     footer = []
     if recovered:
         footer.append(f"💚 recovered today: {', '.join(recovered)}")
-    ok_full = [r["name"] for r in results if r["ok"]]
+    ok_full = [r["name"] for r in counted if r["ok"]]
     shorts = [n.split(" (")[0] for n in ok_full]
     # Keep the qualifier when one repo has several probes, otherwise two rows
     # collapse to "leasehackr-scraper, leasehackr-scraper" and read as a dupe.
@@ -2092,23 +2174,30 @@ def format_digest(results, recovered=()) -> str:
                    "(fleet_health.py in github-notion-sync)."]
 
     blocks = [_failure_block(r, today) for r in bad]
-    # Header + footer are reserved first; whatever is left is split evenly
-    # across the failures, and blocks that come in under their share hand the
-    # slack back to the big ones (usually a gh_run block carrying a log tail).
+    retired_block = []
+    if retired:
+        plural = "this row" if len(retired) == 1 else "these rows"
+        retired_block = [f"🗂 retired ({len(retired)}): {_retired_names()} "
+                          f"— delete {plural}", ""]
+    # Header + footer (+ the retired line, which is never trimmed — it is one
+    # short line) are reserved first; whatever is left is split evenly across
+    # the failures, and blocks that come in under their share hand the slack
+    # back to the big ones (usually a gh_run block carrying a log tail).
     note = correlated_note(results)
-    room = TELEGRAM_LIMIT - len(header) - 1 - _size(note) - _size(footer)
-    if sum(_size(b) for b in blocks) > room:
+    room = TELEGRAM_LIMIT - len(header) - 1 - _size(note) - _size(footer) - _size(retired_block)
+    if bad and sum(_size(b) for b in blocks) > room:
         share = max(0, room // len(bad))
         slack = sum(share - _size(b) for b in blocks if _size(b) < share)
         big = [i for i, b in enumerate(blocks) if _size(b) >= share]
         budget = share + (slack // len(big) if big else 0)
         blocks = [b if _size(b) < share else _failure_block(bad[i], today, budget)
                   for i, b in enumerate(blocks)]
-    body = [l for b in blocks for l in b]
+    body = [l for b in blocks for l in b] + retired_block
     if _size(body) > room:
         # Pathological (dozens of failures at once): fall back to the roll call
         # of what is down. The names are the last thing to go, and the footer
-        # is never touched.
+        # is never touched. The retired line is the first thing to go — a
+        # cleanup nag matters less than a live failure name.
         body = [f"❌ {r['name']}" for r in bad]
         while body and _size(body) > room:
             body.pop()

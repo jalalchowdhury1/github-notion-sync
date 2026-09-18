@@ -9,6 +9,7 @@ import tempfile
 import time
 import types
 import unittest
+from pathlib import Path
 
 import fleet_health as fh
 
@@ -294,3 +295,133 @@ class RetrySlotDigestModeTest(unittest.TestCase):
         self.assertEqual(json.load(open(self.path))["telegram"], "sent")
         fh.publish([], "")
         self.assertEqual(json.load(open(self.path))["telegram"], "failed")
+
+
+class RetiredLaunchdRowTest(unittest.TestCase):
+    """2026-09-17: a launchd job is retired by `launchctl unload` + renaming
+    its plist to `<label>.plist.retired`, never by deleting it. The roster
+    still carried a row for com.jalal.supervisor two days after it was
+    retired that way, and the digest paged "1 of 64 FAILING — job not
+    loaded" for a job Jalal had shut down on purpose. The probes must tell
+    retired apart from actually-broken."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self._orig_dirs = fh.LAUNCHD_PLIST_DIRS
+        fh.LAUNCHD_PLIST_DIRS = [Path(self.tmp.name)]
+        self._orig_run = fh.subprocess.run
+
+    def tearDown(self):
+        fh.LAUNCHD_PLIST_DIRS = self._orig_dirs
+        fh.subprocess.run = self._orig_run
+        self.tmp.cleanup()
+
+    def _mock_launchctl(self, stdout_lines):
+        fh.subprocess.run = lambda *a, **k: types.SimpleNamespace(
+            returncode=0, stdout="\n".join(stdout_lines), stderr="")
+
+    def _touch(self, name):
+        open(os.path.join(self.tmp.name, name), "w").close()
+
+    # -- probe_launchd_running --------------------------------------------
+
+    def test_label_present_with_pid_is_unchanged(self):
+        self._mock_launchctl(["1234\t0\tcom.jalal.keepawake"])
+        ok, detail = fh.probe_launchd_running("com.jalal.keepawake")
+        self.assertTrue(ok)
+        self.assertEqual(detail, "alive, pid 1234")
+
+    def test_absent_label_with_retired_plist_is_ok_and_labelled_retired(self):
+        self._mock_launchctl(["-\t0\tcom.jalal.other"])
+        self._touch("com.jalal.supervisor.plist.retired")
+        ok, detail = fh.probe_launchd_running("com.jalal.supervisor")
+        self.assertTrue(ok, detail)
+        self.assertTrue(detail.startswith("RETIRED"), detail)
+
+    def test_absent_label_with_live_plist_says_not_loaded(self):
+        self._mock_launchctl(["-\t0\tcom.jalal.other"])
+        self._touch("com.jalal.stuck.plist")
+        ok, detail = fh.probe_launchd_running("com.jalal.stuck")
+        self.assertFalse(ok)
+        self.assertIn("launchctl load", detail)
+
+    def test_absent_label_with_no_plist_at_all_says_deleted(self):
+        self._mock_launchctl(["-\t0\tcom.jalal.other"])
+        ok, detail = fh.probe_launchd_running("com.jalal.ghost")
+        self.assertFalse(ok)
+        self.assertIn("job deleted", detail)
+
+    # -- probe_launchd_exit (same not-loaded branch) -----------------------
+
+    def test_launchd_exit_absent_label_with_retired_plist_is_ok(self):
+        self._mock_launchctl(["-\t0\tcom.jalal.other"])
+        self._touch("com.jalal.supervisor.plist.retired")
+        ok, detail = fh.probe_launchd_exit("com.jalal.supervisor")
+        self.assertTrue(ok, detail)
+        self.assertTrue(detail.startswith("RETIRED"), detail)
+
+
+class RetiredRowDigestTest(unittest.TestCase):
+    """format_digest must surface a retired row honestly instead of either
+    hiding it or paging it as a failure."""
+
+    def _retired(self, name):
+        return {"name": name, "repo": None, "probe": "launchd_running", "ok": True,
+                "detail": "RETIRED — plist is com.jalal.supervisor.plist.retired; "
+                          "delete this row from fleet_health.py",
+                "cfg": "probe=launchd_running · label=com.jalal.supervisor"}
+
+    def _failing(self, name):
+        return {"name": name, "repo": "some-repo", "probe": "web_200", "ok": False,
+                "detail": "HTTP 500", "cfg": "probe=web_200 · repo=some-repo"}
+
+    def test_failure_still_fails_and_retired_is_grouped_separately(self):
+        results = [self._failing("broken-thing"), self._retired("supervisor"),
+                   healthy("c")]
+        digest = fh.format_digest(results)
+        self.assertIn("❌ broken-thing", digest)
+        self.assertIn("🗂 retired (1): supervisor", digest)
+        self.assertIn("delete this row", digest)
+        # totals exclude the retired row: 2 counted (broken-thing, c), 1 bad
+        self.assertIn("1 of 2 FAILING", digest)
+        self.assertNotIn("supervisor", digest.split("🗂 retired")[0])
+
+    def test_retired_only_day_is_not_reported_as_all_healthy(self):
+        results = [self._retired("supervisor"), healthy("c")]
+        digest = fh.format_digest(results)
+        self.assertIn("0 of 1 FAILING", digest)
+        self.assertIn("1 retired", digest)
+        self.assertNotIn("🚨", digest)
+
+    def test_all_healthy_with_no_retired_rows_is_unchanged(self):
+        results = [healthy("a"), healthy("b")]
+        digest = fh.format_digest(results)
+        self.assertEqual(digest, f"✅ Fleet check {datetime.date.today().isoformat()} — all 2 systems healthy")
+
+    def _annotate_from_prior_failure(self, new_result):
+        fd, path = tempfile.mkstemp()
+        os.close(fd)
+        orig = fh.HEALTH_FILE
+        fh.HEALTH_FILE = path
+        try:
+            json.dump({"checked": "2026-09-15 05:00",
+                       "results": [{"name": "supervisor", "ok": False,
+                                    "detail": "job not loaded"}]},
+                      open(path, "w"))
+            return fh.annotate_history([new_result])
+        finally:
+            fh.HEALTH_FILE = orig
+            os.remove(path)
+
+    def test_recovered_detection_does_not_count_a_retired_row(self):
+        recovered = self._annotate_from_prior_failure(self._retired("supervisor"))
+        self.assertEqual(recovered, [])
+
+    def test_recovered_detection_still_fires_for_a_genuine_fix(self):
+        """Contrast case: a real fix (ok=True, ordinary detail) for the same
+        prior failure must still show up as recovered — proves the retired
+        exclusion isn't just swallowing every case."""
+        genuine_fix = {"name": "supervisor", "repo": None, "probe": "launchd_running",
+                       "ok": True, "detail": "alive, pid 999", "cfg": "probe=launchd_running"}
+        recovered = self._annotate_from_prior_failure(genuine_fix)
+        self.assertIn("supervisor", recovered)
