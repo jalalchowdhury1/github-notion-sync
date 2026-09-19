@@ -190,8 +190,11 @@ returned quietly (no stderr noise).
 `requirements.txt` (stdlib only). The only automated tests are
 `test_fleet_health.py` (stdlib `unittest`, no deps) covering the digest's
 correlated-staleness banner, and `test_sync.py` covering `compute_status`'s
-Active/Stale/Archived labelling — run `python3 -m unittest test_sync test_fleet_health -v`
-(13 tests). The probes and the network-touching sync paths are still untested.
+Active/Stale/Archived labelling — run `python3 -m unittest test_sync test_fleet_health -v`.
+`test_fleet_health` also covers `probe_log_tail` (incl. the grace window) and the
+roster rows that exist because of a real silent failure (`TestRosterGuards`) —
+add a row test whenever an incident adds a row. The network-touching sync paths
+are still untested.
 
 ### Local run
 ```sh
@@ -289,6 +292,18 @@ Actions). Never hardcode any of them — the repo is **public**.
   `generated_at` is non-null**, because the file is a hand-seeded placeholder
   until the 5:15 gather ships — when `job/` lands, drop that exemption.
 
+- **Two silent failures caught 2026-09-19 (both rostered + unit-tested in
+  `TestRosterGuards` / `TestLogTailGrace`).** (1) @TweetSyn_bot — the ALERTS bot,
+  `TELEGRAM_TOKEN` from the Dhaka flights .env — owns the Silent-digest card
+  buttons (callbacks to health-hub `/api/defensive`). Its webhook came back EMPTY
+  between the 06:50 card and 08:45; nothing on the Mac calls deleteWebhook, the
+  deleter is off-Mac and unproven. health-hub's tick now re-registers it every
+  5 min; row "alerts bot (digest-tap webhook registered)" pages if that stops
+  working. (2) `log_tail` grew `grace_min`/`grace_lines`: aoife-typing logs up to
+  ~14 min of free-model timeouts before `wrote coach`, and a probe inside that
+  window read a retry line as the outcome and paged. With `grace_min` set, a
+  file written that recently passes if a success line sits in the last
+  `grace_lines` (12) lines; a window with no success at all still fails.
 - **`telegram_webhook` probe (added 2026-08-24).** A webhook bot has no
   scheduled run to grade, so "did it run" is the wrong question. It dies two
   independent ways and **neither probe catches the other's failure**, which is

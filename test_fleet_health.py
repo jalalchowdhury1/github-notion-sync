@@ -112,6 +112,33 @@ class TestLogTailGrace(unittest.TestCase):
         ok, _ = fh.probe_log_tail(self._log(self.MID_RETRY, age_min=20), self.RE, 2, grace_min=16)
         self.assertFalse(ok)
 
+class TestRosterGuards(unittest.TestCase):
+    """Rows that exist because of a real silent failure must stay in the roster."""
+
+    def _row(self, prefix):
+        return next(r for r in fh.FLEET if r["name"].startswith(prefix))
+
+    def test_alerts_bot_webhook_row_watches_the_digest_tap_endpoint(self):
+        # 2026-09-19: @TweetSyn_bot's webhook came back empty; every card button died.
+        r = self._row("alerts bot (digest-tap webhook")
+        self.assertEqual(r["probe"], "telegram_webhook")
+        self.assertEqual(r["token_env"], "TELEGRAM_TOKEN")
+        self.assertTrue(r["expect_url"].endswith("/api/defensive"))
+        self.assertTrue(r.get("require_guard"))
+
+    def test_aoife_typing_log_tail_has_a_retry_grace_window(self):
+        # 2026-09-19: probed 4 min before the cycle's `wrote coach` line and paged.
+        r = self._row("aoife-typing")
+        self.assertEqual(r["probe"], "log_tail")
+        self.assertGreaterEqual(r.get("grace_min", 0), 15)
+
+    def test_every_telegram_webhook_row_names_a_token_and_a_path(self):
+        for r in fh.FLEET:
+            if r["probe"] != "telegram_webhook":
+                continue
+            self.assertTrue(r.get("token_env"), r["name"])
+            self.assertTrue(r.get("expect_url", "").startswith("https://"), r["name"])
+
 
 
 if __name__ == "__main__":
