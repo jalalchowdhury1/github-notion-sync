@@ -1873,6 +1873,16 @@ FLEET = [
      "require_guard": True},
     {"name": "health-hub (synthetic /status gets a real reply)", "repo": None,
      "probe": "bot_selftest", "url": "https://jalal-health.vercel.app/api/telegram", "secret_env": "HEALTH_WEBHOOK_SECRET"},
+    # The ALERTS bot (@TweetSyn_bot, TELEGRAM_TOKEN via the Dhaka flights .env)
+    # owns the Silent-digest card buttons: a tap is a callback to /api/defensive.
+    # 2026-09-19 its webhook came back EMPTY mid-morning (registered at the 06:50
+    # card, gone by 08:45; no script on the Mac calls deleteWebhook) and every
+    # button died silently. The tick re-registers it every 5 min; this row is
+    # the alarm if that ever stops working.
+    {"name": "alerts bot (digest-tap webhook registered)", "repo": None,
+     "probe": "telegram_webhook", "token_env": "TELEGRAM_TOKEN",
+     "expect_url": "https://jalal-health.vercel.app/api/defensive",
+     "require_guard": True},
 
     # ── 2026-09-12 coverage audit ───────────────────────────────────────────
     # A full inventory of every launchd job and cloud cron found ten live jobs
