@@ -72,6 +72,47 @@ class CorrelatedStaleness(unittest.TestCase):
         self.assertLessEqual(len(digest), fh.TELEGRAM_LIMIT)
         self.assertIn("ONE event", digest)
 
+class TestLogTailGrace(unittest.TestCase):
+    """probe_log_tail grace window: a job mid-retry-chain is not a failure
+    (aoife-typing false alarm 2026-09-19, probed 4 min before `wrote coach`)."""
+    RE = r"^\d{4}-\d\d-\d\dT[\d:.]+Z wrote coach: "
+    MID_RETRY = [
+        "2026-09-19T10:20:12Z 2026-09-17: focus kyh",
+        "2026-09-19T10:24:12Z   nemotron -> timeout",
+        "2026-09-19T10:34:34Z wrote coach: Bubble Train (fallback)",
+        "2026-09-19T10:35:43Z 2026-09-17: focus kyh",
+        "2026-09-19T10:39:43Z   nemotron -> timeout",
+        "2026-09-19T10:30:33Z   free router fallback: deepseek",
+    ]
+
+    def _log(self, lines, age_min=0):
+        p = os.path.join(tempfile.mkdtemp(), "coach.log")
+        Path(p).write_text("\n".join(lines) + "\n")
+        if age_min:
+            t = time.time() - age_min * 60
+            os.utime(p, (t, t))
+        return p
+
+    def test_mid_retry_passes_inside_grace(self):
+        ok, detail = fh.probe_log_tail(self._log(self.MID_RETRY), self.RE, 2, grace_min=16)
+        self.assertTrue(ok, detail)
+        self.assertIn("mid-run", detail)
+
+    def test_mid_retry_fails_without_grace(self):
+        ok, detail = fh.probe_log_tail(self._log(self.MID_RETRY), self.RE, 2)
+        self.assertFalse(ok)
+        self.assertIn("not a success", detail)
+
+    def test_no_success_in_window_fails_inside_grace(self):
+        lines = [f"2026-09-19T10:{m:02d}:00Z ERROR boom" for m in range(20, 34)]
+        ok, detail = fh.probe_log_tail(self._log(lines), self.RE, 2, grace_min=16)
+        self.assertFalse(ok)
+
+    def test_success_outside_grace_age_still_fails(self):
+        ok, _ = fh.probe_log_tail(self._log(self.MID_RETRY, age_min=20), self.RE, 2, grace_min=16)
+        self.assertFalse(ok)
+
+
 
 if __name__ == "__main__":
     unittest.main()

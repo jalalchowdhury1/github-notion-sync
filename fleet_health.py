@@ -1158,7 +1158,7 @@ def probe_log_block(log_path, block_re, log_grep, max_age_h, **_):
     return True, f"clean run {age/24:.1f}d ago"
 
 
-def probe_log_tail(path, last_line, max_age_h, **_):
+def probe_log_tail(path, last_line, max_age_h, grace_min=0, grace_lines=12, **_):
     """Fresh log whose LAST non-empty line is a success shape.
 
     For a job that prints a one-line outcome but no timestamp (tranche-nag:
@@ -1166,6 +1166,13 @@ def probe_log_tail(path, last_line, max_age_h, **_):
     the run ENDED in a success state rather than a traceback. Added red team
     round 4, 2026-09-12, replacing a file_mtime row whose waiver claimed the job
     "prints no success marker" -- which was not true.
+
+    grace_min: a job that logs a retry chain before its outcome (aoife-typing:
+    up to ~14 min of model timeouts, then `wrote coach`) is mid-run whenever the
+    file was written < grace_min ago. Then a success line anywhere in the last
+    grace_lines lines proves the previous cycle finished; only a tail with no
+    success at all in that window fails (false alarm 2026-09-19: probed 4 min
+    before the cycle's `wrote coach` line).
     """
     p = os.path.expanduser(path)
     if not os.path.exists(p):
@@ -1176,6 +1183,12 @@ def probe_log_tail(path, last_line, max_age_h, **_):
     lines = [l for l in open(p, errors="replace").read().splitlines() if l.strip()]
     last = lines[-1].strip() if lines else ""
     if not re.search(last_line, last):
+        if grace_min and age * 60 <= grace_min:
+            hit = next((l.strip() for l in reversed(lines[-grace_lines:])
+                        if re.search(last_line, l.strip())), None)
+            if hit:
+                return True, (f"written {age*60:.0f}min ago, mid-run; "
+                              f"last finished {hit[:40]!r}")
         return False, f"written {age:.0f}h ago but last line is not a success: {last[:90]!r}"
     return True, f"written {age:.0f}h ago, ended {last[:40]!r}"
 
@@ -1914,7 +1927,10 @@ FLEET = [
      "probe": "log_tail", "path": "~/Library/Logs/aoife-typing-coach.log",
      "last_line": r"^\d{4}-\d\d-\d\dT[\d:.]+Z (?:wrote coach: |\d{4}-\d\d-\d\d: "
                   r"(?:mission already built$|last round \d+ min ago \S+ waiting for the hour$))",
-     "max_age_h": 2},
+     "max_age_h": 2,
+     # A cycle logs up to ~14 min of free-model timeouts before `wrote coach`;
+     # a probe inside that window must look past the retry lines (2026-09-19).
+     "grace_min": 16},
 
     # financial-telegram-bot's two LOCAL launchd jobs. The two existing
     # financial-telegram-bot rows grade the cloud daily report and the
