@@ -853,9 +853,14 @@ def probe_one_clock_lambda(log_group="/aws/lambda/gh-dispatcher",
     primary went quiet, one job at a time, up to a day late. This probe watches
     the shared machinery directly, so one red row names the real culprit:
 
-      1. Any ERROR/Traceback in the Lambda log inside 24h -> red with the tail.
-         Catches a revoked/rotated-but-not-updated GH_DISPATCH_PAT (urlopen
-         raises on the 401), a bad deploy, and Lambda timeouts, in ONE place.
+      1. Any ERROR/Traceback in the Lambda log inside 24h -> red with the tail,
+         UNLESS Lambda's own async-invoke retry re-ran the SAME RequestId and
+         that later attempt had no error (a one-off transient, e.g. GitHub's
+         API returning a 502, self-healed with no human action). Still red
+         for the case that actually needs a human: every attempt for that
+         RequestId erroring (a revoked/rotated-but-not-updated GH_DISPATCH_PAT
+         — urlopen raises on the 401 — a bad deploy, or a Lambda timeout that
+         keeps recurring), in ONE place.
       2. PING OK count in the last `ping_window_min` minutes (health-hub tick,
          cron(1/15 ...) = 5 expected per 75 min; >= `min_pings` tolerates
          transients). Proves scheduler->Lambda->URL end to end, every hour of
@@ -868,7 +873,17 @@ def probe_one_clock_lambda(log_group="/aws/lambda/gh-dispatcher",
     puts /usr/local/bin on PATH. An aws-CLI failure RAISES (infra retry path),
     the same convention as probe_gh_run's log fetch: an unreadable log is not
     a log with missing markers.
+
+    RED-TEAM FIX 2026-09-22. A single transient GitHub-side 502 (not a PAT or
+    deploy problem — a bad PAT gives 401/403, not 502) flagged this probe red
+    even though Lambda's built-in async-invoke retry reused the SAME RequestId
+    54s later and succeeded (`DISPATCH OK repo=ynab-budget-brief`). Verified in
+    CloudWatch: both `START RequestId: aa6ab1ea-...` blocks share one id; the
+    first ends in `[ERROR] HTTPError: HTTP Error 502`, the second in a clean
+    REPORT. Self-healed noise like that must not page a human.
     """
+    req_id_re = re.compile(r"RequestId:\s*([a-f0-9-]+)")
+
     def _logs(minutes_back, pattern):
         start = int((time.time() - minutes_back * 60) * 1000)
         p = subprocess.run(
@@ -881,11 +896,47 @@ def probe_one_clock_lambda(log_group="/aws/lambda/gh-dispatcher",
         out = p.stdout.strip()
         return [l for l in out.splitlines() if l.strip()] if out else []
 
+    def _events(minutes_back):
+        start = int((time.time() - minutes_back * 60) * 1000)
+        p = subprocess.run(
+            ["aws", "logs", "filter-log-events", "--log-group-name", log_group,
+             "--start-time", str(start),
+             "--query", "events[].{t:timestamp,m:message}", "--output", "json"],
+            capture_output=True, text=True, timeout=60)
+        if p.returncode != 0:
+            raise RuntimeError(f"aws logs failed: {p.stderr.strip()[:150]}")
+        out = p.stdout.strip()
+        return json.loads(out) if out else []
+
     errors = _logs(24 * 60, "?ERROR ?Traceback ?\"Task timed out\"")
     if errors:
-        return False, (f"{len(errors)} Lambda error line(s) in 24h — first: "
-                       f"{errors[0][:180]}\n(check GH_DISPATCH_PAT validity and "
-                       f"the gh-dispatcher deploy; log group {log_group})")
+        # Group the day's events into per-RequestId retry attempts so a
+        # transient that Lambda already retried into a success doesn't page.
+        events = sorted(_events(24 * 60), key=lambda e: e["t"])
+        attempts = {}  # RequestId -> [had_error, had_error, ...] in order
+        cur_id, cur_error = None, False
+        for e in events:
+            msg = e["m"]
+            if msg.startswith("START RequestId:"):
+                m = req_id_re.search(msg)
+                cur_id, cur_error = (m.group(1) if m else None), False
+            elif "[ERROR]" in msg or "Task timed out" in msg:
+                cur_error = True
+            elif msg.startswith("REPORT RequestId:"):
+                m = req_id_re.search(msg)
+                rid = m.group(1) if m else cur_id
+                if rid:
+                    attempts.setdefault(rid, []).append(cur_error)
+        # Red only for a RequestId where every attempt in the window errored
+        # (retries exhausted or none happened yet) — a real, unresolved fault.
+        unresolved = [rid for rid, tries in attempts.items()
+                      if tries and all(tries)]
+        if unresolved:
+            return False, (f"{len(errors)} Lambda error line(s) in 24h, "
+                           f"{len(unresolved)} RequestId never recovered on "
+                           f"retry — first: {errors[0][:180]}\n(check "
+                           f"GH_DISPATCH_PAT validity and the gh-dispatcher "
+                           f"deploy; log group {log_group})")
     pings = _logs(ping_window_min, '"PING OK"')
     if len(pings) < min_pings:
         return False, (f"only {len(pings)} PING OK in {ping_window_min}m "
@@ -898,8 +949,10 @@ def probe_one_clock_lambda(log_group="/aws/lambda/gh-dispatcher",
                        f"{dispatch_window_h}h (expect >=5) — the workflow_dispatch "
                        f"leg (PAT) is failing while pings still pass; the "
                        f"GH_DISPATCH_PAT has likely been revoked or lost repos")
+    err_note = (f"{len(errors)} error line(s) self-healed on retry"
+                if errors else "0 errors")
     return True, (f"{len(pings)} pings/{ping_window_min}m, "
-                  f"{len(dispatches)} dispatches/{dispatch_window_h}h, 0 errors")
+                  f"{len(dispatches)} dispatches/{dispatch_window_h}h, {err_note}")
 
 
 def probe_rsync_log(log_path, max_age_h=36, min_files=1, read_timeout_s=60, **_):
