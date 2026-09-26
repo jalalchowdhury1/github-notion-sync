@@ -149,6 +149,25 @@ class TestRosterGuards(unittest.TestCase):
         self.assertEqual((site["probe"], site["rows_key"], site["json_key"]), ("web_fresh", "reddit_lists", "checked"))
         self.assertIsNone(site["repo"])
 
+    def test_reddit_backup_rows_catch_a_dead_backup_before_it_is_needed(self):
+        # 2026-09-26: the Mac got JSON + RSS fallbacks, GitHub's RSS moved to every 3 h.
+        import re
+        mac = self._row("reddit-browser (backup methods")
+        self.assertEqual((mac["probe"], mac["repo"]), ("log_block", None))
+        self.assertRegex("METHOD CHECK: page ok · json ok · rss ok  (page saved 26 of 26 lists)", mac["log_grep"])
+        self.assertNotRegex("METHOD CHECK: page ok · json FAILED · rss ok  (page saved 26 of 26 lists; json: HTTP 403)",
+                            mac["log_grep"])
+        self.assertNotRegex("METHOD CHECK: page FAILING · json ok · rss ok  (page saved 3 of 26 lists)", mac["log_grep"])
+        gh = self._row("reddit-backup (GitHub")
+        self.assertEqual((gh["probe"], gh["workflow"]), ("gh_run", "reddit_backup.yml"))
+        quiet = "REDDIT BACKUP: refreshed 0 of 0 lists that needed it (tried 0)\nGITHUB REDDIT CHECK: rss ok (r/bestof: 50 posts)"
+        busy = "REDDIT BACKUP: refreshed 4 of 26 lists that needed it (tried 6)"
+        dead = "REDDIT BACKUP: refreshed 0 of 0 lists that needed it (tried 0)\nGITHUB REDDIT CHECK: rss FAILED (r/bestof: 0 posts)"
+        failing = "REDDIT BACKUP: refreshed 0 of 26 lists that needed it (tried 6)"
+        for log, ok in ((quiet, True), (busy, True), (dead, False), (failing, False)):
+            self.assertEqual(all(re.search(g, log) for g in gh["log_grep"]), ok, log)
+        self.assertEqual(fh.lint_roster([mac, gh]), [])
+
     def test_every_telegram_webhook_row_names_a_token_and_a_path(self):
         for r in fh.FLEET:
             if r["probe"] != "telegram_webhook":

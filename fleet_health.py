@@ -1576,6 +1576,16 @@ FLEET = [
     # `[^$\n]+` is load-bearing: Actions echoes the step's source in the log, so
     # a plain "already updated today" would match `echo "…($LAST)…"` on every
     # run and never fail. Excluding `$` keeps the echoed source out.
+    # reddit-backup (added 2026-09-26): reddit_backup.yml refills lists the Mac
+    # left stale (RSS, 6 per run, every 3 h). With nothing stale it still reads
+    # one list and prints "GITHUB REDDIT CHECK: rss ok", so a backup that stopped
+    # reaching Reddit from GitHub turns red BEFORE the day the Mac dies. Listed
+    # before the daily-data row on purpose: same repo, notion_health keeps the
+    # LAST result per repo, and Telegram carries both.
+    {"name": "reddit-backup (GitHub RSS every 3 h)", "repo": "reddit-scraper",
+     "probe": "gh_run", "workflow": "reddit_backup.yml", "max_age_h": 8,
+     "log_grep": [r"REDDIT BACKUP: refreshed \d+ of \d+",
+                  r"GITHUB REDDIT CHECK: rss ok|REDDIT BACKUP: refreshed [1-9]"]},
     {"name": "reddit-scraper (daily data)", "repo": "reddit-scraper",
      "probe": "gh_run", "workflow": "daily_scrape.yml", "max_age_h": 36,
      "log_grep": [r"last data/ commit: [^$\n]+ — proceeding"
@@ -1609,6 +1619,17 @@ FLEET = [
     {"name": "reddit-browser (live site: every Reddit list fresh)", "repo": None,
      "probe": "web_fresh", "url": "https://reddit-scraper-lyart.vercel.app/api/status",
      "rows_key": "reddit_lists", "json_key": "checked", "max_age_h": 36},
+    #   3. the backups (added 2026-09-26): each Mac run ends with
+    #      "METHOD CHECK: page ok · json ok · rss ok" only if the page method saved
+    #      at least half the lists AND both backups (Reddit's JSON and RSS through
+    #      the same browser) just fetched a real list. Rows 1-2 stay green while the
+    #      Mac quietly runs on a backup; this one doesn't. reddit-scraper
+    #      tests/test_reddit_backups.py pins the exact line.
+    {"name": "reddit-browser (backup methods: page, json, rss all work)", "repo": None,
+     "probe": "log_block", "log_path": "~/Library/Logs/reddit-browser.log",
+     "block_re": r"^== (\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) start",
+     "log_grep": r"METHOD CHECK: page ok · json ok · rss ok",
+     "max_age_h": 26},
     # financial-telegram-bot is the owner's most important repo and was entirely
     # unrostered. Its own health-check Telegrams on warn/critical, but nothing
     # watched whether that health check still RUNS — a monitor that dies is
