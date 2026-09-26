@@ -132,6 +132,23 @@ class TestRosterGuards(unittest.TestCase):
         self.assertEqual(r["probe"], "log_tail")
         self.assertGreaterEqual(r.get("grace_min", 0), 15)
 
+    def test_reddit_browser_rows_grade_the_run_and_every_list(self):
+        # 2026-09-26: Reddit moved to a Mac job; GitHub's RSS backup hides a dead Mac.
+        import re
+        run = self._row("reddit-browser (Mac")
+        self.assertEqual(run["probe"], "log_block")
+        self.assertIsNone(run["repo"])
+        good = "== 2026-09-26 07:35:01 start\nBROWSER SAVED: 26 of 26 lists\nREDDIT PUSHED: 27 files in 3bcaddd (scraper exit 0)\n"
+        m = re.search(run["block_re"], good, re.M)
+        self.assertEqual(m.group(1), "2026-09-26 07:35:01")
+        self.assertRegex(good, run["log_grep"])
+        self.assertRegex("NO REDDIT CHANGES (scraper exit 0)", run["log_grep"])
+        self.assertNotRegex("NO REDDIT CHANGES (scraper exit 1)", run["log_grep"])
+        self.assertNotRegex("REDDIT PUSHED: 0 files", run["log_grep"])
+        site = self._row("reddit-browser (live site")
+        self.assertEqual((site["probe"], site["rows_key"], site["json_key"]), ("web_fresh", "reddit_lists", "checked"))
+        self.assertIsNone(site["repo"])
+
     def test_every_telegram_webhook_row_names_a_token_and_a_path(self):
         for r in fh.FLEET:
             if r["probe"] != "telegram_webhook":

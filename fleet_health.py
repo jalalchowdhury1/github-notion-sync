@@ -1567,6 +1567,32 @@ FLEET = [
                   r"|data/ already updated today \([^$\n]+\) — skipping",
                   r"DATA PUSHED: [1-9]\d* data files"
                   r"|data/ already updated today \([^$\n]+\) — skipping"]},
+    # reddit-browser (added 2026-09-26): Reddit blocks GitHub's IPs, so the top
+    # lists now come from launchd com.jalal.reddit-browser (07:35 + 19:35), which
+    # drives a headless Chromium on the Mac and pushes the CSVs. The daily_scrape
+    # row above stays green through a dead Mac job, because GitHub's RSS backup
+    # refills stale lists (with ranks instead of upvotes). Hence two rows:
+    #   1. the run itself: every run opens "== YYYY-MM-DD HH:MM:SS start"; a good
+    #      one ends "REDDIT PUSHED: N files" or, when Reddit had nothing new,
+    #      "NO REDDIT CHANGES (scraper exit 0)". A scrape that saved nothing says
+    #      "(scraper exit 1)" and fails the grep. 26 h = two missed runs.
+    #      reddit-scraper tests/test_robustness.py pins these exact patterns.
+    #   2. the data, on the LIVE site: /api/status lists, per list, when the Mac
+    #      last REACHED its real page (`checked`; saved or, if too short to save,
+    #      not). The OLDEST is graded, so one list the Mac keeps failing to reach
+    #      turns it red while the rest refresh; a quiet sub (r/lifehacks, 7 posts
+    #      in Sep 2026) doesn't. max_age_h 36 reads as 40-41 h real, because
+    #      _parse_stamp reads these UTC stamps as local time: red at the third
+    #      missed 12-hourly run. Not graded: `reddit_missing` (lists never saved).
+    # repo None on both: notion_health stamps one row per repo, last result wins.
+    {"name": "reddit-browser (Mac 07:35/19:35 Reddit lists)", "repo": None,
+     "probe": "log_block", "log_path": "~/Library/Logs/reddit-browser.log",
+     "block_re": r"^== (\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) start",
+     "log_grep": r"REDDIT PUSHED: [1-9]\d* files|NO REDDIT CHANGES \(scraper exit 0\)",
+     "max_age_h": 26},
+    {"name": "reddit-browser (live site: every Reddit list fresh)", "repo": None,
+     "probe": "web_fresh", "url": "https://reddit-scraper-lyart.vercel.app/api/status",
+     "rows_key": "reddit_lists", "json_key": "checked", "max_age_h": 36},
     # financial-telegram-bot is the owner's most important repo and was entirely
     # unrostered. Its own health-check Telegrams on warn/critical, but nothing
     # watched whether that health check still RUNS — a monitor that dies is
