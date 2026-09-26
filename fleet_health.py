@@ -78,14 +78,29 @@ def _weekday_dates(today: datetime.date) -> list:
     return [today.isoformat(), prev.isoformat()]
 
 
+_ZONED_STAMP = re.compile(
+    r"^(\d{4}-\d\d-\d\d \d\d:\d\d(?::\d\d(?:\.\d+)?)?)\s*(Z|[+-]\d\d:?\d\d)$")
+
+
 def _parse_stamp(raw):
     """"YYYY-MM-DD HH:MM" (or the same with a T) — and bare "YYYY-MM-DD".
 
     A date-only stamp parses as MIDNIGHT, so the age it reports is up to a day
     older than the truth. That is the safe direction (stricter, never laxer),
     but it means max_age_h for a date-only feed must budget an extra ~24 h.
+
+    A stamp that names its zone ("…Z", "…+00:00", "…-0400") is converted to
+    Mac-local time. Until 2026-09-26 the zone was cut off, so a UTC stamp read
+    as local and every age came out 4-5 h too young (reddit-browser's live row
+    said "-4h old"). Stamps without a zone are Mac-local, as before.
     """
     s = str(raw).strip().replace("T", " ")
+    m = _ZONED_STAMP.match(s)
+    if m:
+        zone = m.group(2)
+        zone = "+00:00" if zone == "Z" else (zone if ":" in zone else f"{zone[:3]}:{zone[3:]}")
+        aware = datetime.datetime.fromisoformat(f"{m.group(1).replace(' ', 'T')}{zone}")
+        return aware.astimezone().replace(tzinfo=None)
     for fmt, n in (("%Y-%m-%d %H:%M", 16), ("%Y-%m-%d", 10)):
         try:
             return datetime.datetime.strptime(s[:n], fmt)
@@ -2384,7 +2399,10 @@ def publish(results, telegram_mode: str) -> None:
         return subprocess.run(["git", "-C", REPO_DIR] + list(args),
                               capture_output=True, text=True, timeout=60)
     git("add", "health.json")
-    c = git("commit", "-m", f"Fleet health: {payload['checked']}")
+    # "-- health.json" commits ONLY that file. A bare commit took whatever else
+    # was staged: on 2026-09-26 a test run swept a session's staged roster edit
+    # into "Fleet health: 15:08" and pushed it.
+    c = git("commit", "-m", f"Fleet health: {payload['checked']}", "--", "health.json")
     if c.returncode == 0:
         p = git("push")
         print("health.json pushed" if p.returncode == 0

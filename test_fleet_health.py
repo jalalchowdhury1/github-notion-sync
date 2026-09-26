@@ -341,9 +341,17 @@ class RetrySlotDigestModeTest(unittest.TestCase):
         os.close(fd)
         self._orig = fh.HEALTH_FILE
         fh.HEALTH_FILE = self.path
+        # publish() runs git commit + push. With the real subprocess.run this
+        # test committed and pushed whatever was staged in the repo (it did,
+        # 2026-09-26: "Fleet health: 15:08"). Record the calls instead.
+        self.git_calls = []
+        self._orig_run = fh.subprocess.run
+        fh.subprocess.run = lambda cmd, *a, **k: (self.git_calls.append(cmd),
+                                                  types.SimpleNamespace(returncode=0, stdout="", stderr=""))[1]
 
     def tearDown(self):
         fh.HEALTH_FILE = self._orig
+        fh.subprocess.run = self._orig_run
         os.remove(self.path)
 
     def _write(self, checked, telegram_mode):
@@ -380,6 +388,35 @@ class RetrySlotDigestModeTest(unittest.TestCase):
         self.assertEqual(json.load(open(self.path))["telegram"], "sent")
         fh.publish([], "")
         self.assertEqual(json.load(open(self.path))["telegram"], "failed")
+
+    def test_publish_commits_only_health_json(self):
+        """A bare `git commit` swept other staged files into the fleet commit."""
+        fh.publish([], "digest")
+        commit = next(c for c in self.git_calls if "commit" in c)
+        self.assertEqual(commit[-2:], ["--", "health.json"])
+
+
+class ParseStampTest(unittest.TestCase):
+    """2026-09-26: a zone suffix was cut off, so UTC stamps read as Mac-local
+    and ages came out 4-5 h too young ("-4h old")."""
+
+    def test_utc_and_offset_stamps_become_local(self):
+        want = datetime.datetime(2026, 9, 26, 19, 10, 16,
+                                 tzinfo=datetime.timezone.utc).astimezone().replace(tzinfo=None)
+        for raw in ("2026-09-26T19:10:16Z", "2026-09-26T19:10:16+00:00",
+                    "2026-09-26T15:10:16-0400", "2026-09-26T15:10:16-04:00"):
+            self.assertEqual(fh._parse_stamp(raw), want, raw)
+
+    def test_zoneless_stamps_stay_local(self):
+        self.assertEqual(fh._parse_stamp("2026-09-26 06:50"), datetime.datetime(2026, 9, 26, 6, 50))
+        self.assertEqual(fh._parse_stamp("2026-09-26T00:36"), datetime.datetime(2026, 9, 26, 0, 36))
+        self.assertEqual(fh._parse_stamp("2026-09-26"), datetime.datetime(2026, 9, 26))
+
+    def test_fresh_utc_stamp_is_not_negative(self):
+        now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        age = fh._age_hours(fh._parse_stamp(now).timestamp())
+        self.assertGreaterEqual(age, -0.01)
+        self.assertLess(age, 0.1)
 
 
 class RetiredLaunchdRowTest(unittest.TestCase):
