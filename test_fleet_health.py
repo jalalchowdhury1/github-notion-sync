@@ -308,26 +308,6 @@ class WeekdayDateTokenTest(unittest.TestCase):
                          ["2026-09-15", "2026-09-14"])
 
 
-class TrancheNagSuccessLineTest(unittest.TestCase):
-    """tranche-nag's success line grew ' in N message(s)' on 2026-09-12; the row
-    kept the old shape and paged two delivered reminders as failures."""
-
-    def _pattern(self):
-        return next(r for r in fh.FLEET if r["name"].startswith("tranche-nag"))["last_line"]
-
-    def test_current_success_lines_pass(self):
-        for line in ("sent 3160 chars in 1 message(s)",
-                     "sent 5200 chars in 2 message(s) plain-fallback",
-                     "nothing due (50 rows parsed)"):
-            self.assertRegex(line, self._pattern())
-
-    def test_failure_lines_still_fail(self):
-        for line in ("nothing due (0 rows parsed)",
-                     "PARSE FAIL: 0 rows matched ROW_RE in TRANCHE-EXECUTION.md",
-                     "Traceback (most recent call last):"):
-            self.assertNotRegex(line, self._pattern())
-
-
 class RetrySlotDigestModeTest(unittest.TestCase):
     """2026-09-15: already_ran_today() used to accept telegram=="sent", which a
     Silent-digest hand-off also set even though the card isn't delivered until

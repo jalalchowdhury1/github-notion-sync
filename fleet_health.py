@@ -2060,12 +2060,7 @@ FLEET = [
     # The tranche pair. 07:12 publish is the one Jalal would actually notice
     # missing. nag prints no date ("sent N chars" / "nothing due"), so it gets
     # mtime; publish stamps every line and gets the stronger dated marker.
-    {"name": "tranche-nag (07:10 reminder)", "repo": None,
-     "probe": "log_tail", "path": "~/Library/Logs/tranche-nag.log",
-     # tranche-nag.py prints "sent N chars in N message(s)[ plain-fallback]" since 2026-09-12.
-     "last_line": r"^(?:sent \d+ chars(?: in \d+ message\(s\)(?: plain-fallback)?)?"
-                  r"|nothing due \([1-9]\d* rows parsed\))$",
-     "max_age_h": 30},
+    # tranche-nag retired 2026-09-23 (Jalal: no Tranche alerts any more; plist → .plist.retired).
     {"name": "tranche-publish (07:12 board publish)", "repo": None,
      # log_block, not log_marker (producer-side red team 2026-09-12): the
      # "tranche.json: N steps" line prints BEFORE the gist upload, so a failed
