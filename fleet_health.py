@@ -1596,9 +1596,10 @@ FLEET = [
     #      last REACHED its real page (`checked`; saved or, if too short to save,
     #      not). The OLDEST is graded, so one list the Mac keeps failing to reach
     #      turns it red while the rest refresh; a quiet sub (r/lifehacks, 7 posts
-    #      in Sep 2026) doesn't. max_age_h 36 reads as 40-41 h real, because
-    #      _parse_stamp reads these UTC stamps as local time: red at the third
-    #      missed 12-hourly run. Not graded: `reddit_missing` (lists never saved).
+    #      in Sep 2026) doesn't. max_age_h 36 = real hours (_parse_stamp converts
+    #      these UTC "…Z" stamps since 2026-09-26): graded at 05:00/06:30, two
+    #      missed 12-hourly runs read ~33-35 h (green), three ~45-47 h (red).
+    #      Not graded: `reddit_missing` (lists never saved).
     # repo None on both: notion_health stamps one row per repo, last result wins.
     {"name": "reddit-browser (Mac 07:35/19:35 Reddit lists)", "repo": None,
      "probe": "log_block", "log_path": "~/Library/Logs/reddit-browser.log",
