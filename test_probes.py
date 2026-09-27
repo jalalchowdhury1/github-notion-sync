@@ -1154,5 +1154,82 @@ class DateTokens(unittest.TestCase):
         self.assertFalse(self.lint(probe="cloudwatch_marker", log_grep="REPORT_DELIVERED {today}"))
 
 
+class WebFreshFailKey(unittest.TestCase):
+    """Round 8: health-hub's newest send failing beats a fresh last_tick."""
+
+    def grade(self, payload):
+        srv = _Server({"/h": (200, json.dumps(payload), {})})
+        try:
+            return fh.probe_web_fresh(srv.base + "/h", "send_ok_at", 26,
+                                      fail_key="send_error_at", fail_note_key="send_error")
+        finally:
+            srv.close()
+
+    def test_ok_newer_than_error_green(self):
+        self.assertTrue(self.grade({"send_ok_at": _local(1, "%Y-%m-%d %H:%M"),
+                                    "send_error_at": _local(5, "%Y-%m-%d %H:%M")})[0])
+
+    def test_error_newer_than_ok_red_with_reason(self):
+        ok, d = self.grade({"send_ok_at": _local(5, "%Y-%m-%d %H:%M"),
+                            "send_error_at": _local(1, "%Y-%m-%d %H:%M"),
+                            "send_error": "403 bot was blocked"})
+        self.assertFalse(ok)
+        self.assertIn("blocked", d)
+
+    def test_never_failed_green_never_sent_red(self):
+        self.assertTrue(self.grade({"send_ok_at": _local(1, "%Y-%m-%d %H:%M")})[0])
+        self.assertFalse(self.grade({"send_error_at": _local(1, "%Y-%m-%d %H:%M")})[0])
+
+
+class DatedLogTail(_Patched):
+    """Round 8: dhaka-yearly's per-day run log, graded by its last line."""
+
+    def row(self):
+        return next(r for r in fh.FLEET if r["name"].startswith("dhaka-yearly (01:15"))
+
+    def grade(self, last):
+        name = f"run-{datetime.date.today():%Y%m%d}.log"
+        self.write(name, f"== engine ...\ncheck: 58 plans, 0 problem(s)\n{last}\n")
+        r = dict(self.row(), path=str(self.dir / "run-{today_ymd}.log"))
+        return fh.probe_log_tail(**r)
+
+    def test_ok_line_green(self):
+        self.assertTrue(self.grade("NIGHTLY OK plans=58 problems=0 pushed=0db75b1 notify=ok")[0])
+
+    def test_failed_or_old_format_red(self):
+        for last in ("NIGHTLY FAILED: push, notify", "NIGHTLY FAILED: deploy (alert failed)",
+                     "NIGHTLY OK plans=0 problems=0 pushed=0db75b1 notify=ok", "== done"):
+            self.assertFalse(self.grade(last)[0], last)
+
+    def test_yesterdays_file_does_not_count(self):
+        y = datetime.date.today() - datetime.timedelta(days=1)
+        self.write(f"run-{y:%Y%m%d}.log", "NIGHTLY OK plans=58 problems=0 pushed=0db75b1 notify=ok\n")
+        r = dict(self.row(), path=str(self.dir / "run-{today_ymd}.log"))
+        ok, d = fh.probe_log_tail(**r)
+        self.assertFalse(ok)
+        self.assertIn("missing", d)
+
+
+class DefensiveNagOutcome(_Patched):
+    """Round 8: the nag's last line is its outcome; only failed=0 is green.
+    (First draft anchored on leading spaces, which log_tail strips -- a live
+    grade caught that false red.)"""
+
+    def grade(self, tail):
+        r = next(x for x in fh.FLEET if x["name"].startswith("defensive-nag"))
+        p = self.write("dn.log", "defensive-trigger nag 2026-09-27T15:20:05+00:00 mode=INVESTED\n" + tail)
+        return fh.probe_log_tail(**dict(r, path=p))
+
+    def test_real_line_green(self):
+        self.assertTrue(self.grade("  nag outcome: sent=0 failed=0 pending=none\n")[0])
+
+    def test_failed_send_or_traceback_or_header_only_red(self):
+        for tail in ("  send FAILED: GO DEFENSIVE (send returned False)\n"
+                     "  nag outcome: sent=0 failed=1 pending=PENDING_DEFENSIVE\n",
+                     "Traceback (most recent call last):\n",
+                     ""):
+            self.assertFalse(self.grade(tail)[0], tail)
+
+
 if __name__ == "__main__":
     unittest.main()

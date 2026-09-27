@@ -138,7 +138,8 @@ def _parse_stamp(raw):
     raise ValueError(f"unparseable timestamp {raw!r}")
 
 
-def probe_web_fresh(url, json_key, max_age_h, rows_key=None, min_rows=None, **_):
+def probe_web_fresh(url, json_key, max_age_h, rows_key=None, min_rows=None,
+                    fail_key=None, fail_note_key=None, **_):
     """Fetch JSON and check a timestamp field is recent (data-level freshness).
 
     rows_key: grade the OLDEST per-row stamp under data[rows_key] instead of a
@@ -148,7 +149,12 @@ def probe_web_fresh(url, json_key, max_age_h, rows_key=None, min_rows=None, **_)
     through five nights of zero scraped rates (2026-08-11 → 08-16: `updated`
     said today, every row's `checked` said Aug 10). The rule this file already
     states for launchd_exit — never grade a proxy for the thing you care about
-    — applies just as much to a timestamp the job stamps unconditionally."""
+    — applies just as much to a timestamp the job stamps unconditionally.
+
+    fail_key (round 8): a top-level stamp of the job's newest FAILURE. Red when it
+    is newer than json_key's stamp — the last thing the job tried did not work
+    (health-hub: send_error_at vs send_ok_at; a blocked bot kept last_tick fresh).
+    fail_note_key names a short reason field to quote."""
     with urllib.request.urlopen(url, timeout=30) as r:
         data = json.loads(r.read().decode())
     # min_rows {list_key: floor} (red team 2026-09-27): a fresh top-level stamp on
@@ -177,6 +183,12 @@ def probe_web_fresh(url, json_key, max_age_h, rows_key=None, min_rows=None, **_)
     if age < -1:        # red team 2026-09-27: a future stamp passed every age check
         return False, f"{label} stamp is {-age:.0f}h in the FUTURE ({json_key}={raw!r}) — clock/zone bug"
     ok = age <= max_age_h
+    if ok and fail_key and data.get(fail_key):
+        f_raw = str(data[fail_key])
+        if _parse_stamp(f_raw).timestamp() > ts:
+            why = str(data.get(fail_note_key) or "")[:90] if fail_note_key else ""
+            return False, (f"newest attempt FAILED: {fail_key}={f_raw} is after "
+                           f"{json_key}={raw}" + (f" ({why})" if why else ""))
     return ok, f"{label} {age:.0f}h old" + ("" if ok else
                                             f" (limit {max_age_h}h, raw {json_key}={raw!r})")
 
@@ -1396,6 +1408,9 @@ def probe_log_tail(path, last_line, max_age_h, grace_min=0, grace_lines=12, **_)
     success at all in that window fails (false alarm 2026-09-19: probed 4 min
     before the cycle's `wrote coach` line).
     """
+    # {today_ymd} (round 8): for a job that writes one log per day, e.g.
+    # dhaka-yearly's data/run-20260928.log.
+    path = path.replace("{today_ymd}", datetime.date.today().strftime("%Y%m%d"))
     p = os.path.expanduser(path)
     if not os.path.exists(p):
         return False, f"{path} missing"
@@ -1950,10 +1965,13 @@ FLEET = [
     # Trigger Board (added 2026-09-09): 07:00 + 18:00 launchd com.jalal.trigger-board
     # → ~/concierge/triggers/board/run.sh. run.sh prints `BOARD OK <slot> <date>`
     # only on exit 0; the 05:00 check sees yesterday's evening marker via {date}.
+    # errors=0 (round 8): board.py used to turn a failed gym/meds/downloads fetch
+    # into "trigger not firing" -- the card said "nothing to do" and BOARD OK was
+    # written. run.sh now appends errors=<n> (FETCH ERRORS count); only 0 is green.
     {"name": "trigger-board (07:00 + 18:00 must-do nag)", "repo": None,
      "probe": "log_marker",
      "log_path": "~/Library/Logs/trigger-board.log",
-     "log_grep": r"BOARD OK \w+ {date}",
+     "log_grep": r"BOARD OK \w+ {date} errors=0\b",
      "live_since": "2026-09-10"},
     # job-reaper (added 2026-09-15): launchd com.jalal.job-reaper runs every 5 min
     # → ~/.local/bin/job-reaper.py, which stops scheduled jobs hung past their cap
@@ -2168,6 +2186,15 @@ FLEET = [
      "json_key": "last_tick", "max_age_h": 3},
     # Same two-independent-deaths reasoning as the other webhook bots; repo None
     # so a healthy tick row can't paint over a deaf bot in Notion.
+    # Round 8: last_tick stayed fresh while every tgSend failed (each caught and
+    # only console-logged -- a blocked bot or wrong chat id reached nobody).
+    # tick.js now records send outcomes; red when none succeeded in 30 h or the
+    # newest attempt failed. 30 h: sends land most days from 06:50 (card) to the
+    # 18:00 target message, so the longest normal gap is ~13 h.
+    {"name": "health-hub (Telegram sends actually delivered)", "repo": None,
+     "probe": "web_fresh", "url": "https://jalal-health.vercel.app/api/health",
+     "json_key": "send_ok_at", "max_age_h": 30,
+     "fail_key": "send_error_at", "fail_note_key": "send_error"},
     {"name": "health-hub (telegram webhook registered)", "repo": None,
      "probe": "telegram_webhook", "token_env": "HEALTH_BOT_TOKEN",
      "expect_url": "https://jalal-health.vercel.app/api/telegram",
@@ -2256,7 +2283,9 @@ FLEET = [
      # Still catches a missed evening; a traceback ends the log on a non-indented,
      # non-marker line.
      "probe": "log_tail", "path": "~/Library/Logs/defensive-nag.log",
-     "last_line": r"^(defensive-trigger nag \S+ mode=\w+|\s+\S)", "max_age_h": 11},
+     # Round 8: every run now ENDS with "  nag outcome: sent=N failed=N pending=X"
+     # (a failed reminder used to leave no trace). Only failed=0 is green.
+     "last_line": r"^nag outcome: sent=\d+ failed=0 pending=\w+$", "max_age_h": 11},
     # rubber-band is weekdays 18:30 ONLY, so a Monday 05:00 check is looking at
     # Friday evening — ~58 h. A dated marker would page every Monday. mtime at
     # 72 h clears the weekend and still catches a genuine multi-day stall.
@@ -2322,6 +2351,15 @@ FLEET = [
     # rule check AND the page test pass, and undoes data.json otherwise -- so the
     # LIVE `updated_tz` moves only on a fully good night. 26 h: a run finishing
     # ~02:00 is ~3 h old at 05:00; one missed night reads ~27 h.
+    # The run itself (round 8): the live site's updated_tz is also freshened by
+    # manual daytime runs, and nightly.sh used to `|| true` a failed push and a
+    # failed notify. Every run now ENDS with one line (engine/nightly_line.py);
+    # manual runs append to the same dated file, so its last line is the latest
+    # run. 01:15 launchd -> ~3-5 h old at 05:00/06:30.
+    {"name": "dhaka-yearly (01:15 nightly run ended OK)", "repo": None,
+     "probe": "log_tail", "path": "~/PycharmProjects/dhaka-yearly/data/run-{today_ymd}.log",
+     "last_line": r"^NIGHTLY OK plans=[1-9]\d* problems=0 pushed=[0-9a-f]{7} notify=(?:ok|none)$",
+     "max_age_h": 8},
     {"name": "dhaka-yearly (nightly trip plans, live site)", "repo": None,
      "probe": "web_fresh", "url": "https://dhaka-yearly.vercel.app/data.json",
      "json_key": "updated_tz", "max_age_h": 26},
@@ -2343,7 +2381,9 @@ FLEET = [
     # check, so {date}.
     {"name": "llm-balance-check (daily OpenRouter balance warning)", "repo": None,
      "probe": "log_marker", "log_path": "~/Library/Logs/llm-balance-check.log",
-     "log_grep": r"{date} \d\d:\d\d:\d\d openrouter=\d"},
+     # sent=none|200 (round 8): the script logs whether the warning actually went
+     # out; sent=notoken / sent=000 / sent=4xx is a warning that never arrived.
+     "log_grep": r"{date} \d\d:\d\d:\d\d openrouter=\d[\d.]* sent=(?:none|200)\b"},
 ]
 
 

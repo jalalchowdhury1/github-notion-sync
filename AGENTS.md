@@ -240,17 +240,22 @@ The tests fake `subprocess` and `git`, so they never push.
 - Test the door, not the key: prove a guard rejects an unauth POST.
 - Infra errors raise and retry. A red is never retried.
 - Every way the checker can die ends in a loud Telegram (exit-code table).
-- **Round 8 (2026-09-27) left these open, on the producer side, in other repos.** Each
-  job reports "done" in a way the probe cannot tell apart from a failure:
-  - trigger-board turns fetch errors into "nothing to do"
-  - mac-audit stamps success with no Telegram configured
-  - carmax swallows Sheet and Telegram failures
-  - health-hub's tick stays fresh when sends fail
-  - defensive-nag doesn't log failed sends
-  - dhaka-yearly's `|| true` push/notify
-  - llm-balance-check ignores the curl result
-  
-  Each needs a one-line change in that repo, then a tighter marker here.
+- **Producers must say "done" in a way a failure can't fake (round 8b, 2026-09-27).**
+  Seven jobs used to report success even when their real work failed. Each now writes
+  a proof line that only a clean run can produce, and its row matches that line:
+
+  | job (repo commit) | the proof line or field the row requires |
+  |---|---|
+  | llm-balance-check (~/.local/bin d003967) | `{date} hh:mm:ss openrouter=N sent=none\|200` |
+  | trigger-board (concierge 4df4e16) | `BOARD OK <slot> {date} errors=0` |
+  | mac-audit (b6565c2) | stamp written only when the Telegram send succeeds (row unchanged) |
+  | carmax (e7d39f5) | stamp written only when Sheet and Telegram both succeed (row unchanged) |
+  | health-hub (1b04832) | `/api/health` `send_ok_at` fresh, and newer than `send_error_at` (web_fresh `fail_key`) |
+  | defensive-nag (2a3966d) | last line `nag outcome: sent=N failed=0 pending=…` |
+  | dhaka-yearly (865b47b) | `data/run-{today_ymd}.log` last line `NIGHTLY OK plans=N problems=0 pushed=<sha> notify=ok\|none` |
+
+  Probe support added for this: `web_fresh` `fail_key`/`fail_note_key` (red when the
+  newest attempt failed), and a `{today_ymd}` (YYYYMMDD) token in `log_tail` paths.
 
 Also known and accepted:
 - A failed loud send is not retried; the red still sits in the card.
