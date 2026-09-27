@@ -546,3 +546,116 @@ class RetiredRowDigestTest(unittest.TestCase):
                        "ok": True, "detail": "alive, pid 999", "cfg": "probe=launchd_running"}
         recovered = self._annotate_from_prior_failure(genuine_fix)
         self.assertIn("supervisor", recovered)
+
+
+# ── red team 2026-09-27 ─────────────────────────────────────────────────────
+
+def _fake_aws(events):
+    """subprocess.run stand-in returning CloudWatch [timestamp, message] rows."""
+    out = "\n".join(f"{ms}\t{msg}" for ms, msg in events)
+    return lambda *a, **k: types.SimpleNamespace(returncode=0, stdout=out, stderr="")
+
+
+class RedTeam0927(unittest.TestCase):
+
+    def setUp(self):
+        self._run = fh.subprocess.run
+
+    def tearDown(self):
+        fh.subprocess.run = self._run
+
+    def test_orphaned_lock_from_a_killed_run_does_not_block_the_retry(self):
+        with tempfile.TemporaryDirectory() as d:
+            lock = os.path.join(d, "lock")
+            orig = fh.LOCK_FILE
+            fh.LOCK_FILE = lock
+            try:
+                with open(lock, "w") as f:
+                    f.write("999999")               # no such pid: the writer was SIGKILLed
+                self.assertFalse(fh._lock_is_fresh())
+                with open(lock, "w") as f:
+                    f.write(str(os.getpid()))       # live writer: back off
+                self.assertTrue(fh._lock_is_fresh())
+            finally:
+                fh.LOCK_FILE = orig
+
+    def test_lint_rejects_a_marker_that_cannot_miss(self):
+        for pat in ("", ".*", "a?", r"\w+", ["ok", ""]):
+            row = {"name": "x", "probe": "gh_run", "log_grep": pat}
+            self.assertEqual(fh.lint_roster([row]), [row], pat)
+        self.assertEqual(fh.lint_roster([{"name": "y", "probe": "gh_run",
+                                          "log_grep": r"Scraped \d+ deals {date}"}]), [])
+
+    def test_log_marker_today_ignores_yesterdays_success(self):
+        today = datetime.date.today()
+        yday = today - datetime.timedelta(days=1)
+        with tempfile.NamedTemporaryFile("w", suffix=".log", delete=False) as f:
+            f.write(f"TRACKERS_OK 5/5 date={yday}\nTRACKERS_FAIL 2/5 date={today}\n")
+        try:
+            ok, _ = fh.probe_log_marker(f.name, r"TRACKERS_OK 5/5 date={today}")
+            self.assertFalse(ok)
+            ok, _ = fh.probe_log_marker(f.name, r"TRACKERS_OK 5/5 date={date}")
+            self.assertTrue(ok)                     # the old, looser token
+        finally:
+            os.unlink(f.name)
+
+    def test_last_expected_tick_wraps_midnight_utc(self):
+        U = datetime.timezone.utc
+        w = ("14:00", "03:55")
+        at = lambda h, m: datetime.datetime(2026, 9, 27, h, m, tzinfo=U)
+        self.assertEqual(fh._last_expected_tick(w, at(9, 0)), at(3, 55))    # 05:00 ET check
+        self.assertEqual(fh._last_expected_tick(w, at(14, 5)), at(3, 55))   # window just opened
+        self.assertEqual(fh._last_expected_tick(w, at(19, 7)), at(19, 7))   # inside
+        self.assertEqual(fh._last_expected_tick(w, at(1, 0)), at(1, 0))     # inside, after midnight
+
+    def _cw(self, events, **kw):
+        fh.subprocess.run = _fake_aws(events)
+        return fh.probe_cloudwatch_marker("/g", r"\[app-nag\] (?:checked|sent-\d+)\s*$",
+                                          today_only=False, max_age_h=14,
+                                          fail_grep=r"\[app-nag\] kv-error|\[ERROR\]", **kw)
+
+    def test_cloudwatch_newest_failure_beats_older_success(self):
+        now = int(time.time() * 1000)
+        ok, detail = self._cw([(now - 3600_000, "[app-nag] checked"),
+                               (now - 600_000, "[app-nag] kv-error")])
+        self.assertFalse(ok, detail)
+        ok, _ = self._cw([(now - 3600_000, "[app-nag] kv-error"),
+                          (now - 600_000, "[app-nag] sent-1")])
+        self.assertTrue(ok)
+
+    def test_cloudwatch_schedule_that_stopped_early_is_red(self):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        owed = fh._last_expected_tick(("14:00", "03:55"), now)
+        stopped = int((owed - datetime.timedelta(hours=3)).timestamp() * 1000)
+        ok, detail = self._cw([(stopped, "[app-nag] checked")], active_window=("14:00", "03:55"))
+        self.assertFalse(ok, detail)
+        fresh = int((owed - datetime.timedelta(minutes=5)).timestamp() * 1000)
+        ok, detail = self._cw([(fresh, "[app-nag] checked")], active_window=("14:00", "03:55"))
+        self.assertTrue(ok, detail)
+
+    def test_report_delivered_grades_the_newest_line(self):
+        now = int(time.time() * 1000)
+        today = datetime.date.today().isoformat()
+        fh.subprocess.run = _fake_aws([
+            (now - 60_000, "REPORT_DELIVERED ok=false"),
+            (now - 30_000, f"REPORT_DELIVERED ok=true sections=2 errors=0 Report sent at {today} 04:16:00")])
+        ok, detail = fh.probe_cloudwatch_marker("/g", [r"REPORT_DELIVERED ok=true",
+                                                       r"Report sent at {today} \d\d:\d\d:\d\d"])
+        self.assertTrue(ok, detail)
+
+    def test_log_tail_grace_rejects_a_stale_success(self):
+        # one success, then 2.5 h of short failing cycles (each a single line)
+        with tempfile.NamedTemporaryFile("w", suffix=".log", delete=False) as f:
+            f.write("2026-09-27T08:00:00.000Z wrote coach: ok\n" + "".join(
+                f"2026-09-27T{8 + (m + 1) * 15 // 60:02d}:{(m + 1) * 15 % 60:02d}:00.000Z ERROR boom\n"
+                for m in range(10)))
+        try:
+            ok, detail = fh.probe_log_tail(f.name, r"wrote coach", max_age_h=1, grace_min=16)
+            self.assertFalse(ok, detail)
+        finally:
+            os.unlink(f.name)
+
+    def test_roster_has_rows_for_the_audit_gaps(self):
+        names = " | ".join(i["name"] for i in fh.FLEET)
+        for must in ("ynab-nag Lambda", "dhaka-yearly", "AM Reads", "llm-balance-check"):
+            self.assertIn(must, names)

@@ -137,6 +137,8 @@ def probe_web_fresh(url, json_key, max_age_h, rows_key=None, **_):
         label = "data"
     ts = _parse_stamp(raw).timestamp()
     age = _age_hours(ts)
+    if age < -1:        # red team 2026-09-27: a future stamp passed every age check
+        return False, f"{label} stamp is {-age:.0f}h in the FUTURE ({json_key}={raw!r}) — clock/zone bug"
     ok = age <= max_age_h
     return ok, f"{label} {age:.0f}h old" + ("" if ok else
                                             f" (limit {max_age_h}h, raw {json_key}={raw!r})")
@@ -173,6 +175,8 @@ def probe_local_stamp(path, max_age_h, **_):
     date = open(os.path.expanduser(path)).read().strip()
     ts = datetime.datetime.strptime(date, "%Y-%m-%d").timestamp()
     age = _age_hours(ts)
+    if age < -24:       # date-only = midnight, so "today" is 0..24 h old; beyond = future
+        return False, f"stamp {date} is in the FUTURE — clock bug"
     ok = age <= max_age_h
     return ok, f"last success {date}" + ("" if ok else f" ({age/24:.1f}d ago)")
 
@@ -560,14 +564,16 @@ def probe_planner_backup(dest_dir, names, log_path, live_since=None, **_):
     today = datetime.date.today()
     if live_since and today.isoformat() < live_since:
         return True, f"pre-launch grace period — alerting starts {live_since}"
-    candidates = [today, today - datetime.timedelta(days=1)]
+    # Today only (red team 2026-09-27): the job runs 03:40, before this check,
+    # and a yesterday arm let a failed night pass on the previous snapshot.
+    candidates = [today]
     dest = os.path.expanduser(dest_dir)
     missing = [name for name in names
                if not any(_valid_json(os.path.join(dest, f"{d.isoformat()}-{name}.json"))
                           for d in candidates)]
     if missing:
         return False, (f"missing/unparseable snapshot(s): {', '.join(missing)} "
-                       f"(checked {candidates[1]} & {candidates[0]} in {dest_dir})")
+                       f"(checked {today} in {dest_dir})")
     log = os.path.expanduser(log_path)
     try:
         text = open(log).read()
@@ -607,8 +613,12 @@ def probe_log_marker(log_path, log_grep, live_since=None, **_):
     dates = "|".join(d.isoformat() for d in
                      (today, today - datetime.timedelta(days=1)))
     patterns = [log_grep] if isinstance(log_grep, str) else list(log_grep)
+    # {today} = today only (red team 2026-09-27): for a job that runs BEFORE this
+    # 05:00 check, {date}'s yesterday arm let a job that failed this morning
+    # pass on yesterday's marker until the next day's check.
     missing = [p for p in patterns
-               if not re.search(p.replace("{date}", f"(?:{dates})"), text)]
+               if not re.search(p.replace("{today}", today.isoformat())
+                                 .replace("{date}", f"(?:{dates})"), text)]
     if missing:
         return False, (f"no {', '.join(repr(m) for m in missing)} match "
                        f"in {log_path} (checked {dates})")
@@ -669,8 +679,12 @@ def probe_telegram_webhook(token_env, expect_url, require_guard=False, **_):
                            f"HTTP {status}, expected 401/403; the endpoint accepts "
                            f"anyone's updates")
     detail = f"webhook registered, {pending} pending"
-    if err:
-        return False, f"{detail}, last_error={err!r}"
+    # Telegram keeps the LAST error forever, even after later deliveries worked
+    # (red team 2026-09-27), so one old blip would pin the row red. Only an error
+    # from the last 24 h counts; a missing date is treated as recent.
+    err_age_h = (time.time() - info["last_error_date"]) / 3600 if info.get("last_error_date") else 0
+    if err and err_age_h <= 24:
+        return False, f"{detail}, last_error={err!r} ({err_age_h:.0f}h ago)"
     return True, detail
 
 
@@ -840,6 +854,10 @@ def probe_nuts_radar(url, repo_dir, catalysts_url=None, max_cat_age_h=27, **_):
         try:
             with urllib.request.urlopen(catalysts_url, timeout=30) as r:
                 cj = json.loads(r.read().decode())
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
+            if isinstance(exc, urllib.error.HTTPError) and exc.code < 500:
+                return False, f"catalysts.json unreadable: {exc}"
+            raise RuntimeError(f"catalysts.json fetch failed: {exc}") from exc   # infra retry
         except Exception as exc:                       # noqa: BLE001
             return False, f"catalysts.json unreadable: {exc}"
         gen = cj.get("generated_at")
@@ -1086,7 +1104,69 @@ def probe_rsync_log(log_path, max_age_h=36, min_files=1, read_timeout_s=60, **_)
                   f"(baseline {min_files:,}), {moved_n:,} transferred, {age:.0f}h ago")
 
 
-def probe_cloudwatch_marker(log_group, log_grep, max_age_h=30, **_):
+def _last_expected_tick(active_window, now=None):
+    """Latest UTC time a job ticking inside active_window ("HH:MM", "HH:MM",
+    UTC, may wrap past midnight) should have run by now: now itself while
+    inside the window, else the most recent window end. UTC because the
+    schedules are UTC crons -- a local window drifts an hour at every DST flip.
+    `now` is an aware UTC datetime."""
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    (fh_, fm), (th, tm) = (map(int, t.split(":")) for t in active_window)
+    mins, start, end = now.hour * 60 + now.minute, fh_ * 60 + fm, th * 60 + tm
+    inside = (start <= mins <= end) if start <= end else (mins >= start or mins <= end)
+    since_open = (mins - start) % 1440
+    if inside and since_open > 20:           # just opened: the first tick may not be logged yet
+        return now
+    last_end = now.replace(hour=th, minute=tm, second=0, microsecond=0)
+    return last_end if last_end <= now else last_end - datetime.timedelta(days=1)
+
+
+def _cloudwatch_last_outcome(log_group, log_grep, max_age_h, fail_grep=None,
+                             active_window=None, slack_min=20):
+    """See probe_cloudwatch_marker(today_only=False).
+
+    active_window ("10:00", "23:55"): the newest good outcome must be within
+    slack_min of the last tick the schedule owed -- a Lambda whose schedule
+    stopped at 18:00 would otherwise pass on its 17:xx ticks the next morning."""
+    start_ms = int((time.time() - max_age_h * 3600) * 1000)
+    p = subprocess.run(
+        ["aws", "logs", "filter-log-events", "--log-group-name", log_group,
+         "--start-time", str(start_ms),
+         "--query", "events[].[timestamp,message]", "--output", "text"],
+        capture_output=True, text=True, timeout=120)
+    if p.returncode != 0:
+        raise RuntimeError(f"aws logs failed: {p.stderr.strip()[:150]}")
+    events = []                                  # [ms, text] per log event
+    for line in (p.stdout or "").splitlines():
+        head = line.split("\t", 1)
+        if len(head) == 2 and head[0].strip().isdigit() and len(head[0].strip()) >= 12:
+            events.append([int(head[0].strip()), head[1]])
+        elif events:
+            events[-1][1] += "\n" + line
+    if not events:
+        return False, f"no log events in {log_group} for {max_age_h}h — the Lambda did not run"
+    patterns = [log_grep] if isinstance(log_grep, str) else list(log_grep)
+    good = [ms for ms, t in events if any(re.search(pat, t) for pat in patterns)]
+    bad = [(ms, t) for ms, t in events if fail_grep and re.search(fail_grep, t)]
+    if not good:
+        why = f"; newest failure: {bad[-1][1].strip()[:90]!r}" if bad else ""
+        return False, (f"{len(events)} events in {max_age_h}h but no success outcome "
+                       f"({', '.join(repr(m) for m in patterns)}){why}")
+    age = _age_hours(good[-1] / 1000)
+    if active_window:
+        owed = _last_expected_tick(active_window)
+        newest = datetime.datetime.fromtimestamp(good[-1] / 1000, datetime.timezone.utc)
+        if newest < owed - datetime.timedelta(minutes=slack_min):
+            return False, (f"newest good outcome {newest:%m-%d %H:%M} UTC but the schedule "
+                           f"owed a tick by {owed:%m-%d %H:%M} UTC — the Lambda stopped firing")
+    if bad and bad[-1][0] > good[-1]:
+        return False, (f"latest runs are failing: {bad[-1][1].strip()[:90]!r} "
+                       f"({_age_hours(bad[-1][0] / 1000):.1f}h ago; last good outcome {age:.1f}h ago)")
+    return True, f"{len(good)} good outcomes in {max_age_h}h, newest {age:.1f}h ago, no failure since"
+
+
+def probe_cloudwatch_marker(log_group, log_grep, max_age_h=30, today_only=True,
+                            fail_grep=None, active_window=None, **_):
     """A Lambda's own success marker in CloudWatch, for work that leaves NO trace
     on GitHub.
 
@@ -1108,7 +1188,17 @@ def probe_cloudwatch_marker(log_group, log_grep, max_age_h=30, **_):
     must match; `{date}` expands to today|yesterday. An aws-CLI failure RAISES
     (infra retry path) rather than reporting a missing marker — an unreadable log
     is not a log without markers. Runs as claude-ops, CloudWatchLogsReadOnly.
+
+    today_only=False + fail_grep (2026-09-27, for the ynab-nag Lambda, which
+    ticks every 5 min from 10:00 to 23:55 and so has NO events "today" at 05:00):
+    grade the whole max_age_h window, and fail when the NEWEST event matching
+    fail_grep is later than the newest event matching log_grep -- the job's
+    latest runs all broke (a KV outage returns "kv-error" every tick and sends
+    nothing) even though healthy ticks from earlier are still in the window.
     """
+    if not today_only:
+        return _cloudwatch_last_outcome(log_group, log_grep, max_age_h, fail_grep,
+                                        active_window=active_window)
     start_ms = int((time.time() - max_age_h * 3600) * 1000)
     p = subprocess.run(
         ["aws", "logs", "filter-log-events",
@@ -1171,7 +1261,10 @@ def probe_cloudwatch_marker(log_group, log_grep, max_age_h=30, **_):
     # green Lambda invocation hides. Surface errors=N without failing on it: a
     # partial report still reached him, and paging on one bad section would
     # train him to ignore this row.
-    if re.search(r"REPORT_DELIVERED ok=false", text):
+    # The NEWEST REPORT_DELIVERED line decides (red team 2026-09-27): a failed
+    # first attempt followed by a successful retry delivered the report.
+    last_rd = re.findall(r"REPORT_DELIVERED ok=(true|false)", text)
+    if last_rd and last_rd[-1] == "false":
         return False, "REPORT_DELIVERED ok=false — Lambda ran but did not deliver"
     errs = re.findall(r"REPORT_DELIVERED ok=true sections=(\d+) errors=(\d+)", text)
     if errs:
@@ -1254,6 +1347,21 @@ def probe_log_tail(path, last_line, max_age_h, grace_min=0, grace_lines=12, **_)
         if grace_min and age * 60 <= grace_min:
             hit = next((l.strip() for l in reversed(lines[-grace_lines:])
                         if re.search(last_line, l.strip())), None)
+            # Red team 2026-09-27: a 15-min job keeps the file young forever, so
+            # grace was ALWAYS on and any old success in the last 12 lines passed
+            # while short error cycles piled up behind it. When the lines carry
+            # stamps, the hit may be no older than one grace window plus a cycle,
+            # measured against the NEWEST line (the file's mtime proves that is now).
+            def _stamp(line):
+                m = re.match(r"(\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d)?)(?:\.\d+)?(Z|[+-]\d\d:?\d\d)?", line)
+                try:
+                    return _parse_stamp(m.group(1) + (m.group(2) or "")) if m else None
+                except ValueError:
+                    return None
+            t_hit = hit and _stamp(hit)
+            t_new = max((t for t in map(_stamp, lines[-grace_lines:]) if t), default=None)
+            if t_hit and t_new and (t_new - t_hit).total_seconds() / 60 > 2 * grace_min + 15:
+                hit = None
             if hit:
                 return True, (f"written {age*60:.0f}min ago, mid-run; "
                               f"last finished {hit[:40]!r}")
@@ -1290,6 +1398,8 @@ def probe_bot_selftest(url, secret_env, **_):
         with urllib.request.urlopen(req, timeout=90) as r:
             body = json.load(r)
     except urllib.error.HTTPError as e:
+        if e.code >= 500:                    # cold start / platform blip: infra retry path
+            raise RuntimeError(f"selftest answered HTTP {e.code}") from e
         return False, f"selftest answered HTTP {e.code}" + (" (secret rejected)" if e.code in (401, 403) else "")
     except ValueError:
         return False, "selftest answered non-JSON (old deploy without the selftest?)"
@@ -1563,7 +1673,10 @@ FLEET = [
     # entire BIL-vs-TQQQ divergence.
     {"name": "trading-algorithm- (30-min signal)", "repo": "trading-algorithm-",
      "probe": "gh_run", "workflow": "trading_alert.yml", "max_age_h": 72,
-     "log_grep": r"NUTS-SIGNAL (OK unchanged=|CHANGED )",
+     # date={weekday} (red team 2026-09-27): with max_age_h 72 alone, a job that
+     # died at Tuesday's open still read green Wed + Thu off Monday's last run.
+     # main.py stamps date= on both lines; weekday-only, so {weekday} not {date}.
+     "log_grep": r"NUTS-SIGNAL (?:OK unchanged=|CHANGED ).*date={weekday}",
      "expect_event": "workflow_dispatch"},
     # reddit-scraper's commit step is `git commit … || exit 0`, so a run that
     # scrapes nothing still exits GREEN having written nothing — conclusion-only
@@ -1851,7 +1964,7 @@ FLEET = [
     {"name": "aoife-gcal-sync (nightly Google Calendar publish)", "repo": None,
      "probe": "log_marker",
      "log_path": "~/Library/Logs/aoife-gcal-sync.log",
-     "log_grep": r"GCAL-SYNC OK {date}",
+     "log_grep": r"GCAL-SYNC OK {today}",          # runs 04:10, before the check
      "live_since": "2026-08-20"},
     # Added 2026-08-28 after GitHub's cron dropped mental-models entirely that
     # morning (schedule is best-effort; observed +31m/+34m/+11h14m/never).
@@ -1894,7 +2007,9 @@ FLEET = [
     {"name": "daily-trackers (nightly Automa Data sheet update)", "repo": "daily-trackers",
      "probe": "log_marker",
      "log_path": "~/PycharmProjects/daily-trackers/cron.log",
-     "log_grep": r"TRACKERS_OK 5/5 date={date}",
+     # {today}: slots 3:30/4:30 precede the check; a 5:30-only success is
+     # re-graded green by the 6:30 retry slot.
+     "log_grep": r"TRACKERS_OK 5/5 date={today}",
      "live_since": "2026-08-25"},
     # sheets-backup: nightly git snapshot of every sheet feeding the finance
     # dashboard + Automa Data (cron 06:10 UTC, ~3 h old at the 09:00 check; one
@@ -2063,8 +2178,13 @@ FLEET = [
     # self-health monitor; neither sees these, on the highest-stakes
     # automation in the fleet.
     {"name": "defensive-nag (hourly risk prompt)", "repo": None,
-     "probe": "log_marker", "log_path": "~/Library/Logs/defensive-nag.log",
-     "log_grep": [r"defensive-trigger nag {date}T"]},
+     # log_tail (red team 2026-09-27): the {date} marker is a UTC date, so a nag
+     # that died at 20:20 still passed ~33 h later. Runs hourly 08:20-22:20 local
+     # into one log (stdout+stderr); at 05:00 the last write is ~6.7 h old, so 9 h
+     # catches a missed evening, and a traceback ends the log on a non-indented,
+     # non-marker line.
+     "probe": "log_tail", "path": "~/Library/Logs/defensive-nag.log",
+     "last_line": r"^(defensive-trigger nag \S+ mode=\w+|\s+\S)", "max_age_h": 9},
     # rubber-band is weekdays 18:30 ONLY, so a Monday 05:00 check is looking at
     # Friday evening — ~58 h. A dated marker would page every Monday. mtime at
     # 72 h clears the weekend and still catches a genuine multi-day stall.
@@ -2103,6 +2223,45 @@ FLEET = [
     # deployment URL 302s into Vercel SSO. There is nothing a probe could
     # asserted that would mean "Jalal can open his tax page". Fix the alias
     # first, then add a web_200 row here.
+
+    # ── coverage audit 2026-09-27: live jobs that had NO row ────────────────
+    # ynab-nag Lambda: since 26 Sep EVERY family budget nag (Later Jar,
+    # NAG_MODE=app) is sent by this Lambda, every 5 min 10:00-23:55 ET via
+    # EventBridge one-clock-ynab-nag -- not by a GitHub run, so no gh_run row
+    # could see it. Each tick prints "[app-nag] <outcome>". A KV outage returns
+    # "kv-error" on every tick and sends nothing while the Lambda stays green, so
+    # the newest failure must not be newer than the newest good outcome. It has
+    # no events "today" at 05:00, hence today_only=False over a 10 h window
+    # (reaches back to ~19:00 the previous evening).
+    {"name": "ynab-nag Lambda (family budget nags, every 5 min)", "repo": None,
+     "probe": "cloudwatch_marker", "log_group": "/aws/lambda/ynab-nag",
+     # active_window is the EventBridge cron itself, cron(0/5 14-23,0-3), in
+     # UTC -- so it stays right across DST (10:00-23:55 EDT, 09:00-22:55 EST).
+     "today_only": False, "max_age_h": 14, "active_window": ("14:00", "03:55"),
+     "log_grep": r"\[app-nag\] (?:checked|before-first-slot|quiet|reminded|no-reminder|waiting|muted|sent-\d+)\s*$",
+     "fail_grep": r"\[app-nag\] kv-error|Task timed out|\[ERROR\]|Budget brief failed|Traceback"},
+    # dhaka-yearly (launchd 01:15): nightly.sh deploys only after the engine, the
+    # rule check AND the page test pass, and undoes data.json otherwise -- so the
+    # LIVE `updated_tz` moves only on a fully good night. 26 h: a run finishing
+    # ~02:00 is ~3 h old at 05:00; one missed night reads ~27 h.
+    {"name": "dhaka-yearly (nightly trip plans, live site)", "repo": None,
+     "probe": "web_fresh", "url": "https://dhaka-yearly.vercel.app/data.json",
+     "json_key": "updated_tz", "max_age_h": 26},
+    # AM Reads (reddit-scraper am_reads.yml, 07:45 ET + two backup crons). Both
+    # outcome lines are anchored on the log's own "…Z " timestamp: the echoed
+    # workflow source also contains "NO CHANGE: AM Reads already current" (the
+    # Actions echo trap), but there it follows `echo "`, never the stamp.
+    {"name": "reddit-scraper (AM Reads morning list)", "repo": "reddit-scraper",
+     "probe": "gh_run", "workflow": "am_reads.yml", "max_age_h": 30,
+     "log_grep": [r"Fetching AM Reads post: https://ritholtz\.com/\d{4}/\d\d/",
+                  r"\dZ (?:NO CHANGE: AM Reads already current|AM READS PUSHED: [0-9a-f]{7})"]},
+    # llm-balance-check (launchd 08:10) is the only warning before the paid
+    # OpenRouter lane runs dry. A blank balance (API/key broken) prints
+    # "openrouter=" with no number and fails the row. Runs after the 05:00
+    # check, so {date}.
+    {"name": "llm-balance-check (daily OpenRouter balance warning)", "repo": None,
+     "probe": "log_marker", "log_path": "~/Library/Logs/llm-balance-check.log",
+     "log_grep": r"{date} \d\d:\d\d:\d\d openrouter=\d"},
 ]
 
 
@@ -2449,10 +2608,28 @@ def already_ran_today() -> bool:
 
 
 def _lock_is_fresh() -> bool:
+    """A lock only backs the retry slot off while its writer is still ALIVE.
+
+    Red team 2026-09-27: job-reaper SIGKILLs a hung 05:00 run at ~05:30, the
+    finally-block never runs, and the orphaned lock (1.5 h old at 06:30, under
+    LOCK_STALE_S) made the retry slot log "backing off" and exit 0 -- no digest
+    that day, nothing loud until the cloud watchdog hours later. The pid inside
+    the lock decides; age is only the fallback for an unreadable lock."""
     try:
-        return time.time() - os.path.getmtime(LOCK_FILE) < LOCK_STALE_S
+        age = time.time() - os.path.getmtime(LOCK_FILE)
     except OSError:
         return False
+    try:
+        pid = int(open(LOCK_FILE).read().strip())
+    except (OSError, ValueError):
+        return age < LOCK_STALE_S
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False                         # writer is dead: the lock is an orphan
+    except PermissionError:
+        pass                                 # alive, just not ours to signal
+    return age < LOCK_STALE_S
 
 
 # ── roster lint ─────────────────────────────────────────────────────────────
@@ -2477,7 +2654,14 @@ def lint_roster(fleet=None):
     """Every liveness-only row must say why liveness is enough. Returns offenders."""
     offenders = []
     for item in (FLEET if fleet is None else fleet):
-        weak = (item["probe"] in LIVENESS_ONLY
+        pats = item.get("log_grep") or []
+        pats = [pats] if isinstance(pats, str) else list(pats)
+        # Red team 2026-09-27: log_grep=[""] or "." passed the lint and matches
+        # any log -- a marker that cannot miss is decoration.
+        vacuous = any(re.search(p.replace("{today}", "").replace("{date}", "")
+                                 .replace("{weekday}", ""), probe_text)
+                      for p in pats for probe_text in ("", "zz"))
+        weak = (item["probe"] in LIVENESS_ONLY or vacuous
                 or (item["probe"] == "gh_run" and not item.get("log_grep")))
         if weak and not item.get("weak_ok"):
             offenders.append(item)
@@ -2521,6 +2705,17 @@ def main(argv=()) -> None:
 if __name__ == "__main__":
     try:
         main(sys.argv[1:])
+    except SystemExit as e:
+        # Red team 2026-09-27: the roster lint exits via SystemExit(2), which
+        # `except Exception` never sees -- a bad roster edit stopped every
+        # morning check with no alert at all. A clean exit (0/None) stays quiet.
+        if e.code not in (0, None):
+            _telegram_send(f"🚨 fleet_health.py REFUSED TO RUN (exit {e.code}) — the "
+                           "checker is down, not the fleet. Most likely the roster "
+                           "lint: a liveness-only row without weak_ok. See "
+                           "health.log. Paste this to Claude to debug.")
+            sys.exit(3)                      # 3 = "already alerted" to run_health.sh
+        raise
     except Exception:                        # noqa: BLE001 — die LOUDLY
         import traceback
         tb = traceback.format_exc()
@@ -2528,4 +2723,4 @@ if __name__ == "__main__":
         _telegram_send("🚨 fleet_health.py itself CRASHED — the checker is "
                        f"down, not the fleet:\n{tb[-1500:]}\n"
                        "Paste this to Claude to debug.")
-        sys.exit(1)
+        sys.exit(3)                          # 3 = "already alerted" to run_health.sh

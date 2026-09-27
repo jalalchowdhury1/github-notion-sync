@@ -68,6 +68,16 @@ export HEALTH_WEBHOOK_SECRET="$(grep '^WEBHOOK_SECRET=' \
 EXTRA=""
 if (( 10#$(date +%H) >= 6 )) && [ "${1:-}" != "--force" ]; then EXTRA="--retry-slot"; fi
 python3 fleet_health.py $EXTRA
+rc=$?
+# Exit 3 = fleet_health.py already sent its own 🚨. Any other nonzero exit is a
+# death its handlers never saw (SyntaxError/ImportError from a bad edit exits 1
+# before they exist) -- red team 2026-09-27: that was a silent morning.
+if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then
+  curl -s -m 20 -o /dev/null "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+    --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+    --data-urlencode "text=🚨 fleet_health.py died with exit $rc before it could report — the checker is down, not the fleet. Tail of health.log has the traceback. Paste this to Claude." \
+    || echo "WARN: wrapper alert failed too"
+fi
 # Snapshot the Mac's actual job schedule (launchd/cron/Time Machine) →
 # schedule.json; commits+pushes only when the job list changed.
 python3 schedule_snapshot.py

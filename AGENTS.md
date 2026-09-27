@@ -90,6 +90,27 @@ sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
   digest, and a red Actions run + GitHub's failure email can go unread for a
   week. `TELEGRAM_TOKEN`/`TELEGRAM_CHAT_ID` are wired in `health.yml`; if they
   are unset the alert degrades to email-only and never crashes.
+  **Since One Clock the dispatch lands ~12:37 UTC**, so the real latency is a
+  little shorter than the numbers above. **Card-delivery check (red team
+  2026-09-27):** when `telegram_mode == "digest"`, "sent" only means QUEUED in
+  health-hub; the watchdog also reads `digest_fleet_at` from
+  jalal-health.vercel.app/api/health (stamped only after Telegram accepted a
+  card naming the fleet item) and dies past `CARD_STALE_HOURS = 20` — a dead
+  card flush would otherwise swallow every fleet red silently.
+- **Red team 2026-09-27 (round 7) — rules that generalise:**
+  - A job that runs BEFORE the 05:00 check gets `{today}`, never `{date}`:
+    the yesterday arm let a failed morning pass (daily-trackers, gcal-sync,
+    planner-backup). Weekday-only markers get `{weekday}` (trading-algorithm:
+    72 h alone left two green mornings after a Tuesday death).
+  - An hourly/5-minute job is graded by the NEWEST outcome, not "any success
+    in the window": `cloudwatch_marker(today_only=False, fail_grep=,
+    active_window=)` (ynab-nag), `log_tail` with a hard age (defensive-nag),
+    stamped grace hits measured against the newest line (aoife-typing).
+  - A lock backs the 6:30 retry off only while its pid is alive (job-reaper
+    SIGKILLs leave orphans). Every nonzero exit alerts: fleet_health.py exits
+    3 after its own 🚨; run_health.sh alerts on any other code (SyntaxError).
+  - The lint rejects a `log_grep` that matches "" or "zz". 5xx from a bot
+    selftest or the catalysts fetch is infra (retried), not a red row.
 
 **Plus a third job (2026-07-20): the self-maintaining "Mac Mini Schedule" Notion table.**
 - `schedule_snapshot.py` — runs on the Mac right after `fleet_health.py`

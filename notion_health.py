@@ -28,7 +28,8 @@ NOTION_VERSION = "2022-06-28"
 GH_USER = "jalalchowdhury1"
 
 # The Mac stamps health.json at 05:00 local (09:00 UTC) daily; this workflow's
-# 13:07 UTC cron actually starts 14:38-15:49 UTC (8 days measured). `checked` is
+# 13:07 UTC cron actually starts 14:38-15:49 UTC (8 days measured; since
+# One Clock the dispatch lands ~12:37 UTC, so alerts come a little sooner). `checked` is
 # written in the Mac's LOCAL time and compared against the runner's UTC clock,
 # which INFLATES the age by 4 h (EDT) / 5 h (EST) — the safe direction. So a
 # normal day measures 10-12 h here and ONE missed Mac run measures 34-37 h.
@@ -38,6 +39,17 @@ GH_USER = "jalalchowdhury1"
 # not fire until the THIRD day after the last stamp (~3.4 days) — the docs said
 # two days and the code delivered three and a half.
 STALE_HOURS = 24
+
+# Red team 2026-09-27: telegram == "sent" also covers a hand-off to health-hub's
+# Silent digest, which only QUEUES the fleet item; the card itself goes out
+# 06:50-07:30 ET. If the card flush dies (bot revoked, tick stopped), every
+# later fleet red goes into the same dead card while health.json keeps saying
+# "sent" -- nobody hears anything. health-hub stamps delivered.fleet only after
+# Telegram ACCEPTED a card naming it; /api/health exposes it as digest_fleet_at
+# (ET, zone-less, so this UTC runner inflates its age by 4-5 h, the safe way).
+# Today's card measures ~6-11 h here, a missed card ~30 h+.
+HEALTH_HUB = "https://jalal-health.vercel.app/api/health"
+CARD_STALE_HOURS = 20
 
 
 def _stamp_age_hours(checked: str) -> float:
@@ -195,6 +207,39 @@ def main():
         updated += 1
         print(f"  {'✅' if r['ok'] else '❌'} {r['repo']}: {r['detail']}")
     print(f"Notion updated: {updated} rows ({missing} without rows yet), checked {checked}")
+
+    if health.get("telegram_mode") == "digest":
+        check_card_delivered(checked)
+
+
+def check_card_delivered(checked):
+    """The queued fleet item must have reached Telegram in a card (see CARD_STALE_HOURS)."""
+    body, err = None, None
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(HEALTH_HUB, timeout=30) as r:
+                body = json.loads(r.read().decode())
+            break
+        except Exception as e:               # noqa: BLE001 — infra error: retry
+            err = e
+            time.sleep(20 if attempt < 2 else 0)
+    if body is None:
+        die(f"could not read {HEALTH_HUB} ({err}) -- the Silent digest that carries "
+            f"the fleet report may be down, so the {checked} digest may never have "
+            f"reached the owner.")
+    at = body.get("digest_fleet_at")
+    if not at:
+        die("health-hub has NO delivery stamp for the fleet item (digest_fleet_at "
+            "empty): the fleet digest was queued but no morning card carrying it "
+            "ever reached Telegram.")
+    age = _stamp_age_hours(at)
+    if age > CARD_STALE_HOURS:
+        die(f"the fleet digest was QUEUED ({checked}) but the last morning card "
+            f"that carried it went out at {at} ET ({age:.0f}h by this clock, limit "
+            f"{CARD_STALE_HOURS}h). The Silent digest card is not being delivered, "
+            f"so every fleet alert since is going nowhere. Check health-hub's tick "
+            f"(com.jalal.health-tick / tick.yml) and DEFENSIVE_BOT_TOKEN.")
+    print(f"fleet item delivered in the {at} ET card")
 
 
 if __name__ == "__main__":
