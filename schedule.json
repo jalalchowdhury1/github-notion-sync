@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-27 05:02",
+ "updated": "2026-09-27 17:32",
  "jobs": [
   {
    "key": "com.jalal.aoife-gcal-sync",
@@ -112,16 +112,6 @@
    "notes": ""
   },
   {
-   "key": "com.jalal.dsh-retry-watcher",
-   "title": "com.jalal.dsh-retry-watcher",
-   "when": "—",
-   "frequency": "Always on",
-   "mechanism": "launchd com.jalal.dsh-retry-watcher → /opt/homebrew/bin/python3.14",
-   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
-   "logs": "~/Library/Logs/dsh-retry-watcher.log",
-   "notes": ""
-  },
-  {
    "key": "com.jalal.fleet-health",
    "title": "Fleet health check (all repos)",
    "when": "5:00 AM (retries 6:30 AM)",
@@ -140,16 +130,6 @@
    "what": "curls https://jalal-health.vercel.app/api/tick (secret from ~/.config/secrets.env), which sends Jalal's med nags with confirm buttons, eating-window open/warn/close alerts, and fridge prompts via @JalalHealthBot, all state in the shared Upstash KV (health:* keys)",
    "logs": "~/Library/Logs/health-tick.log",
    "notes": "PRIMARY trigger for the health-hub app (repo health-hub, built 2026-08-26); an hourly GH Actions tick.yml is the backstop, so a dead Mac degrades nags to hourly instead of killing them. Idempotent server-side — overlapping ticks can't double-send. Fleet-health grades the loop via last_tick on /api/health (max 3h)."
-  },
-  {
-   "key": "com.jalal.jev-browser-ping",
-   "title": "com.jalal.jev-browser-ping",
-   "when": "8:00 AM",
-   "frequency": "Daily",
-   "mechanism": "launchd com.jalal.jev-browser-ping → ~/.jev-browser/ping/send.sh",
-   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
-   "logs": "—",
-   "notes": ""
   },
   {
    "key": "com.jalal.job-reaper",
@@ -192,6 +172,16 @@
    "notes": "03:10 with a 04:10 retry — both deliberately BEFORE the 5:00 fleet check so a failed audit is caught the same morning. SILENT BY DESIGN: no message means nothing changed, so the fleet-health local_stamp probe on state/last_success is the only proof it is alive. Severity drives loudness — CRITICAL (protection switched off, new root LaunchDaemon, new admin, new SSH key) notifies; INFO (a new Chrome extension) is a quiet ping. `tcc_allowed` reads as 'still unreadable' every night because a launchd-spawned bash has no Full Disk Access; that is reported, never silently dropped, and granting FDA to /bin/bash would restore it at the cost of giving every shell script full-disk rights. root_processes is MONOTONIC (union of everything ever seen) because OneDrive's updater daemon is only intermittently running and a plain set-diff flapped nightly. After deliberately changing the Mac's posture, run `uv run mac-audit run` once so the change lands in the baseline instead of ambushing you at 3 AM"
   },
   {
+   "key": "com.jalal.mac-heartbeat",
+   "title": "com.jalal.mac-heartbeat",
+   "when": "every 5 min, 12:02 AM–12:57 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.mac-heartbeat → ~/PycharmProjects/one-clock/scripts/mac_heartbeat.py",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "—",
+   "notes": ""
+  },
+  {
    "key": "com.jalal.mental-models-backstop",
    "title": "Mental-models cron-miss backstop",
    "when": "6:00 AM",
@@ -229,26 +219,6 @@
    "mechanism": "launchd com.jalal.reddit-browser → ~/.local/share/reddit-browser/reddit-scraper/mac/reddit-browser.sh",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/reddit-browser.log",
-   "notes": ""
-  },
-  {
-   "key": "com.jalal.rr-night",
-   "title": "com.jalal.rr-night",
-   "when": "1:20 AM",
-   "frequency": "Daily",
-   "mechanism": "launchd com.jalal.rr-night → ~/PycharmProjects/rational-reminder-advice/night/night-run.sh",
-   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
-   "logs": "~/Library/Logs/rr-night.launchd.log",
-   "notes": ""
-  },
-  {
-   "key": "com.jalal.rr-watchdog",
-   "title": "com.jalal.rr-watchdog",
-   "when": "every 5 min, 1:25 AM–6:35 AM",
-   "frequency": "Daily",
-   "mechanism": "launchd com.jalal.rr-watchdog → ~/PycharmProjects/rational-reminder-advice/night/watchdog.sh",
-   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
-   "logs": "~/Library/Logs/rr-watchdog.launchd.log",
    "notes": ""
   },
   {
@@ -299,16 +269,6 @@
    "mechanism": "launchd com.jalal.trigger-board → ~/concierge/triggers/board/run.sh",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/trigger-board.err",
-   "notes": ""
-  },
-  {
-   "key": "com.jalal.webai-queue",
-   "title": "com.jalal.webai-queue",
-   "when": "—",
-   "frequency": "Always on",
-   "mechanism": "launchd com.jalal.webai-queue → ~/.local/bin/webai-queue-run",
-   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
-   "logs": "~/Library/Logs/webai-queue.log",
    "notes": ""
   },
   {
