@@ -1662,33 +1662,19 @@ FLEET = [
      "probe": "gh_run", "workflow": "health.yml", "max_age_h": 36,
      "log_grep": r"Notion updated: [1-9]\d* rows.*checked {date}",
      "expect_event": "workflow_dispatch"},
-    # Watchdog for the AAII scrape. Un-rostered before 2026-08-29 — the thing
-    # that catches a silent scrape miss could itself go silent unnoticed.
-    # AWS one-clock-sentiment-watchdog 19:30 UTC; GH 20:00 backstop.
-    # Marker added 2026-09-12. The watchdog's whole job is to say FRESH or STALE.
-    # A green run that printed STALE is the watchdog WORKING and the data being
-    # broken — which must page. Asserting FRESH is therefore the data check, and
-    # there is no date to pin: it reports a relative age, not an absolute stamp.
-    {"name": "sentiment-scraper (evening watchdog)", "repo": "sentiment-scraper",
-     "probe": "gh_run", "workflow": "watchdog.yml", "max_age_h": 36,
-     # Bounded, not [\d.]+ (red team, 2026-09-12). The watchdog decides FRESH vs
-     # STALE itself; an unbounded number meant a mis-set threshold printing
-     # "FRESH: last write 740h ago" would still match and go green. 0-47.9h
-     # re-derives the freshness claim instead of trusting the watchdog's word.
-     "log_grep": r"FRESH: last write (?:[0-9]|[1-3][0-9]|4[0-7])(?:\.\d+)?h ago",
-     "expect_event": "workflow_dispatch"},
-    # ────────────────────────────────────────────────────────────────────────
-    # sentiment-scraper: cron 08:00 UTC, actually runs 09:51-11:17 (10 days).
-    {"name": "sentiment-scraper (AAII weekly data)", "repo": "sentiment-scraper",
-     # NO expect_event: only sentiment-scraper's WATCHDOG moved to AWS
-     # (one-clock-sentiment-watchdog); this daily scrape is still GitHub-cron.
-     # Marker added 2026-09-12. Deliberately NOT pinned to {date}: the date in
-     # this line is AAII's SURVEY date, which lags the run by days on a weekly
-     # release. Pinning it to today would page every day of a normal week. What
-     # this proves is that the run reached the sheet with real percentages; the
-     # data's own freshness is the WATCHDOG row's job, not this one.
-     "probe": "gh_run", "workflow": "daily-scrape.yml", "max_age_h": 36,
-     "log_grep": r"Wrote to sheet: .*bull=[\d.]+%.*bear=[\d.]+%"},
+    # AAII (2026-09-27): sentiment-scraper + its Google Sheet are RETIRED (the
+    # sheet's service-account key had leaked). The dashboard now reads aaii.com
+    # itself (Substack backup) at /api/aaii; the morning bot reads that API.
+    # as_of is AAII's weekly survey date (Wednesdays), so 240 h = one missed week.
+    {"name": "financial-dashboard /api/aaii (AAII weekly, fresh)", "repo": "financial-telegram-bot",
+     "probe": "web_fresh", "url": "https://financial-telegram-bot-beryl.vercel.app/api/aaii",
+     "json_key": "as_of", "max_age_h": 240},
+    # Red whenever the Substack backup is carrying the data: a dead primary
+    # source must not hide behind a working fallback.
+    {"name": "financial-dashboard /api/aaii (primary = aaii.com)", "repo": "financial-telegram-bot",
+     "probe": "web_200", "url": "https://financial-telegram-bot-beryl.vercel.app/api/aaii",
+     "expect_text": "\"source\":\"aaii.com\"",
+     "weak_ok": "asserts WHICH source served; the /api/aaii freshness row above is the data check"},
     # ynab-budget-brief: cron 11:00 UTC, actually runs 12:00-13:40 (10 days).
     # Since the 2026-08-19 quota redesign the run sends TWO messages (Eating
     # Out, then Aoife+Nabila). Each marker is printed only AFTER its

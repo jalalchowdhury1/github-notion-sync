@@ -262,6 +262,10 @@ The tests fake `subprocess` and `git`, so they never push.
   `x-vercel-protection-bypass` header. Secrets live in
   `~/PycharmProjects/.secrets/vercel-bypass.env` (mode 600), sourced by run_health.sh.
   A missing secret is a plain red ("<VAR> not set"), and the value never lands in a detail line.
+- **AAII moved off the Google Sheet (2026-09-27).** sentiment-scraper is retired (its
+  service-account key had leaked); both its rows are replaced by two `/api/aaii` rows on the
+  dashboard (freshness of `as_of`, and `source` = aaii.com). AWS schedule
+  `one-clock-sentiment-watchdog` set DISABLED (not deleted).
 - **Whole-project audit follow-ups (2026-09-27).** Rows tightened: dashboard `stale=0`, Google
   News `GOOGLE NEWS: saved N`, dhaka-yearly accepts `NIGHTLY IDLE`, new mac-heartbeat row.
   Still to add: **milestones recap row on 2 Oct** (`bot_selftest` POST /api/recap with
