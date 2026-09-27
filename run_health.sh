@@ -20,6 +20,9 @@ fi
 
 # Telegram creds shared with the trip tracker (same chat)
 set -a; source "/Users/jalalchowdhury/PycharmProjects/Dhaka flights/.env" 2>/dev/null; set +a
+# Vercel "Protection Bypass for Automation" secrets (2026-09-27) for the sites made
+# login-only (dhaka-flights, nafis-mortgage). Values only, no other keys in the file.
+set -a; source /Users/jalalchowdhury/PycharmProjects/.secrets/vercel-bypass.env 2>/dev/null; set +a
 
 # voices-bot's OWN bot token (@MainJ_bot), read for the telegram_webhook probe.
 # Deliberately NOT sourced with `set -a; source .../voices-bot/.env` — that file

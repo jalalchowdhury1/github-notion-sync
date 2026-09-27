@@ -139,7 +139,7 @@ def _parse_stamp(raw):
 
 
 def probe_web_fresh(url, json_key, max_age_h, rows_key=None, min_rows=None,
-                    fail_key=None, fail_note_key=None, **_):
+                    fail_key=None, fail_note_key=None, bypass_env=None, **_):
     """Fetch JSON and check a timestamp field is recent (data-level freshness).
 
     rows_key: grade the OLDEST per-row stamp under data[rows_key] instead of a
@@ -154,8 +154,19 @@ def probe_web_fresh(url, json_key, max_age_h, rows_key=None, min_rows=None,
     fail_key (round 8): a top-level stamp of the job's newest FAILURE. Red when it
     is newer than json_key's stamp — the last thing the job tried did not work
     (health-hub: send_error_at vs send_ok_at; a blocked bot kept last_tick fresh).
-    fail_note_key names a short reason field to quote."""
-    with urllib.request.urlopen(url, timeout=30) as r:
+    fail_note_key names a short reason field to quote.
+
+    bypass_env (2026-09-27): env var holding a Vercel "Protection Bypass for
+    Automation" secret, for sites behind Vercel Authentication (dhaka-flights was
+    made login-only so the family's trip dates stop being public). Sent as the
+    x-vercel-protection-bypass header; the value never appears in a detail line."""
+    req = urllib.request.Request(url)
+    if bypass_env:
+        secret = os.environ.get(bypass_env)
+        if not secret:
+            return False, f"{bypass_env} not set (see run_health.sh)"
+        req.add_header("x-vercel-protection-bypass", secret)
+    with urllib.request.urlopen(req, timeout=30) as r:
         data = json.loads(r.read().decode())
     # min_rows {list_key: floor} (red team 2026-09-27): a fresh top-level stamp on
     # a half-empty scrape is still a false green -- dhaka-flights published
@@ -193,7 +204,7 @@ def probe_web_fresh(url, json_key, max_age_h, rows_key=None, min_rows=None,
                                             f" (limit {max_age_h}h, raw {json_key}={raw!r})")
 
 
-def probe_web_200(url, expect_text=None, **_):
+def probe_web_200(url, expect_text=None, bypass_env=None, **_):
     """HTTP 200 from the host we asked, optionally carrying expect_text.
 
     Red team round 4 (2026-09-12): urlopen FOLLOWS redirects, including to other
@@ -205,6 +216,11 @@ def probe_web_200(url, expect_text=None, **_):
     Still liveness: it cannot prove the page RUNS (a runtime JS error serves 200).
     """
     req = urllib.request.Request(url, method="GET")
+    if bypass_env:                      # login-only Vercel site: see probe_web_fresh
+        secret = os.environ.get(bypass_env)
+        if not secret:
+            return False, f"{bypass_env} not set (see run_health.sh)"
+        req.add_header("x-vercel-protection-bypass", secret)
     with urllib.request.urlopen(req, timeout=30) as r:
         want = urllib.parse.urlsplit(url).netloc
         got = urllib.parse.urlsplit(r.url).netloc
@@ -1555,7 +1571,7 @@ PROBE_FNS["log_tail"] = probe_log_tail
 
 FLEET = [
     {"name": "dhaka-flights (nightly trip tracker)", "repo": "dhaka-flights",
-     "probe": "web_fresh", "url": "https://raw.githubusercontent.com/jalalchowdhury1/dhaka-flights/main/site/data.json",
+     "probe": "web_fresh", "url": "https://dhaka-flights.vercel.app/data.json", "bypass_env": "DHAKA_VERCEL_BYPASS",
      "json_key": "updated", "max_age_h": 36,
      # healthy nights 22 Aug-27 Sep: ticket1 2-8, ticket2 9-10, sg 35-61,
      # flights 196-254 (flights=0 on 08-23 was the broken scrape this catches)
@@ -1587,7 +1603,7 @@ FLEET = [
     # morning already reads ~29 h). 96 fires on ~3 dead nights, not on one.
     {"name": "dhaka-hotels (nightly award-rate research)", "repo": None,
      "probe": "web_fresh",
-     "url": "https://raw.githubusercontent.com/jalalchowdhury1/dhaka-flights/main/site/hotel_rates.json",
+     "url": "https://dhaka-flights.vercel.app/hotel_rates.json", "bypass_env": "DHAKA_VERCEL_BYPASS",
      "json_key": "checked", "rows_key": "rows", "max_age_h": 96},
     {"name": "carmax-scraper (nightly car picks)", "repo": "carmax-scraper",
      "probe": "local_stamp", "path": "~/PycharmProjects/carmax-scraper/.last_success_date",
@@ -1707,7 +1723,9 @@ FLEET = [
                   # team 2026-09-12): with every fetcher down, apply_fallbacks copies the
                   # last row forward and still prints "successfully appended". Normal is
                   # 0-3 (last 20 appends).
-                  r"(?:Data successfully appended to Google Sheet\. \(\d+ metrics; carried_forward=(?:1[0-8]|[0-9]),"
+                  # 2026-09-27: the producer now caps each carry at 4 runs and prints
+                  # stale=N (columns it had to leave blank); any stale column is red.
+                  r"(?:Data successfully appended to Google Sheet\. \(\d+ metrics; carried_forward=(?:1[0-8]|[0-9]), na_remaining=\d+, stale=0\)"
                   r"|dedupe guard: slot {today}-(?:AM|PM) already has a successful run)"],
      "expect_event": "workflow_dispatch"},
     # vix-fear-greed: RETIRED + ARCHIVED 2026-08-29, probe deliberately removed.
@@ -1785,6 +1803,10 @@ FLEET = [
      "log_grep": [r"last data/ commit: [^$\n]+ — proceeding"
                   r"|data/ already updated today \([^$\n]+\) — skipping",
                   r"DATA PUSHED: [1-9]\d* data files"
+                  r"|data/ already updated today \([^$\n]+\) — skipping",
+                  # 2026-09-27: Google News used to swallow every error and exit 0
+                  # while Ritholtz/Trung still pushed (26 Sep). It now prints this.
+                  r"GOOGLE NEWS: saved [1-9]\d* articles"
                   r"|data/ already updated today \([^$\n]+\) — skipping"]},
     # reddit-browser (added 2026-09-26): Reddit blocks GitHub's IPs, so the top
     # lists now come from launchd com.jalal.reddit-browser (07:35 + 19:35), which
@@ -1912,6 +1934,7 @@ FLEET = [
      "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
     {"name": "nafis-mortgage (site)", "repo": "nafis-mortgage",
      "probe": "web_200", "url": "https://nafis-mortgage.vercel.app",
+     "bypass_env": "NAFIS_VERCEL_BYPASS",   # login-only since 2026-09-27
      "weak_ok": "finished work, nothing scheduled; proves it is served from its own host, not that the page renders"},
     # Rostered 2026-08-25 during a coverage audit: aoife-math/columns/frameworks
     # were watched while these three equally-live sisters were not — coverage by
@@ -2356,9 +2379,18 @@ FLEET = [
     # failed notify. Every run now ENDS with one line (engine/nightly_line.py);
     # manual runs append to the same dated file, so its last line is the latest
     # run. 01:15 launchd -> ~3-5 h old at 05:00/06:30.
+    # One Clock dead-man (2026-09-27): every 5 min the Mac pushes a one-shot AWS
+    # alarm 45 min ahead; if the Mac goes quiet the alarm fires a Telegram alert
+    # from the cloud. This row catches the heartbeat job itself failing.
+    {"name": "mac-heartbeat (One Clock dead-man switch)", "repo": "one-clock",
+     "probe": "launchd_exit", "label": "com.jalal.mac-heartbeat",
+     "weak_ok": "exit code only; the real check is the cloud alarm itself, which fires within 45 min of the beats stopping"},
     {"name": "dhaka-yearly (01:15 nightly run ended OK)", "repo": None,
      "probe": "log_tail", "path": "~/PycharmProjects/dhaka-yearly/data/run-{today_ymd}.log",
-     "last_line": r"^NIGHTLY OK plans=[1-9]\d* problems=0 pushed=[0-9a-f]{7} notify=(?:ok|none)$",
+     # NIGHTLY IDLE (2026-09-27): after the booked departure no year is left to
+     # search (6-31 Jan 2027), so the run deliberately does nothing.
+     "last_line": r"^(?:NIGHTLY OK plans=[1-9]\d* problems=0 pushed=[0-9a-f]{7} notify=(?:ok|none)"
+                  r"|NIGHTLY IDLE: no year to search: .+)$",
      "max_age_h": 8},
     {"name": "dhaka-yearly (nightly trip plans, live site)", "repo": None,
      "probe": "web_fresh", "url": "https://dhaka-yearly.vercel.app/data.json",

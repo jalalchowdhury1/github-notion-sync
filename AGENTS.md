@@ -256,6 +256,19 @@ The tests fake `subprocess` and `git`, so they never push.
 
   Probe support added for this: `web_fresh` `fail_key`/`fail_note_key` (red when the
   newest attempt failed), and a `{today_ymd}` (YYYYMMDD) token in `log_tail` paths.
+- **Login-only sites (2026-09-27).** dhaka-flights and nafis-mortgage sit behind Vercel
+  Authentication. `web_fresh` / `web_200` take `bypass_env`: the env var holding that
+  project's "Protection Bypass for Automation" secret, sent as the
+  `x-vercel-protection-bypass` header. Secrets live in
+  `~/PycharmProjects/.secrets/vercel-bypass.env` (mode 600), sourced by run_health.sh.
+  A missing secret is a plain red ("<VAR> not set"), and the value never lands in a detail line.
+- **Whole-project audit follow-ups (2026-09-27).** Rows tightened: dashboard `stale=0`, Google
+  News `GOOGLE NEWS: saved N`, dhaka-yearly accepts `NIGHTLY IDLE`, new mac-heartbeat row.
+  Still to add: **milestones recap row on 2 Oct** (`bot_selftest` POST /api/recap with
+  X-Selftest; red until then because the Aug proof is missing), and hedgelab
+  `"expect_event": "workflow_dispatch"` once the one-clock-dispatcher token covers hedgelab.
+  After 4 Jan 2027: retire the v1 dhaka-flights/dhaka-hotels jobs and rows; pause the
+  dhaka-yearly live-site row 6-31 Jan (idle nights don't deploy).
 
 Also known and accepted:
 - A failed loud send is not retried; the red still sits in the card.

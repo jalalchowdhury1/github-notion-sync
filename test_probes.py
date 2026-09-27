@@ -21,6 +21,7 @@ import time
 import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import fleet_health as fh
 
@@ -1233,3 +1234,41 @@ class DefensiveNagOutcome(_Patched):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WebFreshBypassHeader(unittest.TestCase):
+    """bypass_env (2026-09-27): login-protected Vercel sites are read with the
+    automation-bypass header; a missing secret is a clear red, never a leak."""
+
+    def _run(self, env, **kw):
+        import datetime as dt
+        seen = {}
+        class R:
+            def __init__(self, req): seen["req"] = req
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def read(self):
+                return json.dumps({"updated": dt.datetime.now().isoformat()}).encode()
+        with mock.patch.dict(os.environ, env, clear=False), \
+             mock.patch.object(fh.urllib.request, "urlopen", lambda req, timeout=0: R(req)):
+            out = fh.probe_web_fresh(url="https://x.vercel.app/data.json",
+                                     json_key="updated", max_age_h=26, **kw)
+        return out, seen.get("req")
+
+    def test_header_sent_and_secret_not_in_detail(self):
+        (ok, detail), req = self._run({"BYP_TEST": "s" * 32}, bypass_env="BYP_TEST")
+        self.assertTrue(ok, detail)
+        self.assertEqual(req.get_header("X-vercel-protection-bypass"), "s" * 32)
+        self.assertNotIn("s" * 32, detail)
+
+    def test_missing_secret_is_red(self):
+        os.environ.pop("BYP_MISSING", None)
+        (ok, detail), req = self._run({}, bypass_env="BYP_MISSING")
+        self.assertFalse(ok)
+        self.assertIn("BYP_MISSING not set", detail)
+        self.assertIsNone(req)
+
+    def test_no_bypass_sends_no_header(self):
+        (ok, _), req = self._run({})
+        self.assertTrue(ok)
+        self.assertIsNone(req.get_header("X-vercel-protection-bypass"))
