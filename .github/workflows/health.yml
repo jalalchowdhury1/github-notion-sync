@@ -1,9 +1,12 @@
 name: Daily health to Notion
 on:
   schedule:
-    # Daily 13:07 UTC = 9:07 AM ET — hours after the Mac's 5:00 AM
-    # fleet_health.py run pushes health.json. :07 dodges the contended
-    # top-of-hour scheduler queue. Also the dead-Mac watchdog: fails
+    # BACKSTOP only. The primary is One Clock (AWS EventBridge -> gh-dispatcher
+    # Lambda -> workflow_dispatch, ~12:37 UTC); the fleet row for this workflow
+    # sets expect_event=workflow_dispatch, so a dead primary shows up red even
+    # while this cron keeps the stamp alive. 13:07 UTC = 9:07 AM ET, hours after
+    # the Mac's 05:00/06:30 fleet_health.py runs push health.json; :07 dodges the
+    # contended top-of-hour queue. Also the dead-Mac watchdog: fails
     # (→ Actions email AND a Telegram of its own) at the first check that
     # finds health.json older than STALE_HOURS in notion_health.py.
     - cron: '7 13 * * *'
@@ -29,8 +32,6 @@ jobs:
           # than crashing.
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          DIGEST_URL: https://jalal-health.vercel.app/api/digest
-          DIGEST_KEY: ${{ secrets.DIGEST_KEY }}
         run: python notion_health.py
       - name: Rebuild Mac Mini Schedule table
         env:

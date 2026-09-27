@@ -50,6 +50,15 @@ STALE_HOURS = 24
 # Today's card measures ~6-11 h here, a missed card ~30 h+.
 HEALTH_HUB = "https://jalal-health.vercel.app/api/health"
 CARD_STALE_HOURS = 20
+CARD_WINDOW_END_ET = (10, 0)   # health-hub lib/digest.js WINDOW end (06:50-10:00 ET)
+
+
+def _card_window_open(now_utc=None) -> bool:
+    """True while health-hub may still send today's card (before 10:00 ET)."""
+    from zoneinfo import ZoneInfo
+    now_utc = now_utc or datetime.datetime.now(datetime.timezone.utc)
+    et = now_utc.astimezone(ZoneInfo("America/New_York"))
+    return (et.hour, et.minute) < CARD_WINDOW_END_ET
 
 
 def _stamp_age_hours(checked: str) -> float:
@@ -233,6 +242,14 @@ def check_card_delivered(checked):
             "empty): the fleet digest was queued but no morning card carrying it "
             "ever reached Telegram.")
     age = _stamp_age_hours(at)
+    if CARD_STALE_HOURS < age <= CARD_STALE_HOURS + 24 and _card_window_open():
+        # Round 8: this runs ~12:37 UTC = 08:37 EDT / 07:37 EST, and health-hub
+        # may send the card as late as CARD_WINDOW_END_ET. A late (not missing)
+        # card still shows yesterday's stamp here; wait for tomorrow's check,
+        # which sees a 2-day-old stamp if the card really stopped.
+        print(f"today's card not out yet (last {at} ET); window open till "
+              f"{CARD_WINDOW_END_ET[0]:02d}:{CARD_WINDOW_END_ET[1]:02d} ET -- not judged")
+        return
     if age > CARD_STALE_HOURS:
         die(f"the fleet digest was QUEUED ({checked}) but the last morning card "
             f"that carried it went out at {at} ET ({age:.0f}h by this clock, limit "

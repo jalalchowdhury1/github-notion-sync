@@ -1,8 +1,20 @@
 # github-notion-sync
 
-Monthly sync from GitHub → Notion. Lists every repo I own, classifies what it
-uses (AWS Lambda, Vercel, GitHub Actions, etc.), and writes/updates rows in a
-Notion database under **💻 Tech & Automation**.
+Three jobs live here (full detail in [`AGENTS.md`](AGENTS.md) — read that before
+changing anything):
+
+1. **Repo → Notion sync** (below): monthly, lists every repo I own, classifies
+   what it uses, and writes/updates rows in a Notion database under
+   **💻 Tech & Automation**.
+2. **Fleet health** (`fleet_health.py`): every morning on the Mac mini, 71
+   checks that each automation actually did its work — not just that it ran.
+   Silent at 05:00, one buzzing Telegram at 06:30 if anything is still red, full
+   detail behind the morning card's "🛠 Fleet health" button. A cloud watchdog
+   (`notion_health.py`, `health.yml`) alerts if the Mac itself goes quiet.
+   Tests: `python3 -m unittest test_fleet_health test_probes test_sync`.
+3. **Mac Mini Schedule table** (`schedule_snapshot.py` → `notion_schedule.py`).
+
+This repo is public: no tokens, webhook secrets or `?s=` URLs in code or logs.
 
 ## How it runs
 
@@ -16,8 +28,8 @@ Notion database under **💻 Tech & Automation**.
 - The **Notes** column is never written by the sync. Edit it freely.
 - Repos that disappear from GitHub are marked `Status = Deleted`, not removed,
   so manual notes survive.
-- Archived-on-GitHub repos are skipped at listing time (set
-  `include_archived=True` in `sync.py` to include them).
+- Archived-on-GitHub repos are included (`include_archived=True`) and get
+  `Status = Archived`, not Deleted.
 
 ## Stack detection (heuristic, no LLM)
 

@@ -617,8 +617,15 @@ class RedTeam0927(unittest.TestCase):
     def test_cloudwatch_newest_failure_beats_older_success(self):
         now = int(time.time() * 1000)
         ok, detail = self._cw([(now - 3600_000, "[app-nag] checked"),
+                               (now - 1200_000, "[ERROR] Runtime.ExitError"),
                                (now - 600_000, "[app-nag] kv-error")])
         self.assertFalse(ok, detail)
+        # Round 8: ONE failure after the last good (the night's final tick timing
+        # out, nothing later to heal it) is noted, not red.
+        ok, detail = self._cw([(now - 3600_000, "[app-nag] checked"),
+                               (now - 600_000, "[app-nag] kv-error")])
+        self.assertTrue(ok, detail)
+        self.assertIn("1 failure since", detail)
         ok, _ = self._cw([(now - 3600_000, "[app-nag] kv-error"),
                           (now - 600_000, "[app-nag] sent-1")])
         self.assertTrue(ok)

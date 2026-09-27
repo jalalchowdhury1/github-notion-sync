@@ -7,27 +7,33 @@ Runs ON THE MAC (launchd com.jalal.fleet-health, daily 5:00 AM with a 6:30 AM
 retry slot — everything settled before wake-up) because only the Mac can see
 all three worlds: local launchd stamps, GitHub Actions (gh CLI), and the live
 sites. Outputs:
-  1. Telegram digest — ONE line when everything is healthy; when anything
-     fails, a full diagnostic block per failure (probe config, run URL,
-     failed-log tail) meant to be pasted verbatim into Claude to debug.
-  2. health.json committed+pushed to this repo — the daily GitHub Action
-     (health.yml) then stamps the results into the Notion repos table and
-     fails loudly if health.json goes stale (dead-Mac watchdog).
+  1. The digest — handed SILENTLY to health-hub's Silent digest (the morning
+     card's "🛠 Fleet health" button replays it; direct silent Telegram if the
+     hand-off fails). ONE line when all is healthy; otherwise a full
+     diagnostic block per failure, meant to be pasted verbatim into Claude.
+  2. loud_alert() — from 06:25 only, ONE buzzing Telegram naming the rows
+     still red after the 06:30 re-check, once per row per day. Rows the
+     checker could not look at ("probe error") are listed apart.
+  3. health.json committed+pushed — the cloud watchdog (notion_health.py via
+     health.yml) stamps Notion and alerts if the Mac goes quiet or the
+     morning card stops going out.
 
-Reliability rules:
-  - Probes RAISE on infrastructure errors (network blips, gh/launchctl
-    failures) and those get retried 3x with a pause — a transient hiccup at
-    5 AM must not page as a fake ❌. A probe that RETURNS False is real
-    signal (stale data, red run) and is never retried.
-  - Telegram sends are plain text (no Markdown — log excerpts full of _*[
-    used to be able to 400 the whole digest) and retried 3x.
-  - If this script itself crashes, a 🚨 panic Telegram is sent before exiting
-    nonzero; the cloud watchdog catches a fully dead Mac within 2 days.
-  - --retry-slot (the 6:30 AM run) exits early if today's digest already went
-    out, so a healthy day gets exactly one message; a lock file makes it back
-    off if the 5 AM run is somehow still going.
-  - Failures carry a failing_since date across days (new breakage vs ongoing
-    saga), and the first healthy digest after a failure says what recovered.
+Reliability rules (the full reference is AGENTS.md §1):
+  - Probes RAISE on infrastructure errors (network blips, gh/aws/launchctl
+    failures, 5xx) and those get retried 3x with a pause. A probe that
+    RETURNS False is real signal and is never retried.
+  - lint_roster() refuses to run (exit 3 + 🚨) on a liveness-only row without
+    weak_ok, a marker that matches anything, or a date token the probe
+    cannot expand.
+  - cli(): any crash or refusal sends a 🚨 and exits 3; run_health.sh alerts
+    on any other nonzero exit (e.g. a SyntaxError before cli() exists).
+  - --retry-slot (the 06:30 run) re-grades in digest mode (the default), and
+    skips only after a direct send with no unbuzzed reds; a lock whose pid is
+    alive makes it back off. --force (run_health.sh) re-grades by day.
+  - NOT a dry run: `python3 fleet_health.py` sends and pushes. Grade without
+    side effects via run_checks() (AGENTS.md §1.5).
+  - Failures carry failing_since across days, and the first healthy digest
+    after a failure says what recovered.
 
 Stdlib only (+ the gh CLI and git, both already on the Mac).
 """
@@ -64,6 +70,29 @@ LAUNCHD_PLIST_DIRS = [Path.home() / "Library/LaunchAgents", Path("/Library/Launc
 # ── probe implementations ───────────────────────────────────────────────────
 # Contract: return (ok, detail). Raise on infrastructure trouble (gets
 # retried); return False only for genuine data-level failure.
+
+def _read(path) -> str:
+    """Whole text file, handle closed (bare open().read() leaked one per probe)."""
+    with open(path, errors="replace") as f:
+        return f.read()
+
+
+DATE_TOKENS = ("{today}", "{date}", "{weekday}")
+# Probes whose log_grep expands DATE_TOKENS. Any other probe would search for the
+# literal text "{date}" and could never match -- lint_roster refuses that.
+TOKEN_PROBES = {"gh_run", "log_marker", "cloudwatch_marker"}
+
+
+def _expand_dates(pattern, today=None):
+    """{today} = today only; {date} = today|yesterday; {weekday} = today|the
+    previous weekday. One helper for every probe (round 8: each probe used to
+    expand its own subset, and {weekday} outside gh_run stayed literal)."""
+    today = today or datetime.date.today()
+    yday = today - datetime.timedelta(days=1)
+    return (pattern.replace("{today}", today.isoformat())
+            .replace("{weekday}", f"(?:{'|'.join(_weekday_dates(today))})")
+            .replace("{date}", f"(?:{today.isoformat()}|{yday.isoformat()})"))
+
 
 def _age_hours(ts: float) -> float:
     return (datetime.datetime.now().timestamp() - ts) / 3600
@@ -180,7 +209,7 @@ def probe_web_200(url, expect_text=None, **_):
 
 def probe_local_stamp(path, max_age_h, **_):
     """Stamp file contains an ISO date written on success."""
-    date = open(os.path.expanduser(path)).read().strip()
+    date = _read(os.path.expanduser(path)).strip()
     ts = datetime.datetime.strptime(date, "%Y-%m-%d").timestamp()
     age = _age_hours(ts)
     if age < -24:       # date-only = midnight, so "today" is 0..24 h old; beyond = future
@@ -484,8 +513,6 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None,
     if log_grep:
         patterns = [log_grep] if isinstance(log_grep, str) else list(log_grep)
         _today = datetime.date.today()
-        _dates = "|".join(d.isoformat() for d in
-                          (_today, _today - datetime.timedelta(days=1)))
         # {today} pins to today alone, no buffer — same token probe_cloudwatch_marker
         # uses. Added here 2026-09-12 (red team round 3) for rows where the
         # today|yesterday buffer is too loose to mean anything. Safe because this
@@ -494,9 +521,7 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None,
         # ends) and midnight.
         # {weekday} = today|the previous weekday, for weekday-only jobs (hedgelab):
         # {date}'s one-day buffer paged Friday's good plan every Sunday and Monday.
-        patterns = [p.replace("{today}", _today.isoformat())
-                     .replace("{weekday}", f"(?:{'|'.join(_weekday_dates(_today))})")
-                     .replace("{date}", f"(?:{_dates})") for p in patterns]
+        patterns = [_expand_dates(p, _today) for p in patterns]
         lp = subprocess.run(
             ["gh", "run", "view", str(run["databaseId"]), "-R",
              f"{GH_USER}/{repo}", "--log"],
@@ -556,7 +581,7 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None,
 
 def _valid_json(path):
     try:
-        json.load(open(path))
+        json.loads(_read(path))
         return True
     except Exception:                        # noqa: BLE001 — missing/corrupt both mean "not there"
         return False
@@ -599,7 +624,7 @@ def probe_planner_backup(dest_dir, names, log_path, live_since=None, **_):
                        f"(checked {today} in {dest_dir})")
     log = os.path.expanduser(log_path)
     try:
-        text = open(log).read()
+        text = _read(log)
     except FileNotFoundError:
         return False, f"{log_path} missing"
     pattern = r"PLANNER-BACKUP OK (" + "|".join(d.isoformat() for d in candidates) + ")"
@@ -630,7 +655,7 @@ def probe_log_marker(log_path, log_grep, live_since=None, **_):
         return True, f"pre-launch grace period — alerting starts {live_since}"
     log = os.path.expanduser(log_path)
     try:
-        text = open(log, errors="replace").read()
+        text = _read(log)
     except FileNotFoundError:
         return False, f"{log_path} missing"
     dates = "|".join(d.isoformat() for d in
@@ -640,8 +665,7 @@ def probe_log_marker(log_path, log_grep, live_since=None, **_):
     # 05:00 check, {date}'s yesterday arm let a job that failed this morning
     # pass on yesterday's marker until the next day's check.
     missing = [p for p in patterns
-               if not re.search(p.replace("{today}", today.isoformat())
-                                 .replace("{date}", f"(?:{dates})"), text)]
+               if not re.search(_expand_dates(p, today), text)]
     if missing:
         return False, (f"no {', '.join(repr(m) for m in missing)} match "
                        f"in {log_path} (checked {dates})")
@@ -1182,9 +1206,18 @@ def _cloudwatch_last_outcome(log_group, log_grep, max_age_h, fail_grep=None,
         if newest < owed - datetime.timedelta(minutes=slack_min):
             return False, (f"newest good outcome {newest:%m-%d %H:%M} UTC but the schedule "
                            f"owed a tick by {owed:%m-%d %H:%M} UTC — the Lambda stopped firing")
-    if bad and bad[-1][0] > good[-1]:
-        return False, (f"latest runs are failing: {bad[-1][1].strip()[:90]!r} "
-                       f"({_age_hours(bad[-1][0] / 1000):.1f}h ago; last good outcome {age:.1f}h ago)")
+    # Two failures after the newest good, not one (round 8): a lone Lambda
+    # timeout on the night's LAST tick (03:55 UTC) has no later tick to heal it
+    # until 14:00 UTC, so it pinned the row red -- and buzzing -- all morning.
+    # A job that is really broken fails every tick and piles up far more.
+    since = [b for b in bad if b[0] > good[-1]]
+    if len(since) >= 2:
+        return False, (f"latest runs are failing ({len(since)} since the last good): "
+                       f"{since[-1][1].strip()[:90]!r} "
+                       f"({_age_hours(since[-1][0] / 1000):.1f}h ago; last good outcome {age:.1f}h ago)")
+    if since:
+        return True, (f"{len(good)} good outcomes in {max_age_h}h, newest {age:.1f}h ago; "
+                      f"1 failure since (one-off, not repeated): {since[-1][1].strip()[:60]!r}")
     return True, f"{len(good)} good outcomes in {max_age_h}h, newest {age:.1f}h ago, no failure since"
 
 
@@ -1274,8 +1307,7 @@ def probe_cloudwatch_marker(log_group, log_grep, max_age_h=30, today_only=True,
     # report is still found.
     patterns = [log_grep] if isinstance(log_grep, str) else list(log_grep)
     missing = [pat for pat in patterns
-               if not re.search(pat.replace("{today}", today.isoformat())
-                                   .replace("{date}", f"(?:{dates})"), text)]
+               if not re.search(_expand_dates(pat, today), text)]
     if missing:
         return False, (f"delivery marker missing in {max_age_h}h of CloudWatch "
                        f"({', '.join(repr(m) for m in missing)})")
@@ -1299,7 +1331,7 @@ def probe_cloudwatch_marker(log_group, log_grep, max_age_h=30, today_only=True,
     return True, "delivery marker confirmed"
 
 
-def probe_log_block(log_path, block_re, log_grep, max_age_h, **_):
+def probe_log_block(log_path, block_re, log_grep, max_age_h, fail_grep=None, **_):
     """Assert markers inside the LAST run block of an append-only log.
 
     Added 2026-09-12 for toolcheck, which had no probe at all. The generic
@@ -1314,10 +1346,12 @@ def probe_log_block(log_path, block_re, log_grep, max_age_h, **_):
     require every marker inside that block only.
 
     `block_re` must capture a parseable "YYYY-MM-DD HH:MM:SS" as group 1.
+    `fail_grep` (round 8): a line the producer prints on a partial failure that
+    does not stop it printing its success marker; a match in the block is red.
     """
     path = os.path.expanduser(log_path)
     try:
-        text = open(path, errors="replace").read()
+        text = _read(path)
     except FileNotFoundError:
         return False, f"{log_path} missing"
     blocks = list(re.finditer(block_re, text, re.M))
@@ -1339,6 +1373,10 @@ def probe_log_block(log_path, block_re, log_grep, max_age_h, **_):
         tail = " / ".join(l for l in block.strip().splitlines()[-2:])
         return False, (f"last run {age/24:.1f}d ago but marker missing "
                        f"({', '.join(repr(m) for m in missing)}) — tail: {tail[:100]}")
+    hit = re.search(fail_grep, block, re.M) if fail_grep else None
+    if hit:
+        line = block[block.rfind("\n", 0, hit.start()) + 1:].split("\n", 1)[0].strip()
+        return False, f"last run {age/24:.1f}d ago finished, but part failed: {line[:110]!r}"
     return True, f"clean run {age/24:.1f}d ago"
 
 
@@ -1364,7 +1402,7 @@ def probe_log_tail(path, last_line, max_age_h, grace_min=0, grace_lines=12, **_)
     age = _age_hours(os.path.getmtime(p))
     if age > max_age_h:
         return False, f"stale: last written {age/24:.1f}d ago (limit {max_age_h}h)"
-    lines = [l for l in open(p, errors="replace").read().splitlines() if l.strip()]
+    lines = [l for l in _read(p).splitlines() if l.strip()]
     last = lines[-1].strip() if lines else ""
     if not re.search(last_line, last):
         if grace_min and age * 60 <= grace_min:
@@ -1755,7 +1793,10 @@ FLEET = [
     {"name": "reddit-browser (Mac 07:35/19:35 Reddit lists)", "repo": None,
      "probe": "log_block", "log_path": "~/Library/Logs/reddit-browser.log",
      "block_re": r"^== (\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) start",
-     "log_grep": r"REDDIT PUSHED: [1-9]\d* files|NO REDDIT CHANGES \(scraper exit 0\)",
+     # "(scraper exit 0)" on BOTH arms (round 8): reddit-browser.sh prints
+     # REDDIT PUSHED with the scraper's real exit code, and a failed scrape still
+     # pushes the one reddit_browser.json it touched ("checked" stamps).
+     "log_grep": r"REDDIT PUSHED: [1-9]\d* files in \w+ \(scraper exit 0\)|NO REDDIT CHANGES \(scraper exit 0\)",
      "max_age_h": 26},
     {"name": "reddit-browser (live site: every Reddit list fresh)", "repo": None,
      "probe": "web_fresh", "url": "https://reddit-scraper-lyart.vercel.app/api/status",
@@ -2052,7 +2093,8 @@ FLEET = [
     # missed run is still red at the next morning's check either way.
     {"name": "sheets-backup (nightly sheets -> git)", "repo": "sheets-backup",
      "probe": "gh_run", "workflow": "backup.yml", "max_age_h": 28,
-     "log_grep": r"BACKUP OK: \d+ owned tabs, \d+ public sources"},
+     # [1-9] (round 8): "0 owned tabs" is a run that backed up nothing.
+     "log_grep": r"\dZ BACKUP OK: [1-9]\d* owned tabs, [1-9]\d* public sources"},
     # ── ported off n8n 2026-08-24 ───────────────────────────────────────────
     # mental-models: cron 05:10 UTC (00:10 EST / 01:10 EDT), so by the 09:00 UTC
     # check a good night's run is ~4 h old and ONE missed night reads ~28 h.
@@ -2208,11 +2250,13 @@ FLEET = [
     {"name": "defensive-nag (hourly risk prompt)", "repo": None,
      # log_tail (red team 2026-09-27): the {date} marker is a UTC date, so a nag
      # that died at 20:20 still passed ~33 h later. Runs hourly 08:20-22:20 local
-     # into one log (stdout+stderr); at 05:00 the last write is ~6.7 h old, so 9 h
-     # catches a missed evening, and a traceback ends the log on a non-indented,
+     # into one log (stdout+stderr); at 05:00 the last write is ~6.7 h old and at
+     # the 06:30 re-check ~8.2 h. 11 h, not 9 (round 8): the night clocks go back
+     # adds a real hour, and 9 h false-redded -- LOUDLY -- that one morning a year.
+     # Still catches a missed evening; a traceback ends the log on a non-indented,
      # non-marker line.
      "probe": "log_tail", "path": "~/Library/Logs/defensive-nag.log",
-     "last_line": r"^(defensive-trigger nag \S+ mode=\w+|\s+\S)", "max_age_h": 9},
+     "last_line": r"^(defensive-trigger nag \S+ mode=\w+|\s+\S)", "max_age_h": 11},
     # rubber-band is weekdays 18:30 ONLY, so a Monday 05:00 check is looking at
     # Friday evening — ~58 h. A dated marker would page every Monday. mtime at
     # 72 h clears the weekend and still catches a genuine multi-day stall.
@@ -2223,7 +2267,13 @@ FLEET = [
     {"name": "rubber-band (weekday evening check)", "repo": None,
      "probe": "log_block", "log_path": "~/Library/Logs/rubber-band.log",
      "block_re": r"^rubber-band run (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)",
-     "log_grep": r"^\s*published → https://gist\.githubusercontent\.com/",
+     # Round 8: `published` prints even when every Composer curve failed
+     # (fetch_all_curves never throws; each leg logs "curve X: FAILED") and when
+     # a colour-change alert logs "NOT sent". The wrapper's `=== exit 0 ===` also
+     # covers the defensive-trigger evaluate that runs after the publish.
+     "log_grep": [r"^\s*published → https://gist\.githubusercontent\.com/",
+                  r"^=== exit 0 ===$"],
+     "fail_grep": r"curve \S+: FAILED|alert \(\d+ changes\): NOT sent",
      "max_age_h": 72},
 
     # The tranche pair. 07:12 publish is the one Jalal would actually notice
@@ -2281,7 +2331,11 @@ FLEET = [
     # Actions echo trap), but there it follows `echo "`, never the stamp.
     {"name": "reddit-scraper (AM Reads morning list)", "repo": "reddit-scraper",
      "probe": "gh_run", "workflow": "am_reads.yml", "max_age_h": 30,
-     "log_grep": [r"Fetching AM Reads post: https://ritholtz\.com/\d{4}/\d\d/",
+     # Round 8: "Fetching AM Reads post" prints BEFORE the fetch, so a fetch that
+     # failed (returns []) still matched it, and the empty run then said NO CHANGE.
+     # Both new markers print only after a real parse / a real CSV check.
+     "log_grep": [r"\dZ\s+Extracted [1-9]\d* articles",
+                  r"\dZ (?:Unchanged: data/ritholtz/articles\.csv already holds this post|Saved data/ritholtz/articles\.csv) \([1-9]\d* articles\)",
                   r"\dZ (?:NO CHANGE: AM Reads already current|AM READS PUSHED: [0-9a-f]{7})"]},
     # llm-balance-check (launchd 08:10) is the only warning before the paid
     # OpenRouter lane runs dry. A blank balance (API/key broken) prints
@@ -2313,7 +2367,7 @@ def run_checks() -> list:
     bad = lint_roster()
     if bad:
         names = ", ".join(i["name"] for i in bad)
-        raise SystemExit(f"roster lint: liveness-only rows need weak_ok: {names}")
+        raise SystemExit(f"roster lint failed (see lint_roster): {names}")
     results = []
     for item in FLEET:
         fn = PROBE_FNS[item["probe"]]
@@ -2354,7 +2408,7 @@ def annotate_history(results) -> list:
     deliberately shut down, not fixed — so it is excluded here too.
     """
     try:
-        prev = json.load(open(HEALTH_FILE))
+        prev = json.loads(_read(HEALTH_FILE))
     except Exception:                        # noqa: BLE001 — first run ever
         return []
     prev_date = prev.get("checked", "")[:10]
@@ -2606,7 +2660,7 @@ def loud_alert(results, now=None, prev=None):
     today = now.date().isoformat()
     if prev is None:
         try:
-            prev = json.load(open(HEALTH_FILE)).get("loud") or {}
+            prev = json.loads(_read(HEALTH_FILE)).get("loud") or {}
         except Exception:                    # noqa: BLE001
             prev = {}
     already = set(prev.get("names", [])) if prev.get("date") == today else set()
@@ -2614,12 +2668,26 @@ def loud_alert(results, now=None, prev=None):
     new = [r for r in bad if r["name"] not in already]
     if not new or now.time() < LOUD_FROM:
         return prev if prev.get("date") == today else {}
-    lines = [f"🚨 Fleet check: {len(bad)} of {len(results)} systems failing"]
-    for r in bad[:12]:
+    # Same denominator as format_digest: retired launchd rows are not systems.
+    live = [r for r in results if not _is_retired(r)]
+    # Round 8: a GitHub/AWS outage at 06:30 makes every gh_run/aws row raise 3x
+    # and come back "probe error: ...". Those say the CHECKER could not look,
+    # not that the system is down; lumping them in sent "20 of 20 failing" --
+    # the message most likely to teach him to ignore the buzz.
+    real = [r for r in bad if not str(r.get("detail", "")).startswith("probe error:")]
+    blind = [r for r in bad if r not in real]
+    lines = ([f"🚨 Fleet check: {len(real)} of {len(live)} systems failing"] if real else
+             [f"⚠️ Fleet check could not look at {len(blind)} of {len(live)} systems"])
+    for r in real[:12]:
         since = r.get("failing_since")
         lines.append(f"• {r['name']}" + (f" (since {since})" if since and since != today else ""))
-    if len(bad) > 12:
-        lines.append(f"• …and {len(bad) - 12} more")
+    if len(real) > 12:
+        lines.append(f"• …and {len(real) - 12} more")
+    if blind:
+        lines.append(f"{'Also c' if real else 'C'}ould not check {len(blind)} "
+                     f"(GitHub/AWS/network trouble, not the systems themselves): "
+                     + ", ".join(r["name"].split(" (")[0] for r in blind[:6])
+                     + (" …" if len(blind) > 6 else ""))
     lines.append("Full detail: tap 🛠 Fleet health in the morning card, or paste this to Claude.")
     if _telegram_send("\n".join(lines)) != "direct":
         print("WARN: loud alert not delivered")
@@ -2669,7 +2737,7 @@ def already_ran_today() -> bool:
     truly delivered already; "digest" must still fall through to a re-check.
     """
     try:
-        h = json.load(open(HEALTH_FILE))
+        h = json.loads(_read(HEALTH_FILE))
         today = datetime.date.today().isoformat()
         # A direct send at 05:00 is delivered, but it was SILENT: while rows are
         # still red and no loud alert went out today, the 6:30 slot must re-check.
@@ -2694,7 +2762,7 @@ def _lock_is_fresh() -> bool:
     except OSError:
         return False
     try:
-        pid = int(open(LOCK_FILE).read().strip())
+        pid = int(_read(LOCK_FILE).strip())
     except (OSError, ValueError):
         return age < LOCK_STALE_S
     try:
@@ -2732,12 +2800,23 @@ def lint_roster(fleet=None):
         pats = [pats] if isinstance(pats, str) else list(pats)
         # Red team 2026-09-27: log_grep=[""] or "." passed the lint and matches
         # any log -- a marker that cannot miss is decoration.
-        vacuous = any(re.search(p.replace("{today}", "").replace("{date}", "")
-                                 .replace("{weekday}", ""), probe_text)
+        vacuous = any(re.search(re.sub(r"\{[a-z]+\}", "", p), probe_text)
                       for p in pats for probe_text in ("", "zz"))
         weak = (item["probe"] in LIVENESS_ONLY or vacuous
                 or (item["probe"] == "gh_run" and not item.get("log_grep")))
-        if weak and not item.get("weak_ok"):
+        # Round 8: a token this probe does not expand (or a typo like {yesterday})
+        # is searched for literally and can never match -- a permanent false red
+        # at best, and no weak_ok excuses it.
+        tokens = {t for p in pats for t in re.findall(r"\{[a-z]+\}", p)}
+        if item["probe"] == "cloudwatch_marker" and item.get("today_only") is False:
+            bad_tok = tokens               # _cloudwatch_last_outcome expands none
+        else:
+            bad_tok = tokens - set(DATE_TOKENS) if item["probe"] in TOKEN_PROBES else tokens
+        if bad_tok:
+            item = dict(item, lint_why=f"date token {sorted(bad_tok)} is never expanded "
+                                       f"by probe {item['probe']!r}")
+            offenders.append(item)
+        elif weak and not item.get("weak_ok"):
             offenders.append(item)
     return offenders
 
@@ -2748,9 +2827,10 @@ def main(argv=()) -> None:
     if bad:
         print("=== ROSTER LINT FAILED — refusing to run ===")
         for item in bad:
-            print(f"  {item['name']}: probe {item['probe']!r} only proves liveness. "
-                  f"Give it a real success marker, or add "
-                  f'weak_ok="<why liveness is enough>".')
+            print(f"  {item['name']}: " + (item.get("lint_why") or
+                  f"probe {item['probe']!r} only proves liveness (or its log_grep "
+                  f"matches anything). Give it a real success marker, or add "
+                  f'weak_ok="<why liveness is enough>".'))
         raise SystemExit(2)
     if "--retry-slot" in argv:
         if already_ran_today():

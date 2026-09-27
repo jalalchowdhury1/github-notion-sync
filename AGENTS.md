@@ -1,125 +1,261 @@
 # AGENTS.md — github-notion-sync
 
 > **Single source of truth for anyone (human or AI) touching this repo.** Read it fully
-> before changing code. This is a tiny repo — one script (`sync.py`) plus two GitHub
-> Actions workflows. No LLM-facing docs were consolidated; `README.md` is kept as the
-> human/GitHub landing page. If something here is wrong, fix *this* file.
+> before changing code. `README.md` is the short human/GitHub landing page. If something
+> here is wrong, fix *this* file. **This repo is PUBLIC** — see §1.6 before adding anything.
+>
+> Structure: §1 says how things work **today**. The "why" and dated incidents live in
+> §1.8, §4 and the history sections at the end. Where old prose conflicts with §1, §1 wins.
 
 ---
 
 ## 1. What this is
 
-**This repo now has TWO jobs** (2026-07-19): the original monthly repo→Notion
-sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
-- `fleet_health.py` — runs on Jalal's Mac (launchd `com.jalal.fleet-health`,
-  daily 5:00 AM **plus a 6:30 AM retry slot** so everything is settled
-  before the 7 AM YNAB brief / wake-up — run_health.sh passes
-  `--retry-slot` from 6 AM and the script no-ops if today's digest already
-  reached Telegram, or backs off if the 5 AM run still holds
-  `.fleet_health.lock` (gitignored; locks >2 h old are treated as crashed
-  and ignored); manual `python3 fleet_health.py` always runs. Wrapper
-  `run_health.sh` also truncates `health.log` in place past ~400 KB —
-  gitignored). 41 data-level probes (local launchd stamps/exit codes, `gh`
-  runs with log-grep data markers, live-site checks). `log_grep` takes one
-  regex or a list (ALL must match); assert the *pipeline ran* rather than that
-  a count was nonzero, or a legitimately quiet source false-alarms at 5 AM.
-  The Mac-side twin of that is the `log_marker` probe (added 2026-08-18 for
-  `aoife-school-bot`): same `log_grep` contract against a local launchd log,
-  where `{date}` in a pattern expands to today|yesterday. Use it for a job
-  whose slots do NOT all land before the 5 AM check — grading file mtime or
-  exit code there measures only that the job woke up.
-  A workflow with several legitimate shapes (reddit-scraper's real scrape vs.
-  its retry-window no-op) gets ONE pattern with an `|` covering both, not two
-  patterns that can't both hold. **Every marker must be verified against a real
-  recent log** (`gh run view <id> --log`): Actions echoes each step's *source*
-  into the log, so a naive `already updated today` matches the `echo "…($LAST)…"`
-  line on every run and can never fail — reddit-scraper's markers use `[^$\n]+`
-  precisely to exclude the echoed form. A marker that can never match is a
-  permanent false alarm; a marker that can never miss is decoration. One
-  repo may hold several probes (leasehackr has Daily + Historical) — the digest
-  keeps the "(qualifier)" on those so they don't read as duplicates. **Digest contract:**
-  all healthy → ONE plain-text line ("✅ Fleet check … all N systems
-  healthy", plus "· recovered: X" the first healthy day after a failure);
-  any failure → a full diagnostic block per failure (probe config line,
-  "⏳ failing since DATE" when the failure spans days, multi-line detail
-  incl. run URL + failed-step log tail for gh_run probes — the tail drops the
-  post-job cleanup block, strips ANSI/timestamps, and prepends the first real
-  error signature, since a naive tail shows only `git config --unset` noise)
-  designed to be
-  pasted verbatim into Claude to debug. **The digest is budgeted per failure,
-  never tail-chopped.** Telegram's cap is 4096 chars (`TELEGRAM_LIMIT = 4000`)
-  and one gh_run failure block runs ~1.5 KB, so 3+ simultaneous failures blow
-  the budget — and the old whole-message truncation dropped the LAST blocks
-  *and* the "✅ the other N healthy" line, i.e. a 4-repo outage reported as a
-  2-repo one, in exactly the scenario the digest exists for (measured: 4 synthetic
-  failures → 1 name lost + no healthy line). Now header and footer are reserved
-  first, the remainder is split evenly across failures (blocks that come in under
-  their share hand the slack back to the big ones), and each block fills to its
-  share in priority order: name → "failing since" → config line → detail → log
-  tail. **A failure name is never dropped** (past ~15 simultaneous failures the
-  body degrades to a plain roll call of names); the log tail is what goes.
-  Losing a tail costs one paste-into-Claude round trip; losing a name means the
-  owner never learns that system is down. Telegram is plain text (NO
-  parse_mode — log excerpts full of `_*[` used to be able to 400 the
-  Markdown digest) with 3 send attempts. Probes RAISE on infra errors
-  (network blip, gh failure) → retried 3× with 20 s pauses; a returned
-  False (stale data, red run) is real signal, never retried. If the script
-  itself crashes, a 🚨 panic Telegram goes out and it exits nonzero.
-  Commits+pushes `health.json` (records `telegram: sent/failed` — read by
-  the Dead-Mac watchdog below, unchanged meaning; `telegram_mode:
-  digest/direct/null`, added 2026-09-15 — a Silent-digest hand-off only
-  QUEUES the card, so `already_ran_today()` requires `direct` to skip the
-  6:30 retry, letting a 5:00 finding that self-heals by 6:30 — e.g. the
-  mental-models 6 AM backstop — get re-checked and corrected before the
-  card actually reaches Jalal at 06:50-07:30 — and `failing_since` per
-  failing system, carried across days by `annotate_history`). Probes live
-  in the `FLEET` list — add new automations there.
-- `notion_health.py` + `.github/workflows/health.yml` (daily 13:07 UTC) —
-  stamps Health / Health checked / Health note onto each repo's row in the
-  same Notion DB (keyed by Repo URL, same secrets as sync.py; auto-creates
-  the three properties). **Dead-Mac watchdog:** it `die()`s — log + Telegram +
-  nonzero exit — when `health.json` is older than `STALE_HOURS = 24`, or when
-  the Mac's own digest went undelivered (`telegram != "sent"`). The Mac stamps
-  at 05:00 local and this workflow actually starts 14:38–15:49 UTC, so a normal
-  day measures 10–12 h (`checked` is Mac-local time read against a UTC runner —
-  a 4–5 h overstatement, the safe direction) and ONE missed Mac run measures
-  34–37 h: it fires at the first check after a missed stamp, ~1.4 days later.
-  That is the real "within two days" guarantee; the previous `age_days > 2` on
-  a date-only comparison did not fire until the THIRD day (~3.4 days) while the
-  docs claimed two. The Telegram is the point: a dead Mac cannot send its own
-  digest, and a red Actions run + GitHub's failure email can go unread for a
-  week. `TELEGRAM_TOKEN`/`TELEGRAM_CHAT_ID` are wired in `health.yml`; if they
-  are unset the alert degrades to email-only and never crashes.
-  **Since One Clock the dispatch lands ~12:37 UTC**, so the real latency is a
-  little shorter than the numbers above. **Card-delivery check (red team
-  2026-09-27):** when `telegram_mode == "digest"`, "sent" only means QUEUED in
-  health-hub; the watchdog also reads `digest_fleet_at` from
-  jalal-health.vercel.app/api/health (stamped only after Telegram accepted a
-  card naming the fleet item) and dies past `CARD_STALE_HOURS = 20` — a dead
-  card flush would otherwise swallow every fleet red silently.
-- **Red team 2026-09-27 (round 7) — rules that generalise:**
-  - A job that runs BEFORE the 05:00 check gets `{today}`, never `{date}`:
-    the yesterday arm let a failed morning pass (daily-trackers, gcal-sync,
-    planner-backup). Weekday-only markers get `{weekday}` (trading-algorithm:
-    72 h alone left two green mornings after a Tuesday death).
-  - An hourly/5-minute job is graded by the NEWEST outcome, not "any success
-    in the window": `cloudwatch_marker(today_only=False, fail_grep=,
-    active_window=)` (ynab-nag), `log_tail` with a hard age (defensive-nag),
-    stamped grace hits measured against the newest line (aoife-typing).
-  - A lock backs the 6:30 retry off only while its pid is alive (job-reaper
-    SIGKILLs leave orphans). Every nonzero exit alerts: fleet_health.py exits
-    3 after its own 🚨; run_health.sh alerts on any other code (SyntaxError).
-  - The lint rejects a `log_grep` that matches "" or "zz". 5xx from a bot
-    selftest or the catalysts fetch is infra (retried), not a red row.
-  - **Reds are LOUD (owner decision 2026-09-27).** `loud_alert()` sends one
-    buzzing Telegram listing the failing systems — never before 06:25 (the
-    05:00 run stays silent; 06:30 re-checks first), once per failing name per
-    day (`loud` in health.json). A silent 05:00 direct send no longer lets the
-    6:30 slot skip while reds are unbuzzed.
-  - `web_fresh(min_rows=)` floors the scraped lists (dhaka-flights published
-    flights=0 on 08-23 with a fresh stamp). `gh_run(rescue_max_failures=)`
-    stops "an earlier run succeeded" from hiding a job that fails every other
-    run (reddit-backup 1, trading-algorithm 2).
+Three jobs share this repo:
+
+| Job | Runs where / when | Files |
+|---|---|---|
+| **Repo → Notion sync** (the original) | GitHub Actions, monthly `0 13 1 * *` | `sync.py`, `sync.yml`, `test_sync.py` |
+| **Fleet health**: does every automation on the Mac and in the cloud still do real work? | Mac launchd `com.jalal.fleet-health`, 05:00 + 06:30; cloud watchdog `health.yml` daily | `fleet_health.py`, `run_health.sh`, `notion_health.py`, `health.yml`, `health.json`, `test_fleet_health.py`, `test_probes.py` |
+| **Mac Mini Schedule table**: the Mac's real launchd/cron list, mirrored to Notion | after each fleet run (Mac) + `health.yml` (cloud) | `schedule_snapshot.py`, `schedule.json`, `notion_schedule.py` |
+
+`keepalive.yml` stops GitHub from disabling the scheduled workflows on a quiet repo.
+
+**The one rule behind fleet health:** a green row must prove the job's PRIMARY path did
+real WORK recently. Being alive, exiting 0, serving HTTP 200 or having a green CI run is
+not enough. That rule was born from the 2026-07 CarMax incident: 17 days of green CI with
+zero rows.
+
+### 1.1 Fleet health: a normal day
+
+```
+04:30-05:00  jobs run (planner backup 03:40, trackers, gcal, catalysts 04:30 …)
+05:00  run_health.sh → fleet_health.py        SILENT. Grades all rows, hands the digest to
+                                               health-hub's Silent digest (queued, not sent),
+                                               commits + pushes health.json.
+06:30  run_health.sh → fleet_health.py --retry-slot
+                                               Re-grades everything (the digest mode always
+                                               re-runs, so reds that healed by 06:30 go
+                                               green), overwrites the queued digest.
+                                               loud_alert(): if anything is STILL red, ONE
+                                               buzzing Telegram naming the reds.
+06:50-10:00 ET  health-hub sends the ⚪ morning card; its "🛠 Fleet health" button
+                replays the full digest. Stamps delivered.fleet → /api/health
+                digest_fleet_at.
+~12:37 UTC  health.yml (One Clock dispatch; GitHub cron 13:07 UTC is the backstop)
+            notion_health.py = the CLOUD WATCHDOG. It dies (log + Telegram + red run) when:
+              · health.json is > 24 h old          (the Mac or its job is dead)
+              · telegram != "sent"                  (the Mac could not deliver)
+              · mode "digest" and digest_fleet_at is > 20 h old (the card is not
+                going out). A card that is only LATE (10:00 ET window still open,
+                stamp exactly one day old) is not judged until the next check.
+            Then stamps Health / Health checked / Health note on each repo's Notion row.
+```
+
+**Which runs make noise.**
+- 05:00 is always silent.
+- 06:30 buzzes once per failing row per day (`loud` in health.json), never before
+  `LOUD_FROM = 06:25`. A manual re-run later that day repeats nothing.
+- Rows that failed only because the checker couldn't look (`probe error: …`, e.g. a
+  GitHub outage) are listed as "could not check", never counted as "systems failing".
+- The checker crashing is always loud (see exit codes).
+
+**Flags.**
+- `run_health.sh` adds `--retry-slot` from 06:00. That makes the run skip when it's
+  already done (direct mode, no unbuzzed reds) or back off while a live 05:00 run
+  holds `.fleet_health.lock`. A lock only counts while its pid is alive, or, if the
+  lock is unreadable, for 2 h.
+- `run_health.sh --force` re-grades on purpose during the day. Without it a daytime
+  run silently no-ops.
+
+**Exit codes.**
+
+| Code | Who | Meaning | Who alerts |
+|---|---|---|---|
+| 0 | fleet_health.py | ran (or skipped cleanly) | — |
+| 3 | fleet_health.py `cli()` | crashed, or refused to run (roster lint) | it already sent its own 🚨 |
+| any other | fleet_health.py | died before its handlers existed (SyntaxError, ImportError, kill) | `run_health.sh` curl-sends 🚨 |
+| 1 | notion_health.py | watchdog tripped | it sent its own Telegram; the Actions run goes red |
+
+**health.json** (committed; read by the cloud watchdog):
+- `checked`: Mac-local "YYYY-MM-DD HH:MM"
+- `telegram`: "sent" means queued **or** sent, so the card check exists
+- `telegram_mode`: "digest", "direct" or null
+- `loud`: `{date, names}`
+- `results[]`: `{name, repo, probe, ok, detail, cfg, failing_since}`
+
+**Digest contract.**
+- All green: one line ("✅ … all N systems healthy", plus "· recovered: X" the day after).
+- Any red: one pasteable diagnostic block per failure. The block holds:
+  - the config line
+  - "⏳ failing since"
+  - the detail
+  - the run URL and failed-step log tail
+- The budget is **per failure, never tail-chopped**. Telegram caps at 4096 characters,
+  and the old truncation dropped whole systems. A failure name is never dropped; the log
+  tail goes first.
+- Plain text, no parse_mode, 3 send attempts.
+
+**Probe errors.** A probe RAISES on infra trouble (network, `gh`/`aws` failure, 5xx);
+`run_checks` retries it 3× with 20 s pauses. A returned `False` is real signal and is
+never retried.
+
+### 1.2 Probe reference (19 types, `PROBE_FNS`)
+
+Contract: `fn(**row) -> (ok, detail)`; raise only for infra trouble.
+
+**Liveness-only** (needs `weak_ok="<why that is enough>"`, or the lint refuses the whole
+run):
+
+| Probe | Proves | Key params |
+|---|---|---|
+| `web_200` | host serves 200 and stays on-host (a login-wall redirect is red) | `url`, `expect_text` |
+| `launchd_exit` | last exit 0 (a retired `.plist.retired` reads green "RETIRED — delete this row") | `label` |
+| `file_mtime` | file was written recently (0 rows today) | `path`, `max_age_h` |
+
+**Data-level:**
+
+| Probe | Proves | Key params / trap |
+|---|---|---|
+| `web_fresh` | a live JSON's own stamp is fresh, optionally row counts | `url`, `json_key` (dotted), `max_age_h`, `rows_key`, `min_rows` ({key: floor}). Future stamp = red |
+| `web_render` | headless Chrome ran the page's JS; no uncaught error; text visible in `<body>` | `url`, `expect_text` |
+| `bot_selftest` | a synthetic message through the bot's real handler produced a reply | `url`, `secret_env` (header only). 5xx = retry |
+| `telegram_webhook` | webhook points at the right function; guard rejects unauth POST; no error < 24 h | `token_env`, `expect_url` (no query!), `require_guard` |
+| `gh_run` | newest run recent + green + log markers | `repo`, `workflow`, `max_age_h`, `log_grep`, `expect_event`, `no_rescue`, `rescue_max_failures`. See §1.3 |
+| `log_marker` | a local log carries today's success marker | `log_path`, `log_grep`, `live_since` |
+| `log_block` | markers inside the NEWEST run block of an append-only log | `log_path`, `block_re` (group 1 = stamp), `log_grep`, `fail_grep`, `max_age_h`. For weekly jobs |
+| `log_tail` | fresh log whose LAST line is a success shape | `path`, `last_line`, `max_age_h`, `grace_min`, `grace_lines` |
+| `local_stamp` | a stamp file holds a recent ISO date | `path`, `max_age_h` |
+| `launchd_running` | a KeepAlive daemon has a live pid right now | `label` |
+| `planner_backup` | today's dated JSON snapshots parse, and the OK marker is present | `dest_dir`, `names`, `log_path` |
+| `rsync_log` | the last rsync block finished with exit 0 and walked ≥ `min_files` regular files | `log_path`, `max_age_h`, `min_files` |
+| `cloudwatch_marker` | a Lambda log carries its success marker | `log_group`, `log_grep`, `today_only`; with `today_only=False`: `fail_grep`, `active_window` (UTC, may wrap), newest outcome wins |
+| `one_clock_lambda` | EventBridge → gh-dispatcher is alive: pings, dispatches, no unrecovered error | windows/minimums |
+| `nuts` | NUTS signal payload: unit test, downloads, price freshness, eval freshness, holding | `url` |
+| `nuts_radar` | radar site 200 + repo's `selfcheck.js` passes + catalysts fresh | `url`, `repo_dir`, `catalysts_url` |
+
+### 1.3 Markers and date tokens
+
+`log_grep` is one regex or a list; **ALL** must match. Assert that the pipeline RAN
+("across N regions"), not that a count was nonzero, or a quiet day false-alarms.
+
+| Token | Expands to | Use when |
+|---|---|---|
+| `{today}` | today | the job runs BEFORE the 05:00 check (else the yesterday arm hides a failed morning) |
+| `{date}` | today\|yesterday | the job runs after 05:00 (its newest output is yesterday's) |
+| `{weekday}` | today\|previous weekday | weekday-only jobs (Monday sees Friday) |
+
+- Tokens are expanded by `gh_run`, `log_marker` and `cloudwatch_marker(today_only=True)`
+  only, all through `_expand_dates()`.
+- Anywhere else a token would be searched for literally and never match, so
+  `lint_roster` refuses it (weak_ok does not excuse it). Regex quantifiers like `\d{4}`
+  are fine.
+
+**Traps that have bitten, every one of them real:**
+- **The Actions echo trap.** Actions prints each step's source into the log (colour
+  `\x1b[36;1m`), so `echo "DONE"` matches `DONE` on every run. Anchor markers on the log's
+  own timestamp (`\dZ DONE`) or exclude the echoed form.
+- **Markers printed before the work.** "Fetching X…" prints even when the fetch fails.
+  Grade a line that only prints AFTER success (AM Reads, round 8).
+- **Success lines that print on partial failure.** A job that logs "published" after
+  half its inputs failed needs `fail_grep` (rubber-band `curve X: FAILED`).
+- **The lint rejects vacuous markers.** A `log_grep` that matches `""` or `"zz"` can
+  never miss.
+- **Verify every marker against a real recent log**
+  (`gh run view <id> -R jalalchowdhury1/<repo> --log`). A marker that can never match is
+  a permanent false alarm; one that can never miss is decoration.
+
+**gh_run rescues.** A red newest run is forgiven only when a SUCCESS inside `max_age_h`
+proves the work happened. With `expect_event`, that success must come via the primary
+trigger.
+- `no_rescue=True` for workflows whose runs are distinct jobs (AM vs PM snapshot).
+- `rescue_max_failures=N` for cyclic jobs. More than N failed runs in the window is
+  flapping and stays red.
+- A run < 1 h old and still running is ignored.
+- A run that is still running and older than that is HUNG.
+
+### 1.4 Adding a row (checklist)
+
+1. Pick the **strongest** probe from §1.2 that grades the job's own output. Use a
+   liveness probe only when nothing better exists, and write why in `weak_ok`.
+2. Take a marker from a **real** log, printed only after the work succeeded. Check the
+   echo trap and prints-before-work.
+3. Pick the date token (§1.3) from when the job runs relative to 05:00.
+4. Derive `max_age_h` from the schedule. Grade it at BOTH 05:00 and 06:30. Add slack for
+   the DST night (+1 h). Measure the worst legitimate gap (weekends, holidays).
+5. `repo`: the GitHub repo name if `notion_health` should stamp its Notion row. Else
+   `None`. One Notion row per repo, and the **last** result for a repo wins.
+6. Prove the row can go red: feed it the failure shape, e.g. in `test_probes.py` or a
+   `TestRosterGuards` test. Then run the side-effect-free grade (§1.5) and see it green.
+
+### 1.5 Testing and dry runs
+
+```sh
+python3 -m unittest test_fleet_health test_probes test_sync      # ~170 tests, stdlib, ~20 s
+# coverage (optional)
+uv run --no-project --with coverage -q python -m coverage run --include=fleet_health.py \
+  -m unittest test_fleet_health test_probes && uv run --no-project --with coverage -q python -m coverage report
+```
+
+**A side-effect-free live grade** sends nothing and commits nothing:
+1. Export the same env as `run_health.sh`: everything up to `EXTRA=""`. It reads each
+   token BY NAME.
+2. Run `python3 -c "import fleet_health as fh; rs = fh.run_checks(); print([r['name'] for r in rs if not r['ok']])"`.
+
+⚠️ **`python3 fleet_health.py` is NOT a dry run.** It:
+- queues or sends the digest
+- can buzz after 06:25
+- commits and pushes `health.json`
+
+The tests fake `subprocess` and `git`, so they never push.
+
+### 1.6 Secrets and the public repo
+
+- Never put a token, webhook secret or `?s=` query in a roster row or a detail string.
+  `telegram_webhook` compares scheme+host+path only and never echoes the query.
+- `run_health.sh` pulls each bot's token and secret **by name** with `grep`. Never
+  `set -a; source` a bot `.env`: they all define `TELEGRAM_TOKEN` and would hijack the
+  digest sender. The full list is in §3's env table.
+- The Mac's digest bot and chat, `DIGEST_URL` and `DIGEST_KEY` come from the sourced
+  `~/PycharmProjects/Dhaka flights/.env`.
+- Before a commit, grep the diff for `bot[0-9]{8,}:`, `ghp_`, `ntn_`, `sk-`, and `?s=`.
+
+### 1.7 Retiring a job or a row
+
+1. `launchctl bootout gui/$(id -u)/<label>`.
+2. Rename the plist to `<label>.plist.retired`. Never delete it.
+3. The launchd probes now read green "RETIRED — delete this row". The digest shows
+   "🗂 retired". Delete the roster row.
+4. A row whose job still runs but whose output is proven by another row: delete it and
+   say which row covers it (comment in `FLEET`).
+
+### 1.8 Design rules (one line each; the incidents are in §4 and the history sections)
+
+- Grade the PRIMARY path. A backstop carrying a dead primary is red (`expect_event`).
+  The financial-telegram-bot Lambda stayed dead for 2 months behind a GHA backstop.
+- Grade data, not transport: a stale cached body still returns 200 (NUTS).
+- Many rows going stale at once is ONE event (the dispatcher). The digest says so.
+- Hourly and 5-minute jobs are graded by the NEWEST outcome, not "any success today".
+  One lone trailing failure is noted; two or more are red (ynab-nag).
+- Test the door, not the key: prove a guard rejects an unauth POST.
+- Infra errors raise and retry. A red is never retried.
+- Every way the checker can die ends in a loud Telegram (exit-code table).
+- **Round 8 (2026-09-27) left these open, on the producer side, in other repos.** Each
+  job reports "done" in a way the probe cannot tell apart from a failure:
+  - trigger-board turns fetch errors into "nothing to do"
+  - mac-audit stamps success with no Telegram configured
+  - carmax swallows Sheet and Telegram failures
+  - health-hub's tick stays fresh when sends fail
+  - defensive-nag doesn't log failed sends
+  - dhaka-yearly's `|| true` push/notify
+  - llm-balance-check ignores the curl result
+  
+  Each needs a one-line change in that repo, then a tighter marker here.
+
+Also known and accepted:
+- A failed loud send is not retried; the red still sits in the card.
+- If the digest hand-off fails at 05:00, the 06:30 run sends a second direct digest.
+### 1.9 Mac Mini Schedule table (details)
 
 **Plus a third job (2026-07-20): the self-maintaining "Mac Mini Schedule" Notion table.**
 - `schedule_snapshot.py` — runs on the Mac right after `fleet_health.py`
@@ -154,9 +290,8 @@ sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
   (it is derived from the plist), so timing caveats that are not visible to
   launchd — e.g. the hotel job's 0-35 min in-script start jitter — belong in
   `Notes`, never in `When (ET)`.
-Born from the 2026-07 CarMax incident: 17 days of green CI with zero rows —
-hence data-level markers, not conclusions, wherever possible.
 
+### 1.10 Repo → Notion sync (details)
 
 A single-file Python script (`sync.py`, stdlib-only — no third-party packages) that
 **mirrors the owner's GitHub repos into a Notion database**. On each run it:
@@ -217,14 +352,17 @@ returned quietly (no stderr noise).
 ## 3. How to run / test / deploy
 
 **This is not "deployed" — it just runs in Actions or locally.** No build step, no
-`requirements.txt` (stdlib only). The only automated tests are
-`test_fleet_health.py` (stdlib `unittest`, no deps) covering the digest's
-correlated-staleness banner, and `test_sync.py` covering `compute_status`'s
-Active/Stale/Archived labelling — run `python3 -m unittest test_sync test_fleet_health -v`.
-`test_fleet_health` also covers `probe_log_tail` (incl. the grace window) and the
-roster rows that exist because of a real silent failure (`TestRosterGuards`) —
-add a row test whenever an incident adds a row. The network-touching sync paths
-are still untested.
+`requirements.txt` (stdlib only). Tests (stdlib `unittest`, no deps, nothing real sent):
+`python3 -m unittest test_sync test_fleet_health test_probes -v`.
+- `test_fleet_health.py` — digest (budget, correlated staleness, recovered/retired),
+  retry slot + lock, roster lint, loud alerts, exit codes, the round-7 probe changes,
+  and `TestRosterGuards` (rows that exist because of a real silent failure — add a
+  row test whenever an incident adds a row).
+- `test_probes.py` — one test per return branch of every other probe (local HTTP
+  server + faked `gh`/`aws`/`launchctl`/`node`/Chrome), `run_checks` retries,
+  `_telegram_send` routing, date tokens, the notion_health card window.
+- `test_sync.py` — `compute_status`'s Active/Stale/Archived labelling. The
+  network-touching sync paths are still untested.
 
 ### Local run
 ```sh
@@ -255,6 +393,9 @@ Actions). Never hardcode any of them — the repo is **public**.
 | `ANTHROPIC_API_KEY` | optional | Anthropic API key for Claude-generated descriptions. If absent, descriptions fall back to README/GitHub-description heuristics. |
 | `NOTION_SCHEDULE_DB_ID` | yes (health.yml only) | UUID of the **Mac Mini Schedule** Notion database (under 💻 Tech & Automation). Used only by `notion_schedule.py`. |
 | `TELEGRAM_TOKEN` / `TELEGRAM_CHAT_ID` | strongly recommended (health.yml only) | Lets `notion_health.py` send the dead-Mac / undelivered-digest alert from the cloud. Same bot+chat the Mac uses (`~/PycharmProjects/Dhaka flights/.env`). If unset, the watchdog still fails the run but only GitHub's failure email carries it. |
+| `ZINGER_BOT_TOKEN` / `SCHOOL_BOT_TOKEN` / `MILESTONES_BOT_TOKEN` / `HEALTH_BOT_TOKEN` | Mac-side only (`run_health.sh`) | Each bot's own token for its `telegram_webhook` row, grepped BY NAME from that bot's `.env` (health: `~/.config/secrets.env`). Same never-`source` rule as below. |
+| `ZINGER_/VOICES_/SCHOOL_/MILESTONES_/HEALTH_WEBHOOK_SECRET` | Mac-side only (`run_health.sh`) | Webhook secrets for the `bot_selftest` rows, sent only as a request header. Never logged, never in the roster. |
+| `DIGEST_URL` / `DIGEST_KEY` | Mac-side only (from the sourced `Dhaka flights/.env`) | health-hub Silent digest hand-off (`digest_post`). The cloud watchdog does not use them (it reads `/api/health` unauthenticated). |
 | `VOICES_BOT_TOKEN` | Mac-side only (`run_health.sh`) | @MainJ_bot's own token, for the `telegram_webhook` probe. Exported by NAME in `run_health.sh` — **never** `source` voices-bot/.env wholesale, it defines `TELEGRAM_TOKEN` too and would clobber the digest sender, making fleet-health report on itself through the wrong bot. |
 
 ---
@@ -517,7 +658,7 @@ These are corrections where the **code is the source of truth** over older prose
 - **Deprecated-version sets** (`sync.py`): Python `{3.7, 3.8, 3.9, 3.10}`, Node `{12, 14, 16}`.
   README's note that "Python 3.10 is on the AWS Lambda deprecation list (Oct 31 2026)" is
   consistent with the code including 3.10 in the deprecated set.
-- No open TODOs/bugs flagged by the owner. No tests exist (none claimed).
+- No open TODOs/bugs flagged by the owner. (Tests: see §3.)
 
 ---
 
@@ -570,8 +711,8 @@ Frontend (React); `express`/`fastify`/`@hono/node-server` → API/Backend;
     `mark_deleted` — Notion reads/writes (upsert by Repo URL; soft-delete).
   - `main()` — orchestrates the run; reads env vars (incl. fallback names); returns exit code.
 - `fleet_health.py` / `run_health.sh` — Mac-side daily fleet health check (see §1).
-- `test_fleet_health.py` — stdlib `unittest` cover for `correlated_note` /
-  `format_digest` (see §3 and the correlated-staleness rule in §4).
+- `test_fleet_health.py` / `test_probes.py` — stdlib `unittest` cover for the
+  fleet check (see §3 for what each covers).
 - `schedule_snapshot.py` — Mac-side ground-truth snapshot of launchd/cron/Time
   Machine schedules → `schedule.json` (see §1). **Add a `CATALOG` entry whenever
   adding a launchd job**, or the Notion row will carry a 🆕 placeholder.
@@ -579,8 +720,9 @@ Frontend (React); `express`/`fastify`/`@hono/node-server` → API/Backend;
   `every 30 min, 7:00 AM–9:30 PM` (added 2026-08-18 for the school-bot tick,
   whose 30 slots would otherwise render as a 30-time "(retries …)" wall);
   2–3 slot retry ladders like carmax's 0:00/2:00/4:00 still read as retries.
-- `notion_health.py` / `notion_schedule.py` — cloud-side Notion stamping, run by
-  `.github/workflows/health.yml` (daily 13:07 UTC).
+- `notion_health.py` / `notion_schedule.py` — cloud-side watchdog + Notion stamping,
+  run by `.github/workflows/health.yml` (One Clock dispatch ~12:37 UTC; cron 13:07
+  UTC backstop).
 - `.github/workflows/sync.yml` — monthly cron + manual dispatch; runs `python sync.py`.
 - `.github/workflows/keepalive.yml` — biweekly empty-commit keepalive to prevent 60-day
   cron auto-disable (only runs the commit when idle ≥ 40 days; `contents: write`).
@@ -647,10 +789,132 @@ serving 200. They are the four superseded math repos already marked for deletion
 they were deliberately NOT rostered.
 
 
-## 11 Sep 2026 — silent 05:00 fleet digest
+## 11 Sep 2026 — silent 05:00 fleet digest (partly superseded 27 Sep: reds after the 06:30 re-check now buzz once, see §1.1)
 `fleet_health.py` sends the daily digest with `_telegram_send(..., silent=True)` (disable_notification):
 it lands at 05:00 ET and is read at breakfast. The self-crash panic message stays loud.
 
 ## Silent digest hand-off (11 Sep 2026)
 
-The overnight send calls `digest_post("fleet", text, parse_mode)` first (health-hub `api/digest.js`, env `DIGEST_URL` + `DIGEST_KEY` — repo secret DIGEST_KEY, URL in health.yml; only the silent 05:00 digest is handed off, alerts stay direct). Stored → no direct message; the 07:00 ⚪ Silent digest card carries a button that replays it in full (36 h). Collector down or env missing → the old silent direct send. Never make the direct send loud again.
+The overnight send calls `digest_post("fleet", text, parse_mode)` first (health-hub `api/digest.js`, env `DIGEST_URL` + `DIGEST_KEY` — repo secret DIGEST_KEY, URL in health.yml; only the silent 05:00 digest is handed off, alerts stay direct). Stored → no direct message; the 07:00 ⚪ Silent digest card carries a button that replays it in full (36 h). Collector down or env missing → the old silent direct send. The DIGEST itself stays silent; since 27 Sep (owner decision) `loud_alert()` sends a SEPARATE buzzing message for reds still standing at 06:30 (§1.1). The card goes out 06:50-10:00 ET, not 07:00 sharp.
+
+
+
+## History: the fleet-health §1 prose as it stood before the 2026-09-27 rewrite
+
+> Kept for the WHY behind each rule. **Superseded by §1 wherever they differ.** Known
+> stale points: the probe count (now 71 rows, 19 types), "the 6:30 slot no-ops once the
+> digest reached Telegram" (digest mode always re-runs), lock age (now pid-based),
+> "exits nonzero" (now exit 3), health.yml "13:07 UTC" (One Clock ~12:37 is primary),
+> and the 10-12 h / 34-37 h watchdog numbers (a normal day now reads ~6 h).
+
+**This repo now has TWO jobs** (2026-07-19): the original monthly repo→Notion
+sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
+- `fleet_health.py` — runs on Jalal's Mac (launchd `com.jalal.fleet-health`,
+  daily 5:00 AM **plus a 6:30 AM retry slot** so everything is settled
+  before the 7 AM YNAB brief / wake-up — run_health.sh passes
+  `--retry-slot` from 6 AM and the script no-ops if today's digest already
+  reached Telegram, or backs off if the 5 AM run still holds
+  `.fleet_health.lock` (gitignored; locks >2 h old are treated as crashed
+  and ignored); manual `python3 fleet_health.py` always runs. Wrapper
+  `run_health.sh` also truncates `health.log` in place past ~400 KB —
+  gitignored). 41 data-level probes (local launchd stamps/exit codes, `gh`
+  runs with log-grep data markers, live-site checks). `log_grep` takes one
+  regex or a list (ALL must match); assert the *pipeline ran* rather than that
+  a count was nonzero, or a legitimately quiet source false-alarms at 5 AM.
+  The Mac-side twin of that is the `log_marker` probe (added 2026-08-18 for
+  `aoife-school-bot`): same `log_grep` contract against a local launchd log,
+  where `{date}` in a pattern expands to today|yesterday. Use it for a job
+  whose slots do NOT all land before the 5 AM check — grading file mtime or
+  exit code there measures only that the job woke up.
+  A workflow with several legitimate shapes (reddit-scraper's real scrape vs.
+  its retry-window no-op) gets ONE pattern with an `|` covering both, not two
+  patterns that can't both hold. **Every marker must be verified against a real
+  recent log** (`gh run view <id> --log`): Actions echoes each step's *source*
+  into the log, so a naive `already updated today` matches the `echo "…($LAST)…"`
+  line on every run and can never fail — reddit-scraper's markers use `[^$\n]+`
+  precisely to exclude the echoed form. A marker that can never match is a
+  permanent false alarm; a marker that can never miss is decoration. One
+  repo may hold several probes (leasehackr has Daily + Historical) — the digest
+  keeps the "(qualifier)" on those so they don't read as duplicates. **Digest contract:**
+  all healthy → ONE plain-text line ("✅ Fleet check … all N systems
+  healthy", plus "· recovered: X" the first healthy day after a failure);
+  any failure → a full diagnostic block per failure (probe config line,
+  "⏳ failing since DATE" when the failure spans days, multi-line detail
+  incl. run URL + failed-step log tail for gh_run probes — the tail drops the
+  post-job cleanup block, strips ANSI/timestamps, and prepends the first real
+  error signature, since a naive tail shows only `git config --unset` noise)
+  designed to be
+  pasted verbatim into Claude to debug. **The digest is budgeted per failure,
+  never tail-chopped.** Telegram's cap is 4096 chars (`TELEGRAM_LIMIT = 4000`)
+  and one gh_run failure block runs ~1.5 KB, so 3+ simultaneous failures blow
+  the budget — and the old whole-message truncation dropped the LAST blocks
+  *and* the "✅ the other N healthy" line, i.e. a 4-repo outage reported as a
+  2-repo one, in exactly the scenario the digest exists for (measured: 4 synthetic
+  failures → 1 name lost + no healthy line). Now header and footer are reserved
+  first, the remainder is split evenly across failures (blocks that come in under
+  their share hand the slack back to the big ones), and each block fills to its
+  share in priority order: name → "failing since" → config line → detail → log
+  tail. **A failure name is never dropped** (past ~15 simultaneous failures the
+  body degrades to a plain roll call of names); the log tail is what goes.
+  Losing a tail costs one paste-into-Claude round trip; losing a name means the
+  owner never learns that system is down. Telegram is plain text (NO
+  parse_mode — log excerpts full of `_*[` used to be able to 400 the
+  Markdown digest) with 3 send attempts. Probes RAISE on infra errors
+  (network blip, gh failure) → retried 3× with 20 s pauses; a returned
+  False (stale data, red run) is real signal, never retried. If the script
+  itself crashes, a 🚨 panic Telegram goes out and it exits nonzero.
+  Commits+pushes `health.json` (records `telegram: sent/failed` — read by
+  the Dead-Mac watchdog below, unchanged meaning; `telegram_mode:
+  digest/direct/null`, added 2026-09-15 — a Silent-digest hand-off only
+  QUEUES the card, so `already_ran_today()` requires `direct` to skip the
+  6:30 retry, letting a 5:00 finding that self-heals by 6:30 — e.g. the
+  mental-models 6 AM backstop — get re-checked and corrected before the
+  card actually reaches Jalal at 06:50-07:30 — and `failing_since` per
+  failing system, carried across days by `annotate_history`). Probes live
+  in the `FLEET` list — add new automations there.
+- `notion_health.py` + `.github/workflows/health.yml` (daily 13:07 UTC) —
+  stamps Health / Health checked / Health note onto each repo's row in the
+  same Notion DB (keyed by Repo URL, same secrets as sync.py; auto-creates
+  the three properties). **Dead-Mac watchdog:** it `die()`s — log + Telegram +
+  nonzero exit — when `health.json` is older than `STALE_HOURS = 24`, or when
+  the Mac's own digest went undelivered (`telegram != "sent"`). The Mac stamps
+  at 05:00 local and this workflow actually starts 14:38–15:49 UTC, so a normal
+  day measures 10–12 h (`checked` is Mac-local time read against a UTC runner —
+  a 4–5 h overstatement, the safe direction) and ONE missed Mac run measures
+  34–37 h: it fires at the first check after a missed stamp, ~1.4 days later.
+  That is the real "within two days" guarantee; the previous `age_days > 2` on
+  a date-only comparison did not fire until the THIRD day (~3.4 days) while the
+  docs claimed two. The Telegram is the point: a dead Mac cannot send its own
+  digest, and a red Actions run + GitHub's failure email can go unread for a
+  week. `TELEGRAM_TOKEN`/`TELEGRAM_CHAT_ID` are wired in `health.yml`; if they
+  are unset the alert degrades to email-only and never crashes.
+  **Since One Clock the dispatch lands ~12:37 UTC**, so the real latency is a
+  little shorter than the numbers above. **Card-delivery check (red team
+  2026-09-27):** when `telegram_mode == "digest"`, "sent" only means QUEUED in
+  health-hub; the watchdog also reads `digest_fleet_at` from
+  jalal-health.vercel.app/api/health (stamped only after Telegram accepted a
+  card naming the fleet item) and dies past `CARD_STALE_HOURS = 20` — a dead
+  card flush would otherwise swallow every fleet red silently.
+- **Red team 2026-09-27 (round 7) — rules that generalise:**
+  - A job that runs BEFORE the 05:00 check gets `{today}`, never `{date}`:
+    the yesterday arm let a failed morning pass (daily-trackers, gcal-sync,
+    planner-backup). Weekday-only markers get `{weekday}` (trading-algorithm:
+    72 h alone left two green mornings after a Tuesday death).
+  - An hourly/5-minute job is graded by the NEWEST outcome, not "any success
+    in the window": `cloudwatch_marker(today_only=False, fail_grep=,
+    active_window=)` (ynab-nag), `log_tail` with a hard age (defensive-nag),
+    stamped grace hits measured against the newest line (aoife-typing).
+  - A lock backs the 6:30 retry off only while its pid is alive (job-reaper
+    SIGKILLs leave orphans). Every nonzero exit alerts: fleet_health.py exits
+    3 after its own 🚨; run_health.sh alerts on any other code (SyntaxError).
+  - The lint rejects a `log_grep` that matches "" or "zz". 5xx from a bot
+    selftest or the catalysts fetch is infra (retried), not a red row.
+  - **Reds are LOUD (owner decision 2026-09-27).** `loud_alert()` sends one
+    buzzing Telegram listing the failing systems — never before 06:25 (the
+    05:00 run stays silent; 06:30 re-checks first), once per failing name per
+    day (`loud` in health.json). A silent 05:00 direct send no longer lets the
+    6:30 slot skip while reds are unbuzzed.
+  - `web_fresh(min_rows=)` floors the scraped lists (dhaka-flights published
+    flights=0 on 08-23 with a fresh stamp). `gh_run(rescue_max_failures=)`
+    stops "an earlier run succeeded" from hiding a job that fails every other
+    run (reddit-backup 1, trading-algorithm 2).

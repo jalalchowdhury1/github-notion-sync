@@ -1,7 +1,7 @@
 #!/bin/bash
-# launchd wrapper for the DAILY fleet health check (5:00 AM, plus a 6:30 AM
-# retry slot that no-ops once today's digest has been delivered — everything
-# settled before the 7 AM YNAB brief / wake-up).
+# launchd wrapper for the DAILY fleet health check: 5:00 AM (silent) plus the
+# 6:30 AM retry slot, which re-grades and buzzes once for anything still red.
+# See AGENTS.md §1.1 for the timeline and exit codes. NOT a dry run.
 source /Users/jalalchowdhury/.bash_profile 2>/dev/null || true
 export HOME=/Users/jalalchowdhury USER=jalalchowdhury
 export PATH="/opt/homebrew/bin:/usr/local/bin:/Library/Developer/CommandLineTools/usr/bin:$PATH"
