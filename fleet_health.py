@@ -1910,14 +1910,6 @@ FLEET = [
      "probe": "web_render", "url": "https://aoife-math.vercel.app",
      "expect_text": "Try 1 of 2",
      "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
-    {"name": "aoife-columns (site)", "repo": "aoife-columns",
-     "probe": "web_render", "url": "https://aoife-columns.vercel.app",
-     "expect_text": "Solve big sums the column way",
-     "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
-    {"name": "aoife-frameworks (site)", "repo": "aoife-frameworks",
-     "probe": "web_render", "url": "https://aoife-frameworks.vercel.app",
-     "expect_text": "Pick a puzzle.",
-     "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
     {"name": "nafis-mortgage (site)", "repo": "nafis-mortgage",
      "probe": "web_200", "url": "https://nafis-mortgage.vercel.app",
      "bypass_env": "NAFIS_VERCEL_BYPASS",   # login-only since 2026-09-27
@@ -1931,14 +1923,8 @@ FLEET = [
      "probe": "web_render", "url": "https://aoife-puzzles.vercel.app",
      "expect_text": "Aoife Puzzles",
      "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
-    {"name": "aoife-algebra (site)", "repo": "aoife-algebra",
-     "probe": "web_render", "url": "https://aoife-algebra.vercel.app",
-     "expect_text": "A letter is just a mystery box",
-     "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
-    {"name": "aoife-order (site)", "repo": "aoife-order",
-     "probe": "web_render", "url": "https://aoife-order.vercel.app",
-     "expect_text": "builds a bag",
-     "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
+    # aoife-columns / frameworks / order / algebra — ROWS RETIRED 2026-09-27: Aoife
+    # stopped using them; repos archived on GitHub, Vercel projects removed.
     # backbench — ROW RETIRED 2026-09-12. It read `web_200` on backbench.vercel.app
     # and reported "daily trading brief: OK" because the static site answers. There
     # is no GitHub repo (404), no launchd job, and the local folder was retired the
