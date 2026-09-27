@@ -659,3 +659,108 @@ class RedTeam0927(unittest.TestCase):
         names = " | ".join(i["name"] for i in fh.FLEET)
         for must in ("ynab-nag Lambda", "dhaka-yearly", "AM Reads", "llm-balance-check"):
             self.assertIn(must, names)
+
+
+class RedTeam0927Part2(unittest.TestCase):
+
+    def setUp(self):
+        self._send, self._main, self._run = fh._telegram_send, fh.main, fh.subprocess.run
+        self.sent = []
+        fh._telegram_send = lambda text, silent=False: (self.sent.append((text, silent)), "direct")[1]
+
+    def tearDown(self):
+        fh._telegram_send, fh.main, fh.subprocess.run = self._send, self._main, self._run
+
+    # crash alerts
+    def test_lint_refusal_alerts_and_exits_3(self):
+        fh.main = lambda argv: (_ for _ in ()).throw(SystemExit(2))
+        self.assertEqual(fh.cli([]), 3)
+        self.assertIn("REFUSED TO RUN", self.sent[0][0])
+        self.assertFalse(self.sent[0][1])                     # loud
+
+    def test_crash_alerts_and_exits_3(self):
+        fh.main = lambda argv: 1 / 0
+        self.assertEqual(fh.cli([]), 3)
+        self.assertIn("CRASHED", self.sent[0][0])
+
+    def test_clean_run_and_skip_exit_are_silent(self):
+        fh.main = lambda argv: None
+        self.assertEqual(fh.cli([]), 0)
+        fh.main = lambda argv: (_ for _ in ()).throw(SystemExit(0))
+        self.assertEqual(fh.cli([]), 0)
+        self.assertEqual(self.sent, [])
+
+    # loud reds
+    def _res(self, *bad):
+        return [{"name": "ok-row", "ok": True}] + [{"name": n, "ok": False} for n in bad]
+
+    def test_no_buzz_at_5am(self):
+        rec = fh.loud_alert(self._res("x"), now=datetime.datetime(2026, 9, 28, 5, 1), prev={})
+        self.assertEqual(self.sent, [])
+        self.assertEqual(rec, {})
+
+    def test_buzz_once_at_630_then_quiet_for_same_names(self):
+        now = datetime.datetime(2026, 9, 28, 6, 31)
+        rec = fh.loud_alert(self._res("x (daily)"), now=now, prev={})
+        self.assertEqual(len(self.sent), 1)
+        self.assertIn("1 of 2 systems failing", self.sent[0][0])
+        self.assertEqual(rec, {"date": "2026-09-28", "names": ["x (daily)"]})
+        rec2 = fh.loud_alert(self._res("x (daily)"), now=now.replace(hour=15), prev=rec)
+        self.assertEqual(len(self.sent), 1)                  # same name, same day: quiet
+        self.assertEqual(rec2, rec)
+        fh.loud_alert(self._res("x (daily)", "y"), now=now.replace(hour=16), prev=rec)
+        self.assertEqual(len(self.sent), 2)                  # a NEW failure buzzes
+
+    def test_all_green_never_buzzes(self):
+        fh.loud_alert(self._res(), now=datetime.datetime(2026, 9, 28, 6, 31), prev={})
+        self.assertEqual(self.sent, [])
+
+    def test_retry_slot_not_skipped_while_reds_are_unbuzzed(self):
+        with tempfile.TemporaryDirectory() as d:
+            orig = fh.HEALTH_FILE
+            fh.HEALTH_FILE = os.path.join(d, "h.json")
+            try:
+                today = datetime.date.today().isoformat()
+                base = {"checked": f"{today} 05:01", "telegram_mode": "direct"}
+                json.dump({**base, "results": [{"name": "x", "ok": False}]}, open(fh.HEALTH_FILE, "w"))
+                self.assertFalse(fh.already_ran_today())
+                json.dump({**base, "results": [{"name": "x", "ok": True}]}, open(fh.HEALTH_FILE, "w"))
+                self.assertTrue(fh.already_ran_today())
+            finally:
+                fh.HEALTH_FILE = orig
+
+    # scrape floors
+    def test_fresh_stamp_on_a_short_scrape_is_red(self):
+        import http.server, threading
+        body = json.dumps({"updated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                           "flights": [], "sg_tickets": [1] * 40}).encode()
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200); self.end_headers(); self.wfile.write(body)
+            def log_message(self, *a):
+                pass
+        srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            url = f"http://127.0.0.1:{srv.server_port}/"
+            ok, detail = fh.probe_web_fresh(url, "updated", 36, min_rows={"flights": 100, "sg_tickets": 20})
+            self.assertFalse(ok)
+            self.assertIn("flights=0 (min 100)", detail)
+            ok, _ = fh.probe_web_fresh(url, "updated", 36, min_rows={"sg_tickets": 20})
+            self.assertTrue(ok)
+        finally:
+            srv.shutdown()
+
+    # flap guard
+    def test_flapping_job_is_not_rescued(self):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        mk = lambda h, c, i: {"status": "completed", "conclusion": c, "databaseId": i, "event": "schedule",
+                              "createdAt": (now - datetime.timedelta(hours=h)).strftime("%Y-%m-%dT%H:%M:%SZ")}
+        runs = [mk(1, "failure", 1), mk(4, "success", 2), mk(7, "failure", 3)]
+        fh.subprocess.run = lambda cmd, *a, **k: types.SimpleNamespace(
+            returncode=0, stdout=json.dumps(runs) if "list" in cmd else "", stderr="")
+        ok, detail = fh.probe_gh_run("r", "w.yml", 8, rescue_max_failures=1)
+        self.assertFalse(ok)
+        self.assertIn("flapping", detail)
+        ok, _ = fh.probe_gh_run("r", "w.yml", 8)            # old behaviour, no guard
+        self.assertTrue(ok)

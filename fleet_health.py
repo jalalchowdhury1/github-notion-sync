@@ -109,7 +109,7 @@ def _parse_stamp(raw):
     raise ValueError(f"unparseable timestamp {raw!r}")
 
 
-def probe_web_fresh(url, json_key, max_age_h, rows_key=None, **_):
+def probe_web_fresh(url, json_key, max_age_h, rows_key=None, min_rows=None, **_):
     """Fetch JSON and check a timestamp field is recent (data-level freshness).
 
     rows_key: grade the OLDEST per-row stamp under data[rows_key] instead of a
@@ -122,6 +122,14 @@ def probe_web_fresh(url, json_key, max_age_h, rows_key=None, **_):
     — applies just as much to a timestamp the job stamps unconditionally."""
     with urllib.request.urlopen(url, timeout=30) as r:
         data = json.loads(r.read().decode())
+    # min_rows {list_key: floor} (red team 2026-09-27): a fresh top-level stamp on
+    # a half-empty scrape is still a false green -- dhaka-flights published
+    # flights=0 on 2026-08-23 with a brand-new `updated`. Floors sit far below
+    # every healthy night, so only a broken scrape trips them.
+    short = [f"{k}={len(data.get(k) or [])} (min {n})"
+             for k, n in (min_rows or {}).items() if len(data.get(k) or []) < n]
+    if short:
+        return False, "fresh stamp but a scrape came back short: " + ", ".join(short)
     if rows_key:
         rows = data.get(rows_key) or []
         stamps = [str(row.get(json_key, "")) for row in rows
@@ -324,7 +332,7 @@ def _failed_log_tail(repo, run_id, max_chars=1200, keep=14):
 
 
 def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None,
-                 no_rescue=False, **_):
+                 no_rescue=False, rescue_max_failures=None, **_):
     """Latest workflow run: recent + successful; optionally grep the log for
     data-level markers proving real work happened, not just a green exit.
 
@@ -399,6 +407,21 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None,
         # takes an AM and a PM snapshot, and a failed PM was greening off the AM
         # run's log. Rows whose runs are not interchangeable must say so.
         rescue = None
+        # rescue_max_failures (red team 2026-09-27): for a job whose runs are
+        # separate cycles (reddit-backup every 3 h, the 30-min trading signal),
+        # "an earlier run succeeded" also describes a job failing every OTHER
+        # run. Past this many failed runs in the window it is flapping, not a
+        # blip, and no rescue applies.
+        if rescue_max_failures is not None:
+            in_window = [r for r in runs if r.get("status") == "completed"
+                         and _age_hours(datetime.datetime.strptime(r["createdAt"][:16], "%Y-%m-%dT%H:%M")
+                                        .replace(tzinfo=datetime.timezone.utc).timestamp()) <= max_age_h]
+            fails = sum(1 for r in in_window if r.get("conclusion") != "success")
+            if fails > rescue_max_failures:
+                tail = _failed_log_tail(repo, run["databaseId"])
+                return False, (f"{fails} of the last {len(in_window)} runs failed — flapping, "
+                               f"not a one-off blip\nrun: {run_url}"
+                               + (f"\n{tail}" if tail else ""))
         if no_rescue:
             tail = _failed_log_tail(repo, run["databaseId"])
             return False, (f"last run {run['conclusion']} ({age:.0f}h ago); no_rescue "
@@ -1480,7 +1503,10 @@ PROBE_FNS["log_tail"] = probe_log_tail
 FLEET = [
     {"name": "dhaka-flights (nightly trip tracker)", "repo": "dhaka-flights",
      "probe": "web_fresh", "url": "https://raw.githubusercontent.com/jalalchowdhury1/dhaka-flights/main/site/data.json",
-     "json_key": "updated", "max_age_h": 36},
+     "json_key": "updated", "max_age_h": 36,
+     # healthy nights 22 Aug-27 Sep: ticket1 2-8, ticket2 9-10, sg 35-61,
+     # flights 196-254 (flights=0 on 08-23 was the broken scrape this catches)
+     "min_rows": {"ticket1_options": 1, "ticket2_options": 5, "sg_tickets": 20, "flights": 100}},
     # com.jalal.dhaka-hotels (launchd, 5:00 AM, run_hotel_rates.sh) — the award
     # -points research behind the trip site's Stays table. Rostered 2026-08-06;
     # schedule_snapshot has always listed it, the fleet never watched it.
@@ -1677,6 +1703,7 @@ FLEET = [
      # died at Tuesday's open still read green Wed + Thu off Monday's last run.
      # main.py stamps date= on both lines; weekday-only, so {weekday} not {date}.
      "log_grep": r"NUTS-SIGNAL (?:OK unchanged=|CHANGED ).*date={weekday}",
+     "rescue_max_failures": 2,          # 3+ of the last 5 half-hourly runs red = broken
      "expect_event": "workflow_dispatch"},
     # reddit-scraper's commit step is `git commit … || exit 0`, so a run that
     # scrapes nothing still exits GREEN having written nothing — conclusion-only
@@ -1697,6 +1724,7 @@ FLEET = [
     # LAST result per repo, and Telegram carries both.
     {"name": "reddit-backup (GitHub RSS every 3 h)", "repo": "reddit-scraper",
      "probe": "gh_run", "workflow": "reddit_backup.yml", "max_age_h": 8,
+     "rescue_max_failures": 1,
      "log_grep": [r"REDDIT BACKUP: refreshed \d+ of \d+",
                   r"GITHUB REDDIT CHECK: rss ok|REDDIT BACKUP: refreshed [1-9]"]},
     {"name": "reddit-scraper (daily data)", "repo": "reddit-scraper",
@@ -2560,7 +2588,47 @@ def _telegram_send(text, silent=False) -> str:
     return ""
 
 
-def publish(results, telegram_mode: str) -> None:
+LOUD_FROM = datetime.time(6, 25)   # the 05:00 run stays silent; 06:30 re-checks and buzzes
+
+
+def loud_alert(results, now=None, prev=None):
+    """One BUZZING message when systems are still red after the 6:30 re-check.
+
+    Red team 2026-09-27: the digest goes to health-hub's Silent card, whose button
+    reads "🛠 Fleet health" whether the fleet is green or on fire -- a red fleet
+    was indistinguishable from a healthy one unless he tapped. Owner decision
+    2026-09-27: reds are loud. Safety rules: never before LOUD_FROM (the 05:00
+    run must not wake anyone; 06:30 re-checks first, so self-healed rows never
+    buzz), and once per failing name per day (a manual re-run repeats nothing).
+    Returns the record to store in health.json, or the previous one unchanged.
+    """
+    now = now or datetime.datetime.now()
+    today = now.date().isoformat()
+    if prev is None:
+        try:
+            prev = json.load(open(HEALTH_FILE)).get("loud") or {}
+        except Exception:                    # noqa: BLE001
+            prev = {}
+    already = set(prev.get("names", [])) if prev.get("date") == today else set()
+    bad = [r for r in results if not r.get("ok")]
+    new = [r for r in bad if r["name"] not in already]
+    if not new or now.time() < LOUD_FROM:
+        return prev if prev.get("date") == today else {}
+    lines = [f"🚨 Fleet check: {len(bad)} of {len(results)} systems failing"]
+    for r in bad[:12]:
+        since = r.get("failing_since")
+        lines.append(f"• {r['name']}" + (f" (since {since})" if since and since != today else ""))
+    if len(bad) > 12:
+        lines.append(f"• …and {len(bad) - 12} more")
+    lines.append("Full detail: tap 🛠 Fleet health in the morning card, or paste this to Claude.")
+    if _telegram_send("\n".join(lines)) != "direct":
+        print("WARN: loud alert not delivered")
+        return prev if prev.get("date") == today else {}
+    print(f"loud alert sent for {len(new)} new failing system(s)")
+    return {"date": today, "names": sorted(already | {r["name"] for r in bad})}
+
+
+def publish(results, telegram_mode: str, loud=None) -> None:
     payload = {"checked": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
                # "sent"/"failed": unchanged contract — notion_health.py's Dead-Mac
                # watchdog dies on anything but "sent". telegram_mode is the new,
@@ -2568,6 +2636,7 @@ def publish(results, telegram_mode: str) -> None:
                # "direct" (see _telegram_send).
                "telegram": "sent" if telegram_mode else "failed",
                "telegram_mode": telegram_mode or None,
+               "loud": loud or {},
                "results": results}
     with open(HEALTH_FILE, "w") as f:
         json.dump(payload, f, indent=1)
@@ -2601,8 +2670,13 @@ def already_ran_today() -> bool:
     """
     try:
         h = json.load(open(HEALTH_FILE))
-        return (h.get("checked", "")[:10] == datetime.date.today().isoformat()
-                and h.get("telegram_mode") == "direct")
+        today = datetime.date.today().isoformat()
+        # A direct send at 05:00 is delivered, but it was SILENT: while rows are
+        # still red and no loud alert went out today, the 6:30 slot must re-check.
+        unbuzzed = (any(not r.get("ok") for r in h.get("results", []))
+                    and (h.get("loud") or {}).get("date") != today)
+        return (h.get("checked", "")[:10] == today
+                and h.get("telegram_mode") == "direct" and not unbuzzed)
     except Exception:                        # noqa: BLE001
         return False
 
@@ -2693,7 +2767,8 @@ def main(argv=()) -> None:
         results = run_checks()
         recovered = annotate_history(results)
         mode = _telegram_send(format_digest(results, recovered), silent=True)   # 05:00 digest — no buzz (11 Sep 2026)
-        publish(results, mode)
+        loud = loud_alert(results)
+        publish(results, mode, loud)
     finally:
         try:
             os.remove(LOCK_FILE)
@@ -2702,20 +2777,24 @@ def main(argv=()) -> None:
     print("=== Done ===")
 
 
-if __name__ == "__main__":
+def cli(argv) -> int:
+    """Run main() and turn EVERY failure into an alert. Returns the exit code:
+    0 ok, 3 = failed AND already alerted (run_health.sh alerts on any other
+    nonzero code, e.g. a SyntaxError before this function exists)."""
     try:
-        main(sys.argv[1:])
+        main(argv)
+        return 0
     except SystemExit as e:
         # Red team 2026-09-27: the roster lint exits via SystemExit(2), which
         # `except Exception` never sees -- a bad roster edit stopped every
         # morning check with no alert at all. A clean exit (0/None) stays quiet.
-        if e.code not in (0, None):
-            _telegram_send(f"🚨 fleet_health.py REFUSED TO RUN (exit {e.code}) — the "
-                           "checker is down, not the fleet. Most likely the roster "
-                           "lint: a liveness-only row without weak_ok. See "
-                           "health.log. Paste this to Claude to debug.")
-            sys.exit(3)                      # 3 = "already alerted" to run_health.sh
-        raise
+        if e.code in (0, None):
+            return 0
+        _telegram_send(f"🚨 fleet_health.py REFUSED TO RUN (exit {e.code}) — the "
+                       "checker is down, not the fleet. Most likely the roster "
+                       "lint: a liveness-only row without weak_ok. See "
+                       "health.log. Paste this to Claude to debug.")
+        return 3
     except Exception:                        # noqa: BLE001 — die LOUDLY
         import traceback
         tb = traceback.format_exc()
@@ -2723,4 +2802,8 @@ if __name__ == "__main__":
         _telegram_send("🚨 fleet_health.py itself CRASHED — the checker is "
                        f"down, not the fleet:\n{tb[-1500:]}\n"
                        "Paste this to Claude to debug.")
-        sys.exit(3)                          # 3 = "already alerted" to run_health.sh
+        return 3
+
+
+if __name__ == "__main__":
+    sys.exit(cli(sys.argv[1:]))

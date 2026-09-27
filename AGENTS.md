@@ -111,6 +111,15 @@ sync, and the DAILY FLEET HEALTH system (weekly→daily 2026-07-26):
     3 after its own 🚨; run_health.sh alerts on any other code (SyntaxError).
   - The lint rejects a `log_grep` that matches "" or "zz". 5xx from a bot
     selftest or the catalysts fetch is infra (retried), not a red row.
+  - **Reds are LOUD (owner decision 2026-09-27).** `loud_alert()` sends one
+    buzzing Telegram listing the failing systems — never before 06:25 (the
+    05:00 run stays silent; 06:30 re-checks first), once per failing name per
+    day (`loud` in health.json). A silent 05:00 direct send no longer lets the
+    6:30 slot skip while reds are unbuzzed.
+  - `web_fresh(min_rows=)` floors the scraped lists (dhaka-flights published
+    flights=0 on 08-23 with a fresh stamp). `gh_run(rescue_max_failures=)`
+    stops "an earlier run succeeded" from hiding a job that fails every other
+    run (reddit-backup 1, trading-algorithm 2).
 
 **Plus a third job (2026-07-20): the self-maintaining "Mac Mini Schedule" Notion table.**
 - `schedule_snapshot.py` — runs on the Mac right after `fleet_health.py`
