@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-27 17:32",
+ "updated": "2026-09-29 05:02",
  "jobs": [
   {
    "key": "com.jalal.aoife-gcal-sync",
@@ -60,6 +60,16 @@
    "what": "Keeps a tmux session 'concierge' running `claude remote-control` so Jalal can reach/spawn Claude Code sessions on this Mac from the Claude phone app; knows the 'fresh start' session-cleanup trick (~/.local/bin/fresh-start.sh)",
    "logs": "~/Library/Logs/claude-concierge.log",
    "notes": "Always-on, KeepAlive + 60s self-heal loop; concierge briefing lives in ~/concierge/CLAUDE.md; added 2026-08-27"
+  },
+  {
+   "key": "com.jalal.daily-reader-kick",
+   "title": "com.jalal.daily-reader-kick",
+   "when": "7:00 AM (retries 8:30 AM, 10:00 AM)",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.daily-reader-kick → ~/.local/bin/daily-reader-kick.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/daily-reader-kick.log",
+   "notes": ""
   },
   {
    "key": "com.jalal.daily-trackers",
