@@ -100,7 +100,7 @@ zero rows.
 `run_checks` retries it 3× with 20 s pauses. A returned `False` is real signal and is
 never retried.
 
-### 1.2 Probe reference (19 types, `PROBE_FNS`)
+### 1.2 Probe reference (20 types, `PROBE_FNS`)
 
 Contract: `fn(**row) -> (ok, detail)`; raise only for infra trouble.
 
@@ -133,6 +133,7 @@ run):
 | `one_clock_lambda` | EventBridge → gh-dispatcher is alive: pings, dispatches, no unrecovered error | windows/minimums |
 | `nuts` | NUTS signal payload: unit test, downloads, price freshness, eval freshness, holding | `url` |
 | `nuts_radar` | radar site 200 + repo's `selfcheck.js` passes + catalysts fresh | `url`, `repo_dir`, `catalysts_url` |
+| `freshness` | what the SCREEN serves reflects the newest input: the app's `GET /api/freshness` (contract v1, ages in hours only); red when an item's input is past `graceH` and the served copy is older, or `servedAgeH` > `maxAgeH`. The app reports, the probe judges | `url`, `expect_items` |
 
 ### 1.3 Markers and date tokens
 
@@ -187,6 +188,12 @@ trigger.
    `None`. One Notion row per repo, and the **last** result for a repo wins.
 6. Prove the row can go red: feed it the failure shape, e.g. in `test_probes.py` or a
    `TestRosterGuards` test. Then run the side-effect-free grade (§1.5) and see it green.
+7. **Writer feeds a screen? Grade the screen too** (2026-10-02). If the job writes data
+   that a live app later SHOWS (KV doc, report, mission, feed), mark its row
+   `feeds_screen: True` and add a `freshness` row for the same repo that reads the app's
+   `/api/freshness`. The lint refuses a `feeds_screen` row without one. Why: the aoife-typing
+   coach logged `wrote coach` every 15 min (green) while the screen served the 11 Sep
+   mission for three weeks (reader read `at`, writer stamped `generatedAt`).
 
 ### 1.5 Testing and dry runs
 

@@ -1232,6 +1232,52 @@ class DefensiveNagOutcome(_Patched):
             self.assertFalse(self.grade(tail)[0], tail)
 
 
+class ServedFreshness(unittest.TestCase):
+    """2026-10-02: grade what the screen serves (aoife-typing at/generatedAt bug)."""
+
+    def grade(self, items, **kw):
+        srv = _Server({"/f": (200, json.dumps({"app": "x", "v": 1, "items": items}), {})})
+        try:
+            return fh.probe_freshness(srv.base + "/f", **kw)
+        finally:
+            srv.close()
+
+    def test_served_matches_newest_input_green(self):
+        ok, d = self.grade([{"name": "coach mission", "inputAgeH": 10, "servedAgeH": 10, "graceH": 3}])
+        self.assertTrue(ok, d)
+
+    def test_the_2_oct_bug_is_red(self):
+        # she played 26 h ago; the screen still served the 11 Sep mission (~500 h)
+        ok, d = self.grade([{"name": "coach mission", "inputAgeH": 26, "servedAgeH": 505, "graceH": 3}])
+        self.assertFalse(ok)
+        self.assertIn("coach mission", d)
+
+    def test_inside_grace_green_past_grace_red(self):
+        self.assertTrue(self.grade([{"name": "c", "inputAgeH": 1, "servedAgeH": 30, "graceH": 3}])[0])
+        self.assertFalse(self.grade([{"name": "c", "inputAgeH": 4, "servedAgeH": 30, "graceH": 3}])[0])
+
+    def test_input_but_nothing_served_red_no_input_green(self):
+        self.assertFalse(self.grade([{"name": "c", "inputAgeH": 5, "servedAgeH": None, "graceH": 3}])[0])
+        self.assertTrue(self.grade([{"name": "c", "inputAgeH": None, "servedAgeH": None, "graceH": 3}])[0])
+
+    def test_max_age_and_future_stamp_red(self):
+        self.assertFalse(self.grade([{"name": "feed", "inputAgeH": None, "servedAgeH": 30,
+                                      "graceH": 1, "maxAgeH": 26}])[0])
+        self.assertFalse(self.grade([{"name": "c", "inputAgeH": -400000, "servedAgeH": 1, "graceH": 3}])[0])
+
+    def test_missing_item_or_bad_shape_red(self):
+        self.assertFalse(self.grade([{"name": "other", "inputAgeH": 1, "servedAgeH": 1, "graceH": 3}],
+                                    expect_items=["coach mission"])[0])
+        self.assertFalse(self.grade([])[0])
+
+    def test_lint_feeds_screen_needs_a_freshness_row(self):
+        w = {"name": "w", "repo": "r", "probe": "log_tail", "path": "x", "last_line": "y", "max_age_h": 1,
+             "feeds_screen": True}
+        f = {"name": "f", "repo": "r", "probe": "freshness", "url": "u"}
+        self.assertEqual(len(fh.lint_roster([w])), 1)
+        self.assertEqual(fh.lint_roster([w, f]), [])
+
+
 if __name__ == "__main__":
     unittest.main()
 

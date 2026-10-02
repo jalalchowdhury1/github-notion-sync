@@ -1545,6 +1545,45 @@ def probe_web_render(url, expect_text, **_):
     return True, f"rendered with no JS errors, {expect_text!r} on the page"
 
 
+def probe_freshness(url, expect_items=None, **_):
+    """Served-data freshness, contract v1 (2026-10-02): grade what the SCREEN serves.
+
+    Born from aoife-typing: its coach wrote a fresh mission every 15 min (log_tail
+    green), but the app read `at` while the writer stamped `generatedAt`, so the
+    screen served the 11 Sep mission for three weeks. A writer-side row cannot see
+    that; this row reads the app's GET /api/freshness, which reports ages ONLY:
+      {"app", "v": 1, "items": [{"name", "inputAgeH", "servedAgeH", "graceH", "maxAgeH"?}]}
+    inputAgeH = hours since the newest input the served thing should reflect;
+    servedAgeH = hours since the input the served thing actually reflects.
+    The app reports raw ages and THIS function judges, so a bug in the app's own
+    logic cannot mark itself green. Red when an input is past its grace and the
+    served copy is older than it, or when servedAgeH passes maxAgeH.
+    expect_items: names that must be present (a renamed or dropped item is red)."""
+    with urllib.request.urlopen(urllib.request.Request(url), timeout=30) as r:
+        data = json.loads(r.read().decode())
+    items = data.get("items")
+    if data.get("v") != 1 or not isinstance(items, list) or not items:
+        return False, f"not a freshness v1 reply: {str(data)[:120]}"
+    names = {str(i.get("name")) for i in items if isinstance(i, dict)}
+    missing = sorted(set(expect_items or ()) - names)
+    if missing:
+        return False, f"freshness item(s) missing: {', '.join(missing)}"
+    bad, good = [], []
+    for i in items:
+        name, inp, srv = i.get("name"), i.get("inputAgeH"), i.get("servedAgeH")
+        grace, cap = float(i.get("graceH") or 0), i.get("maxAgeH")
+        if (inp is not None and float(inp) < -1) or (srv is not None and float(srv) < -1):
+            bad.append(f"{name}: stamp in the FUTURE (input {inp}h, served {srv}h) — clock/field bug")
+        elif inp is not None and float(inp) > grace and (srv is None or float(srv) > float(inp) + 0.25):
+            bad.append(f"{name}: screen serves data {'(none)' if srv is None else f'{float(srv):.0f}h'} old, "
+                       f"newest input {float(inp):.0f}h old (grace {grace:g}h)")
+        elif cap is not None and srv is not None and float(srv) > float(cap):
+            bad.append(f"{name}: served data {float(srv):.0f}h old (limit {float(cap):g}h)")
+        else:
+            good.append(f"{name} {'no input yet' if inp is None else f'{float(srv):.1f}h'}")
+    return (not bad), ("; ".join(bad) if bad else "screen fresh: " + ", ".join(good))
+
+
 PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
              "web_render": probe_web_render, "bot_selftest": probe_bot_selftest,
              "one_clock_lambda": probe_one_clock_lambda,
@@ -1558,6 +1597,7 @@ PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
              "nuts_radar": probe_nuts_radar,
              "rsync_log": probe_rsync_log,
              "cloudwatch_marker": probe_cloudwatch_marker,
+             "freshness": probe_freshness,
              "log_block": probe_log_block}
 
 # ── the fleet roster ────────────────────────────────────────────────────────
@@ -2276,7 +2316,14 @@ FLEET = [
      "max_age_h": 2,
      # A cycle logs up to ~14 min of free-model timeouts before `wrote coach`;
      # a probe inside that window must look past the retry lines (2026-09-19).
-     "grace_min": 16},
+     "grace_min": 16,
+     "feeds_screen": True},
+    # ...and the screen side (2026-10-02): the mission the app SERVES must come
+    # from her newest finished day. The row above stayed green for the three
+    # weeks the screen served the 11 Sep mission (`at` vs `generatedAt`).
+    {"name": "aoife-typing (screen serves the newest coach mission)", "repo": "aoife-typing",
+     "probe": "freshness", "url": "https://aoife-typing.vercel.app/api/freshness",
+     "expect_items": ["coach mission"]},
 
     # financial-telegram-bot's two LOCAL launchd jobs. The two existing
     # financial-telegram-bot rows grade the cloud daily report and the
@@ -2875,6 +2922,13 @@ def lint_roster(fleet=None):
             offenders.append(item)
         elif weak and not item.get("weak_ok"):
             offenders.append(item)
+        # 2026-10-02 (aoife-typing): a writer that feeds a screen needs a row that
+        # reads the SCREEN side too -- a green writer proved nothing for 3 weeks.
+        elif item.get("feeds_screen") and not any(
+                r["probe"] == "freshness" and r.get("repo") == item.get("repo")
+                for r in (FLEET if fleet is None else fleet)):
+            offenders.append(dict(item, lint_why="feeds_screen but no 'freshness' row "
+                                                 f"for repo {item.get('repo')!r}"))
     return offenders
 
 
