@@ -1641,7 +1641,10 @@ FLEET = [
     {"name": "leasehackr-scraper (historical sheet)", "repo": "leasehackr-scraper",
      "probe": "gh_run", "workflow": "weekly_scraper.yml", "max_age_h": 24,
      "log_grep": [r"Found [1-9]\d* unique deal cards across [1-9]\d* regions",
-                  r"refreshed the dashboard with [1-9]\d* sorted deals"]},
+                  r"refreshed the dashboard with [1-9]\d* sorted deals"],
+     # 2 Oct 2026: AWS One Clock (23:54 ET) is the primary start; red when only
+     # the GH backstop ran, i.e. the AWS schedule went quiet.
+     "expect_event": "workflow_dispatch"},
     # 48 -> 36 on the three daily entries below (2026-08-06). Their runs land
     # AFTER the 09:00 UTC check, so the freshest run the check can ever see is
     # yesterday's — 17-23 h old on a good day, 41-47 h after ONE missed day.
