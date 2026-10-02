@@ -1636,8 +1636,14 @@ FLEET = [
     # lateness beyond anything observed.
     {"name": "leasehackr-scraper (daily deals)", "repo": "leasehackr-scraper",
      "probe": "gh_run", "workflow": "daily_scraper.yml", "max_age_h": 24,
-     "log_grep": [r"Found [1-9]\d* unique deal cards across [1-9]\d* regions",
-                  r"Scraped [1-9]\d* deals total"]},
+     # 2 Oct 2026: AWS One Clock (23:56 ET) is the primary start. The job's
+     # 12 h dedupe guard makes a second same-night run (AWS retry or GH
+     # backstop) print the skip line instead -- that run is healthy too.
+     "log_grep": [r"Found [1-9]\d* unique deal cards across [1-9]\d* regions"
+                  r"|dedupe guard: a successful run in the last 12 h, skipping",
+                  r"Scraped [1-9]\d* deals total"
+                  r"|dedupe guard: a successful run in the last 12 h, skipping"],
+     "expect_event": "workflow_dispatch"},
     {"name": "leasehackr-scraper (historical sheet)", "repo": "leasehackr-scraper",
      "probe": "gh_run", "workflow": "weekly_scraper.yml", "max_age_h": 24,
      "log_grep": [r"Found [1-9]\d* unique deal cards across [1-9]\d* regions",
@@ -1742,7 +1748,9 @@ FLEET = [
     # that did the work. Grading the latest run alone would page on a healthy day.
     {"name": "hedgelab (noon hedge check)", "repo": "hedgelab",
      "probe": "gh_run", "workflow": "daily.yml", "max_age_h": 72,
-     "log_grep": r"results/daily/{weekday}\.json"},  # weekday-only: Sun/Mon see Friday's
+     "log_grep": r"results/daily/{weekday}\.json",  # weekday-only: Sun/Mon see Friday's
+     # AWS one-clock-hedgelab-daily (12:10 ET) is the primary since 27 Sep 2026.
+     "expect_event": "workflow_dispatch"},
     # Rebuilt 2026-08-24 to read NUTS's /evaluate instead of its own drifted
     # tree (it had been reporting BIL while NUTS was TQQQ). It is now SILENT
     # unless the holding changed, so silence in Telegram is indistinguishable
