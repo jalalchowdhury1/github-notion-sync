@@ -2329,6 +2329,12 @@ FLEET = [
     {"name": "later-jar (screen serves a fresh YNAB copy)", "repo": "later-jar",
      "probe": "freshness", "url": "https://later-jar.vercel.app/api/freshness",
      "expect_items": ["ynab-jars"]},
+    # aoife-puzzles (2026-10-02): position, rematch queue and avoid-list are all
+    # recomputed from her raw sessions on each request; this proves the serving
+    # helpers still see her newest session.
+    {"name": "aoife-puzzles (screen sees her newest session)", "repo": "aoife-puzzles",
+     "probe": "freshness", "url": "https://aoife-puzzles.vercel.app/api/freshness",
+     "expect_items": ["position", "rematches", "avoidList"]},
 
     # financial-telegram-bot's two LOCAL launchd jobs. The two existing
     # financial-telegram-bot rows grade the cloud daily report and the
