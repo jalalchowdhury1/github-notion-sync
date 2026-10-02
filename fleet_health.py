@@ -2118,7 +2118,9 @@ FLEET = [
     {"name": "sheets-backup (nightly sheets -> git)", "repo": "sheets-backup",
      "probe": "gh_run", "workflow": "backup.yml", "max_age_h": 28,
      # [1-9] (round 8): "0 owned tabs" is a run that backed up nothing.
-     "log_grep": r"\dZ BACKUP OK: [1-9]\d* owned tabs, [1-9]\d* public sources"},
+     "log_grep": r"\dZ BACKUP OK: [1-9]\d* owned tabs, [1-9]\d* public sources",
+     # AWS one-clock-sheets-backup (06:10 UTC) is the primary since 2 Oct 2026.
+     "expect_event": "workflow_dispatch"},
     # ── ported off n8n 2026-08-24 ───────────────────────────────────────────
     # mental-models: cron 05:10 UTC (00:10 EST / 01:10 EDT), so by the 09:00 UTC
     # check a good night's run is ~4 h old and ONE missed night reads ~28 h.
