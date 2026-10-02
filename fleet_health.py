@@ -2324,6 +2324,11 @@ FLEET = [
     {"name": "aoife-typing (screen serves the newest coach mission)", "repo": "aoife-typing",
      "probe": "freshness", "url": "https://aoife-typing.vercel.app/api/freshness",
      "expect_items": ["coach mission"]},
+    # later-jar (2026-10-02): every tab reads the cached YNAB copy (jar:ynab:cache,
+    # 5-min refresh). Red when the screen is stuck on a copy > 1 h old (YNAB down).
+    {"name": "later-jar (screen serves a fresh YNAB copy)", "repo": "later-jar",
+     "probe": "freshness", "url": "https://later-jar.vercel.app/api/freshness",
+     "expect_items": ["ynab-jars"]},
 
     # financial-telegram-bot's two LOCAL launchd jobs. The two existing
     # financial-telegram-bot rows grade the cloud daily report and the
