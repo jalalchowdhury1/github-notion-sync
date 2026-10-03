@@ -9,3 +9,4 @@ venv/
 .vscode/
 health.log
 .fleet_health.lock
+health-quiet*.json

@@ -1711,7 +1711,9 @@ FLEET = [
     # through. 24 catches the first miss and still tolerates 5 h of GitHub
     # lateness beyond anything observed.
     {"name": "leasehackr-scraper (daily deals)", "repo": "leasehackr-scraper",
-     "probe": "gh_run", "workflow": "daily_scraper.yml", "max_age_h": 24,
+     # 26, not 24 (3 Oct 2026): a 23:56 start left ~0 slack for a check run at
+     # 23:59. A missed night is still red at the next 05:00 check (age >= 29 h).
+     "probe": "gh_run", "workflow": "daily_scraper.yml", "max_age_h": 26,
      # 2 Oct 2026: AWS One Clock (23:56 ET) is the primary start. The job's
      # 12 h dedupe guard makes a second same-night run (AWS retry or GH
      # backstop) print the skip line instead -- that run is healthy too.
@@ -1721,7 +1723,8 @@ FLEET = [
                   r"|dedupe guard: a successful run in the last 12 h, skipping"],
      "expect_event": "workflow_dispatch"},
     {"name": "leasehackr-scraper (historical sheet)", "repo": "leasehackr-scraper",
-     "probe": "gh_run", "workflow": "weekly_scraper.yml", "max_age_h": 24,
+     # 26, not 24 (3 Oct 2026): daily 23:54 start, same reasoning as the daily row.
+     "probe": "gh_run", "workflow": "weekly_scraper.yml", "max_age_h": 26,
      "log_grep": [r"Found [1-9]\d* unique deal cards across [1-9]\d* regions",
                   r"refreshed the dashboard with [1-9]\d* sorted deals"],
      # 2 Oct 2026: AWS One Clock (23:54 ET) is the primary start; red when only
@@ -3093,7 +3096,11 @@ def main(argv=()) -> None:
     try:
         results = run_checks()
         recovered = annotate_history(results)
-        mode = _telegram_send(format_digest(results, recovered), silent=True)   # 05:00 digest — no buzz (11 Sep 2026)
+        text = format_digest(results, recovered)
+        note = offhours_note(results, now)
+        if note:
+            text += "\n\n" + note
+        mode = _telegram_send(text, silent=True)   # 05:00 digest — no buzz (11 Sep 2026)
         loud = loud_alert(results)
         publish(results, mode, loud)
     finally:
@@ -3132,5 +3139,70 @@ def cli(argv) -> int:
         return 3
 
 
+QUIET_FILE = os.path.join(REPO_DIR, "health-quiet.json")
+# Scheduled off-hours runs (launchd com.jalal.fleet-quiet, 12:00 + 23:00) pass
+# --slot and write one file per hour, so the 23:00 run cannot erase the noon one.
+QUIET_SLOT_GLOB = os.path.join(REPO_DIR, "health-quiet-*.json")
+
+
+def offhours_note(results, now=None, max_age_h=20) -> str:
+    """One digest line naming rows that were RED at an off-hours quiet run but are
+    GREEN in this morning run -- the signature of a check that only passes at certain
+    hours (3 Oct 2026: dhaka-yearly's 8 h window paged a manual 10:24 run). Rows red
+    now are already in the failure list, so they are not repeated here."""
+    import glob
+    now = now or datetime.datetime.now()
+    green_now = {r["name"] for r in results if r.get("ok")}
+    hits = {}
+    for path in sorted(glob.glob(QUIET_SLOT_GLOB)):
+        try:
+            q = json.loads(_read(path))
+            at = datetime.datetime.strptime(q["checked"], "%Y-%m-%d %H:%M")
+        except Exception:                    # noqa: BLE001 — a bad file is no evidence
+            continue
+        if (now - at).total_seconds() > max_age_h * 3600:
+            continue
+        for r in q.get("results", []):
+            if not r.get("ok") and r["name"] in green_now:
+                hits.setdefault(r["name"].split(" (")[0], []).append(f"{at:%H:%M}")
+    if not hits:
+        return ""
+    names = ", ".join(f"{n} (red at {'/'.join(t)})" for n, t in sorted(hits.items()))
+    return ("⏰ Green now but RED at an off-hours check — the check may only pass at "
+            f"certain hours: {names}"[:400] + ". Paste this to Claude.")
+
+
+def quiet_main(argv=()) -> int:
+    """`--quiet`: grade every row and print the verdicts, NOTHING else (3 Oct 2026).
+
+    A manual daytime re-run used to go through main(): it overwrote the morning
+    digest item, rewrote + pushed health.json and sent a loud 🚨 to the phone --
+    on 3 Oct a 10:24 test run paged Jalal for a row that was only red because of
+    the hour. This path never calls _telegram_send, publish, loud_alert or the
+    lock, and writes its verdicts to health-quiet.json (gitignored) instead.
+    annotate_history only READS health.json. Exit 0 = all green, 1 = some red."""
+    bad = lint_roster()
+    if bad:
+        for item in bad:
+            print(f"LINT: {item['name']}: {item.get('lint_why') or 'liveness-only row'}")
+        return 2
+    now = datetime.datetime.now()
+    results = run_checks()
+    annotate_history(results)
+    slot = "--slot" in argv
+    with open(os.path.join(REPO_DIR, f"health-quiet-{now:%H}.json") if slot
+              else QUIET_FILE, "w") as f:
+        json.dump({"checked": now.strftime("%Y-%m-%d %H:%M"), "quiet": True,
+                   "results": results}, f, indent=1)
+    red = [r for r in results if not r.get("ok")]
+    print(f"=== QUIET fleet check {now:%Y-%m-%d %H:%M}: "
+          f"{len(results) - len(red)} of {len(results)} healthy — nothing sent ===")
+    for r in red:
+        print(f"  ❌ {r['name']} — {r.get('detail', '')}")
+    return 1 if red else 0
+
+
 if __name__ == "__main__":
+    if "--quiet" in sys.argv[1:]:
+        sys.exit(quiet_main(sys.argv[1:]))
     sys.exit(cli(sys.argv[1:]))

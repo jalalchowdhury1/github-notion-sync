@@ -212,10 +212,22 @@ uv run --no-project --with coverage -q python -m coverage run --include=fleet_he
   -m unittest test_fleet_health test_probes && uv run --no-project --with coverage -q python -m coverage report
 ```
 
-**A side-effect-free live grade** sends nothing and commits nothing:
-1. Export the same env as `run_health.sh`: everything up to `EXTRA=""`. It reads each
-   token BY NAME.
-2. Run `python3 -c "import fleet_health as fh; rs = fh.run_checks(); print([r['name'] for r in rs if not r['ok']])"`.
+**A side-effect-free live grade** sends nothing and commits nothing (3 Oct 2026):
+
+```sh
+bash run_health.sh --quiet      # same env as the real run; exit 0 all green, 1 some red
+```
+
+It prints every verdict, writes `health-quiet.json` (gitignored), and never calls
+`_telegram_send`, `publish`, `loud_alert` or the lock (`test_quiet.py`). **Use it for
+EVERY manual re-check.** On 3 Oct a manual 10:24 run through the normal path sent
+Jalal a false 🚨.
+
+**Off-hours runs** (launchd `com.jalal.fleet-quiet`, 12:00 + 23:00, log
+`~/Library/Logs/fleet-quiet.log`): `--quiet --slot` writes `health-quiet-HH.json`. The
+next morning's digest adds one `⏰ Green now but RED at an off-hours check` line
+(`offhours_note`) for rows red then and green now. That catches a check that only
+passes at certain hours, like dhaka-yearly's old 8 h window.
 
 ⚠️ **`python3 fleet_health.py` is NOT a dry run.** It:
 - queues or sends the digest

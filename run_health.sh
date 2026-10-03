@@ -68,6 +68,12 @@ export HEALTH_WEBHOOK_SECRET="$(grep '^WEBHOOK_SECRET=' \
 # and rewrites nothing — so the caller gets a success that graded nothing and
 # health.json keeps the older run's verdicts. Found 2026-09-12 re-running this
 # after a morning catch-up. Use --force whenever the point is to re-grade.
+# --quiet (3 Oct 2026): same env, grade everything, print it, SEND NOTHING —
+# no digest item, no 🚨, no health.json push. Use it for every manual re-check.
+if [ "${1:-}" = "--quiet" ]; then
+  python3 fleet_health.py "$@"     # "--quiet --slot" = launchd com.jalal.fleet-quiet (12:00, 23:00)
+  exit $?
+fi
 EXTRA=""
 if (( 10#$(date +%H) >= 6 )) && [ "${1:-}" != "--force" ]; then EXTRA="--retry-slot"; fi
 python3 fleet_health.py $EXTRA
