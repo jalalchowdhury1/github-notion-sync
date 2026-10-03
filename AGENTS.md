@@ -100,7 +100,7 @@ zero rows.
 `run_checks` retries it 3× with 20 s pauses. A returned `False` is real signal and is
 never retried.
 
-### 1.2 Probe reference (20 types, `PROBE_FNS`)
+### 1.2 Probe reference (21 types, `PROBE_FNS`)
 
 Contract: `fn(**row) -> (ok, detail)`; raise only for infra trouble.
 
@@ -134,6 +134,7 @@ run):
 | `nuts` | NUTS signal payload: unit test, downloads, price freshness, eval freshness, holding | `url` |
 | `nuts_radar` | radar site 200 + repo's `selfcheck.js` passes + catalysts fresh | `url`, `repo_dir`, `catalysts_url` |
 | `freshness` | what the SCREEN serves reflects the newest input: the app's `GET /api/freshness` (contract v1, ages in hours only); red when an item's input is past `graceH` and the served copy is older, or `servedAgeH` > `maxAgeH`. The app reports, the probe judges | `url`, `expect_items` |
+| `pending_stamp` | a Mac drift checker's JSON stamp: red when the checker stopped (`checkedAt` > `max_check_age_h`) or a change sat unsynced past `pending_grace_h` (aoife calendar copy) | `path`, `max_check_age_h`, `pending_grace_h` |
 
 ### 1.3 Markers and date tokens
 
@@ -195,7 +196,10 @@ trigger.
    row that fetches the SAME file the page renders may stand in: mark it `screen_side: True`.
    Rows match by `screen_repo` (falls back to `repo`), so a writer with `repo: None` or a
    different repo (rubber-band → financial-telegram-bot) still pairs. Spec + judge rule:
-   `~/PycharmProjects/FRESHNESS-CONTRACT.md`; `/ship` runs `freshness-check <url>` (same judge). Why: the aoife-typing
+   `~/PycharmProjects/FRESHNESS-CONTRACT.md`; `/ship` runs `freshness-check <url>` (same judge).
+   `paused_if: {"path": log, "last_line": regex}` (2026-10-03): when the job's own newest log line
+   says it is idle on purpose (dhaka-yearly `NIGHTLY IDLE` between trips), the screen row reports
+   `PAUSED — …` (ok) instead of a false red; the writer's row still grades the job. Why: the aoife-typing
    coach logged `wrote coach` every 15 min (green) while the screen served the 11 Sep
    mission for three weeks (reader read `at`, writer stamped `generatedAt`).
 

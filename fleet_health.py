@@ -1594,6 +1594,31 @@ def probe_freshness(url, expect_items=None, bypass_env=None, **_):
     return (not bad), ("; ".join(bad) if bad else "screen fresh: " + ", ".join(good))
 
 
+def probe_pending_stamp(path, max_check_age_h, pending_grace_h, **_):
+    """A Mac drift checker's JSON stamp (2026-10-03, aoife-gcal-drift):
+    {"checkedAt": ISO, "pending": n, "pendingSinceAt": ISO|null}. Red when the
+    checker itself stopped (checkedAt too old -- it leaves the stamp untouched on
+    failure) or when a change has sat unsynced past pending_grace_h."""
+    p = os.path.expanduser(path)
+    try:
+        data = json.loads(_read(p))
+    except Exception as e:                  # noqa: BLE001
+        return False, f"stamp unreadable: {type(e).__name__}"
+    chk = data.get("checkedAt")
+    if not chk:
+        return False, "no checkedAt in stamp"
+    age = _age_hours(datetime.datetime.fromisoformat(chk).timestamp())
+    if age > max_check_age_h:
+        return False, f"drift checker last ran {age:.1f}h ago (limit {max_check_age_h}h)"
+    n = int(data.get("pending") or 0)
+    if n and data.get("pendingSinceAt"):
+        lag = _age_hours(datetime.datetime.fromisoformat(data["pendingSinceAt"]).timestamp())
+        if lag > pending_grace_h:
+            return False, f"{n} change(s) unsynced for {lag:.1f}h (grace {pending_grace_h}h)"
+        return True, f"{n} change(s) pending {lag:.1f}h (inside {pending_grace_h}h grace)"
+    return True, f"in sync, checked {age:.1f}h ago"
+
+
 PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
              "web_render": probe_web_render, "bot_selftest": probe_bot_selftest,
              "one_clock_lambda": probe_one_clock_lambda,
@@ -1608,6 +1633,7 @@ PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
              "rsync_log": probe_rsync_log,
              "cloudwatch_marker": probe_cloudwatch_marker,
              "freshness": probe_freshness,
+             "pending_stamp": probe_pending_stamp,
              "log_block": probe_log_block}
 
 # ── the fleet roster ────────────────────────────────────────────────────────
@@ -2104,7 +2130,7 @@ FLEET = [
     # with the LAST result winning — a green backup would paint over a red
     # calendar sync (the same trap documented on dhaka-hotels). Telegram
     # carries both entries independently.
-    {"name": "aoife-gcal-sync (nightly Google Calendar publish)", "repo": None,
+    {"name": "aoife-gcal-sync (nightly Google Calendar publish)", "feeds_screen": True, "screen_repo": "aoife-calendar", "repo": None,
      "probe": "log_marker",
      "log_path": "~/Library/Logs/aoife-gcal-sync.log",
      "log_grep": r"GCAL-SYNC OK {today}",          # runs 04:10, before the check
@@ -2374,6 +2400,23 @@ FLEET = [
     {"name": "aoife-milestones-bot (Doc/Notion/recap reflect the Sheet)", "repo": "aoife-milestones-bot",
      "probe": "freshness", "url": "https://aoife-milestones-bot.vercel.app/api/freshness",
      "expect_items": ["doc-mirror", "notion-mirror", "monthly-recap"]},
+    # Tranche tab on nuts-radar (2026-10-03): the page reads an encrypted gist, so the
+    # screen side is graded on the Mac. ~/.local/bin/tranche-fresh-check.py (launchd
+    # com.jalal.tranche-fresh, :00/:30) compares the gist (updated_at + ciphertext
+    # hash, never decrypted) with a content hash of TRANCHE-EXECUTION.md +
+    # INSTRUMENTS.json. A STALE line, or no line for 1.5 h, is red.
+    {"name": "nuts-radar Tranche tab (gist reflects the newest plan)", "repo": None,
+     "screen_side": True, "screen_repo": "nuts-radar-tranche",
+     "probe": "log_tail", "path": "~/Library/Logs/tranche-fresh.log",
+     "last_line": r"^\S+ TRANCHE FRESH OK inputAgeH=", "max_age_h": 1.5},
+    # Aoife's Google Calendar copy (2026-10-03): gcal-drift dry-runs the sync at
+    # :15/:45 (read-only scope) and stamps pending changes. A daytime planner edit
+    # clears in 30 min, a late one by 04:10 (~7 h), a hand edit on the calendar by
+    # the next 04:10 (~24 h) -> 25 h grace.
+    {"name": "aoife calendar (Google copy matches the planner)", "repo": None,
+     "screen_side": True, "screen_repo": "aoife-calendar",
+     "probe": "pending_stamp", "path": "~/.local/state/aoife-gcal-drift.json",
+     "max_check_age_h": 1.25, "pending_grace_h": 25},
 
     # financial-telegram-bot's two LOCAL launchd jobs. The two existing
     # financial-telegram-bot rows grade the cloud daily report and the
@@ -2414,7 +2457,7 @@ FLEET = [
     # missing. nag prints no date ("sent N chars" / "nothing due"), so it gets
     # mtime; publish stamps every line and gets the stronger dated marker.
     # tranche-nag retired 2026-09-23 (Jalal: no Tranche alerts any more; plist → .plist.retired).
-    {"name": "tranche-publish (07:12 board publish)", "repo": None,
+    {"name": "tranche-publish (07:12 board publish)", "feeds_screen": True, "screen_repo": "nuts-radar-tranche", "repo": None,
      # log_block, not log_marker (producer-side red team 2026-09-12): the
      # "tranche.json: N steps" line prints BEFORE the gist upload, so a failed
      # publish still left a matching marker, and "0 steps" matched too. The newest
@@ -2476,7 +2519,11 @@ FLEET = [
      "max_age_h": 8},
     {"name": "dhaka-yearly (nightly trip plans, live site)", "screen_side": True, "screen_repo": "dhaka-yearly", "repo": None,
      "probe": "web_fresh", "url": "https://dhaka-yearly.vercel.app/data.json",
-     "json_key": "updated_tz", "max_age_h": 26},
+     "json_key": "updated_tz", "max_age_h": 26,
+     # Between trips the run prints NIGHTLY IDLE and stops refreshing on purpose
+     # (from ~6 Jan 2027 until the next year is watched): PAUSED, not red.
+     "paused_if": {"path": "~/PycharmProjects/dhaka-yearly/data/run-{today_ymd}.log",
+                   "last_line": r"^NIGHTLY IDLE: "}},
     # AM Reads (reddit-scraper am_reads.yml, 07:45 ET + two backup crons). Both
     # outcome lines are anchored on the log's own "…Z " timestamp: the echoed
     # workflow source also contains "NO CHANGE: AM Reads already current" (the
@@ -2512,6 +2559,27 @@ def _cfg_line(item) -> str:
                       for k in keys if item.get(k) is not None)
 
 
+def _paused(item):
+    """paused_if (2026-10-03): {"path": log, "last_line": regex}. When the job's own
+    newest log line says it is deliberately idle, a screen row that would go red
+    on old data reports PAUSED instead (dhaka-yearly between trips: the nightly run
+    prints NIGHTLY IDLE and stops refreshing data.json on purpose). The writer's
+    own row still grades the job; this only stops a false red on the screen side.
+    Returns the detail string, or None when not paused."""
+    cfg = item.get("paused_if")
+    if not cfg:
+        return None
+    path = os.path.expanduser(cfg["path"].replace(
+        "{today_ymd}", datetime.date.today().strftime("%Y%m%d")))
+    try:
+        lines = [ln.strip() for ln in _read(path).splitlines() if ln.strip()]
+    except Exception:                       # noqa: BLE001 -- no log = not paused
+        return None
+    if lines and re.search(cfg["last_line"], lines[-1]):
+        return f"PAUSED — job is idle on purpose: {lines[-1][:120]}"
+    return None
+
+
 def run_checks() -> list:
     # The lint runs HERE, not only in main(). A red team (2026-09-12) pointed out
     # that a programmatic caller doing `from fleet_health import run_checks` would
@@ -2526,7 +2594,8 @@ def run_checks() -> list:
     for item in FLEET:
         fn = PROBE_FNS[item["probe"]]
         err = ""
-        for attempt in range(1, PROBE_ATTEMPTS + 1):
+        paused = _paused(item)
+        for attempt in range(1, 0 if paused else PROBE_ATTEMPTS + 1):
             try:
                 ok, detail = fn(**item)
                 break
@@ -2537,6 +2606,8 @@ def run_checks() -> list:
                     time.sleep(PROBE_RETRY_PAUSE_S)
         else:                                # all attempts raised
             ok, detail = False, f"{err} (after {PROBE_ATTEMPTS} attempts)"
+        if paused:
+            ok, detail = True, paused
         results.append({"name": item["name"], "repo": item.get("repo"),
                         "probe": item["probe"], "ok": ok, "detail": detail,
                         "cfg": _cfg_line(item)})

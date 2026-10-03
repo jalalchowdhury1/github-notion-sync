@@ -1282,6 +1282,53 @@ class ServedFreshness(unittest.TestCase):
         self.assertEqual(fh.lint_roster([w, side]), [])
 
 
+class PausedIf(unittest.TestCase):
+    """2026-10-03: a screen row pauses while its job says it is idle on purpose."""
+
+    def row(self, last):
+        d = tempfile.mkdtemp()
+        path = os.path.join(d, "run.log")
+        with open(path, "w") as f:
+            f.write("== start\n" + last + "\n\n")
+        return {"name": "x", "paused_if": {"path": path, "last_line": r"^NIGHTLY IDLE: "}}
+
+    def test_idle_last_line_pauses(self):
+        self.assertTrue(fh._paused(self.row("NIGHTLY IDLE: no year to search: 2027 trip departed"))
+                        .startswith("PAUSED — "))
+
+    def test_ok_line_or_missing_log_does_not_pause(self):
+        self.assertIsNone(fh._paused(self.row("NIGHTLY OK plans=3 problems=0 pushed=abc1234 notify=ok")))
+        self.assertIsNone(fh._paused({"name": "x", "paused_if": {"path": "/nope/x.log", "last_line": "."}}))
+        self.assertIsNone(fh._paused({"name": "x"}))
+
+    def test_idle_only_in_an_earlier_line_does_not_pause(self):
+        self.assertIsNone(fh._paused(self.row("NIGHTLY IDLE: x\nNIGHTLY FAILED: engine")))
+
+
+class PendingStamp(unittest.TestCase):
+    """2026-10-03: aoife-gcal-drift stamp."""
+
+    def grade(self, stamp):
+        d = tempfile.mkdtemp(); p = os.path.join(d, "s.json")
+        with open(p, "w") as f:
+            json.dump(stamp, f)
+        return fh.probe_pending_stamp(p, 1.25, 25)
+
+    def iso(self, h):
+        return (datetime.datetime.now().astimezone() - datetime.timedelta(hours=h)).isoformat()
+
+    def test_in_sync_green_dead_checker_red(self):
+        self.assertTrue(self.grade({"checkedAt": self.iso(0.3), "pending": 0, "pendingSinceAt": None})[0])
+        self.assertFalse(self.grade({"checkedAt": self.iso(3), "pending": 0, "pendingSinceAt": None})[0])
+
+    def test_pending_inside_grace_green_past_grace_red(self):
+        self.assertTrue(self.grade({"checkedAt": self.iso(0.2), "pending": 2, "pendingSinceAt": self.iso(6)})[0])
+        self.assertFalse(self.grade({"checkedAt": self.iso(0.2), "pending": 2, "pendingSinceAt": self.iso(26)})[0])
+
+    def test_missing_stamp_red(self):
+        self.assertFalse(fh.probe_pending_stamp("/nope/s.json", 1, 1)[0])
+
+
 if __name__ == "__main__":
     unittest.main()
 
