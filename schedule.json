@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-29 05:02",
+ "updated": "2026-10-03 05:03",
  "jobs": [
   {
    "key": "com.jalal.aoife-gcal-sync",
@@ -50,6 +50,16 @@
    "what": "Best-value top-trim ICE-SUV finder (11–16k mi) with live KBB/Edmunds valuation of top 3",
    "logs": "~/PycharmProjects/carmax-scraper/cron.log",
    "notes": "Runs in parallel with Dhaka scraper (isolated browse sessions); same stamp-based retry no-op"
+  },
+  {
+   "key": "com.jalal.changedetection",
+   "title": "com.jalal.changedetection",
+   "when": "—",
+   "frequency": "Always on",
+   "mechanism": "launchd com.jalal.changedetection → ~/.local/share/changedetection/.venv/bin/changedetection.io",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/changedetection.log",
+   "notes": ""
   },
   {
    "key": "com.jalal.claude-concierge",
@@ -200,6 +210,16 @@
    "what": "6:00 AM check: if results/daily/$TODAY.json is absent from the mental-models repo (GitHub's 05:10 UTC cron dropped the run), dispatches daily.yml via gh. The artifact check is the dedupe guard — the workflow's own skip-guard covers schedule events only, so a dispatch always runs; the guard still no-ops a LATE cron that fires after a backstop dispatch",
    "logs": "~/Library/Logs/mental-models-backstop.log",
    "notes": "Added 2026-08-28 after GitHub Actions schedule proved unreliable for this repo (fired +31m, +34m, +11h14m late, then never on 08-28). This is the delivery guarantee; GitHub's cron is now best-effort first-attempt. Markers MM-BACKSTOP OK/DISPATCHED date=… are date-pinned and graded by fleet-health's log_marker probe (runs after the 5 AM check, so yesterday's marker is the one graded)."
+  },
+  {
+   "key": "com.jalal.moneymap-input-stamp",
+   "title": "com.jalal.moneymap-input-stamp",
+   "when": "12:05 AM (retries 12:35 AM)",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.moneymap-input-stamp → /usr/local/bin/node",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/moneymap-input-stamp.log",
+   "notes": ""
   },
   {
    "key": "com.jalal.nuts-radar",
