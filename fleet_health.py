@@ -1619,6 +1619,59 @@ def probe_pending_stamp(path, max_check_age_h, pending_grace_h, **_):
     return True, f"in sync, checked {age:.1f}h ago"
 
 
+def _git(repo, *args, timeout=20):
+    return subprocess.run(["git", "-C", repo] + list(args), capture_output=True,
+                          text=True, timeout=timeout)
+
+
+def probe_unpushed_work(roots, max_age_h=24, ignore=None, **_):
+    """Commits that exist ONLY on this Mac (2026-10-03). For every git repo under
+    `roots` with a remote: the CURRENT branch's commits not on its upstream (or, with
+    no upstream, not on any remote). Red when any such commit is older than max_age_h
+    -- if the disk dies, that work is gone. Purely local and read-only: no fetch, no
+    push. Side branches are ignored on purpose (abandoned experiments are not "forgot
+    to push"); repos with no remote at all are counted, not graded (Time Machine
+    covers them hourly). `ignore` = {repo_dir_name: "why"}."""
+    ignore = ignore or {}
+    now = time.time()
+    old, fresh, mac_only = [], 0, 0
+    for root in roots:
+        root = os.path.expanduser(root)
+        single = os.path.isdir(os.path.join(root, ".git"))
+        cands = [root] if single else sorted(
+            os.path.join(root, d) for d in os.listdir(root)
+            if os.path.isdir(os.path.join(root, d, ".git")))
+        for repo in cands:
+            name = os.path.basename(repo.rstrip("/"))
+            if name in ignore:
+                continue
+            if single:                           # ~/.local/bin reads better than "bin"
+                name = repo.replace(os.path.expanduser("~"), "~", 1)
+            if not _git(repo, "remote").stdout.strip():
+                mac_only += 1
+                continue
+            if not _git(repo, "branch", "--show-current").stdout.strip():
+                continue                         # detached HEAD: nothing to push
+            up = _git(repo, "rev-parse", "--abbrev-ref", "@{u}")
+            rng = [f"{up.stdout.strip()}..HEAD"] if up.returncode == 0 \
+                else ["HEAD", "--not", "--remotes"]
+            stamps = [int(t) for t in
+                      _git(repo, "log", "--format=%ct", *rng).stdout.split() if t.isdigit()]
+            if not stamps:
+                continue
+            age = (now - min(stamps)) / 3600
+            if age > max_age_h:
+                old.append((age, f"{name} +{len(stamps)} ({age / 24:.0f}d)"))
+            else:
+                fresh += 1
+    tail = f"; {fresh} newer than {max_age_h}h; {mac_only} Mac-only repos (no remote, Time Machine)"
+    if old:
+        old.sort(reverse=True)
+        return False, (f"{len(old)} repo(s) hold commits only on this Mac >{max_age_h}h: "
+                       + ", ".join(t for _, t in old) + tail)
+    return True, "every current branch is on GitHub" + tail
+
+
 PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
              "web_render": probe_web_render, "bot_selftest": probe_bot_selftest,
              "one_clock_lambda": probe_one_clock_lambda,
@@ -1634,6 +1687,7 @@ PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
              "cloudwatch_marker": probe_cloudwatch_marker,
              "freshness": probe_freshness,
              "pending_stamp": probe_pending_stamp,
+             "unpushed_work": probe_unpushed_work,
              "log_block": probe_log_block}
 
 # ── the fleet roster ────────────────────────────────────────────────────────
@@ -2426,6 +2480,13 @@ FLEET = [
      "screen_side": True, "screen_repo": "aoife-calendar",
      "probe": "pending_stamp", "path": "~/.local/state/aoife-gcal-drift.json",
      "max_check_age_h": 1.25, "pending_grace_h": 25},
+    # Work that lives only on this Mac (2026-10-03): on 2-3 Oct six repos had
+    # commits never pushed (later-jar 8 days). quiet_red: shows in the morning card
+    # but never buzzes -- a reminder, not an outage. Never pushes anything itself:
+    # a push to main DEPLOYS several of these repos, so pushing is Jalal's call.
+    {"name": "unpushed work (commits only on this Mac)", "repo": None,
+     "probe": "unpushed_work", "quiet_red": True,
+     "roots": ["~/PycharmProjects", "~/.local/bin", "~/concierge"], "max_age_h": 24},
 
     # financial-telegram-bot's two LOCAL launchd jobs. The two existing
     # financial-telegram-bot rows grade the cloud daily report and the
@@ -2901,7 +2962,9 @@ def loud_alert(results, now=None, prev=None):
         except Exception:                    # noqa: BLE001
             prev = {}
     already = set(prev.get("names", [])) if prev.get("date") == today else set()
-    bad = [r for r in results if not r.get("ok")]
+    # quiet_red rows (2026-10-03) show in the digest but never buzz.
+    quiet = {i["name"] for i in FLEET if i.get("quiet_red")}
+    bad = [r for r in results if not r.get("ok") and r["name"] not in quiet]
     new = [r for r in bad if r["name"] not in already]
     if not new or now.time() < LOUD_FROM:
         return prev if prev.get("date") == today else {}

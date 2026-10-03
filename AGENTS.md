@@ -100,7 +100,7 @@ zero rows.
 `run_checks` retries it 3× with 20 s pauses. A returned `False` is real signal and is
 never retried.
 
-### 1.2 Probe reference (21 types, `PROBE_FNS`)
+### 1.2 Probe reference (22 types, `PROBE_FNS`)
 
 Contract: `fn(**row) -> (ok, detail)`; raise only for infra trouble.
 
@@ -135,6 +135,9 @@ run):
 | `nuts_radar` | radar site 200 + repo's `selfcheck.js` passes + catalysts fresh | `url`, `repo_dir`, `catalysts_url` |
 | `freshness` | what the SCREEN serves reflects the newest input: the app's `GET /api/freshness` (contract v1, ages in hours only); red when an item's input is past `graceH` and the served copy is older, or `servedAgeH` > `maxAgeH`. The app reports, the probe judges | `url`, `expect_items` |
 | `pending_stamp` | a Mac drift checker's JSON stamp: red when the checker stopped (`checkedAt` > `max_check_age_h`) or a change sat unsynced past `pending_grace_h` (aoife calendar copy) | `path`, `max_check_age_h`, `pending_grace_h` |
+| `unpushed_work` | commits that exist only on this Mac: each repo's CURRENT branch vs its upstream (or vs every remote when it has no upstream), red when one is older than `max_age_h`. Read-only, no fetch, never pushes. Side branches skipped; no-remote repos only counted. Row has `quiet_red: True` | `roots`, `max_age_h`, `ignore` ({dir: why}) |
+
+**`quiet_red: True`** (any row, 3 Oct 2026): red shows in the morning digest but `loud_alert` never buzzes for it. It is for reminders, not outages.
 
 ### 1.3 Markers and date tokens
 

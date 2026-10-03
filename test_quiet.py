@@ -74,3 +74,66 @@ class OffHoursNote(unittest.TestCase):
     def test_all_green_says_nothing(self):
         self._slot("12", "2026-10-03 12:00", [{"name": "x (y)", "ok": True}])
         self.assertEqual(self._note([{"name": "x (y)", "ok": True}]), "")
+
+
+class UnpushedWork(unittest.TestCase):
+    """Real temp git repos: a pushed repo is green, an old unpushed commit is red,
+    a fresh one is not, a no-remote repo is counted only, and quiet_red never buzzes."""
+
+    def setUp(self):
+        import subprocess
+        self.sp = subprocess
+        self.root = tempfile.mkdtemp()
+        self.env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
+                        GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+
+    def _git(self, cwd, *a, date=None):
+        env = dict(self.env)
+        if date:
+            env["GIT_AUTHOR_DATE"] = env["GIT_COMMITTER_DATE"] = date
+        self.sp.run(["git", "-C", cwd, *a], check=True, capture_output=True, env=env)
+
+    def _repo(self, name, remote=True):
+        d = os.path.join(self.root, name)
+        os.makedirs(d)
+        self._git(d, "init", "-q", "-b", "main")
+        self._git(d, "commit", "-q", "--allow-empty", "-m", "first")
+        if remote:
+            bare = os.path.join(tempfile.mkdtemp(), "r.git")
+            self.sp.run(["git", "init", "-q", "--bare", bare], check=True)
+            self._git(d, "remote", "add", "origin", bare)
+            self._git(d, "push", "-q", "-u", "origin", "main")
+        return d
+
+    def test_clean_repo_is_green(self):
+        self._repo("clean")
+        ok, detail = fh.probe_unpushed_work([self.root])
+        self.assertTrue(ok, detail)
+
+    def test_old_unpushed_commit_is_red_and_named(self):
+        d = self._repo("forgot")
+        self._git(d, "commit", "-q", "--allow-empty", "-m", "x", date="2026-01-01T00:00:00")
+        ok, detail = fh.probe_unpushed_work([self.root])
+        self.assertFalse(ok)
+        self.assertIn("forgot +1", detail)
+
+    def test_fresh_unpushed_commit_is_green(self):
+        d = self._repo("today")
+        self._git(d, "commit", "-q", "--allow-empty", "-m", "x")
+        ok, detail = fh.probe_unpushed_work([self.root])
+        self.assertTrue(ok, detail)
+        self.assertIn("1 newer than 24h", detail)
+
+    def test_no_remote_repo_is_counted_not_red(self):
+        self._repo("local", remote=False)
+        ok, detail = fh.probe_unpushed_work([self.root])
+        self.assertTrue(ok, detail)
+        self.assertIn("1 Mac-only", detail)
+
+    def test_quiet_red_row_never_buzzes(self):
+        import datetime
+        row = [i for i in fh.FLEET if i.get("quiet_red")][0]
+        with mock.patch.object(fh, "_telegram_send", _boom):
+            rec = fh.loud_alert([{"name": row["name"], "ok": False, "detail": "x"}],
+                                now=datetime.datetime(2026, 10, 4, 6, 30), prev={})
+        self.assertEqual(rec, {})
