@@ -2522,7 +2522,10 @@ FLEET = [
      # search (6-31 Jan 2027), so the run deliberately does nothing.
      "last_line": r"^(?:NIGHTLY OK plans=[1-9]\d* problems=0 pushed=[0-9a-f]{7} notify=(?:ok|none)"
                   r"|NIGHTLY IDLE: no year to search: .+)$",
-     "max_age_h": 8},
+     # 24, not 8 (3 Oct 2026): the dated filename + required last line already pin
+     # this to TONIGHT's run; 8 h turned any off-schedule fleet run after ~09:45
+     # into a false loud alert for a run that had ended OK.
+     "max_age_h": 24},
     {"name": "dhaka-yearly (nightly trip plans, live site)", "screen_side": True, "screen_repo": "dhaka-yearly", "repo": None,
      "probe": "web_fresh", "url": "https://dhaka-yearly.vercel.app/data.json",
      "json_key": "updated_tz", "max_age_h": 26,
