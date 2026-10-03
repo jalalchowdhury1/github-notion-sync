@@ -1545,7 +1545,7 @@ def probe_web_render(url, expect_text, **_):
     return True, f"rendered with no JS errors, {expect_text!r} on the page"
 
 
-def probe_freshness(url, expect_items=None, **_):
+def probe_freshness(url, expect_items=None, bypass_env=None, **_):
     """Served-data freshness, contract v1 (2026-10-02): grade what the SCREEN serves.
 
     Born from aoife-typing: its coach wrote a fresh mission every 15 min (log_tail
@@ -1558,8 +1558,15 @@ def probe_freshness(url, expect_items=None, **_):
     The app reports raw ages and THIS function judges, so a bug in the app's own
     logic cannot mark itself green. Red when an input is past its grace and the
     served copy is older than it, or when servedAgeH passes maxAgeH.
-    expect_items: names that must be present (a renamed or dropped item is red)."""
-    with urllib.request.urlopen(urllib.request.Request(url), timeout=30) as r:
+    expect_items: names that must be present (a renamed or dropped item is red).
+    bypass_env: as probe_web_fresh, for login-only Vercel sites."""
+    req = urllib.request.Request(url)
+    if bypass_env:
+        secret = os.environ.get(bypass_env)
+        if not secret:
+            return False, f"{bypass_env} not set (see run_health.sh)"
+        req.add_header("x-vercel-protection-bypass", secret)
+    with urllib.request.urlopen(req, timeout=30) as r:
         data = json.loads(r.read().decode())
     items = data.get("items")
     if data.get("v") != 1 or not isinstance(items, list) or not items:
@@ -1577,10 +1584,13 @@ def probe_freshness(url, expect_items=None, **_):
         elif inp is not None and float(inp) > grace and (srv is None or float(srv) > float(inp) + 0.25):
             bad.append(f"{name}: screen serves data {'(none)' if srv is None else f'{float(srv):.0f}h'} old, "
                        f"newest input {float(inp):.0f}h old (grace {grace:g}h)")
-        elif cap is not None and srv is not None and float(srv) > float(cap):
+        elif cap is not None and srv is None:
+            # moneymap 2026-10-02: a capped feed serving NOTHING (stamp key gone) is not fresh
+            bad.append(f"{name}: nothing served (limit {float(cap):g}h)")
+        elif cap is not None and float(srv) > float(cap):
             bad.append(f"{name}: served data {float(srv):.0f}h old (limit {float(cap):g}h)")
         else:
-            good.append(f"{name} {'no input yet' if inp is None else f'{float(srv):.1f}h'}")
+            good.append(f"{name} {'nothing yet' if srv is None else f'{float(srv):.1f}h'}")
     return (not bad), ("; ".join(bad) if bad else "screen fresh: " + ", ".join(good))
 
 
@@ -1610,7 +1620,7 @@ PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
 PROBE_FNS["log_tail"] = probe_log_tail
 
 FLEET = [
-    {"name": "dhaka-flights (nightly trip tracker)", "repo": "dhaka-flights",
+    {"name": "dhaka-flights (nightly trip tracker)", "feeds_screen": True, "screen_side": True, "repo": "dhaka-flights",
      "probe": "web_fresh", "url": "https://dhaka-flights.vercel.app/data.json", "bypass_env": "DHAKA_VERCEL_BYPASS",
      "json_key": "updated", "max_age_h": 36,
      # healthy nights 22 Aug-27 Sep: ticket1 2-8, ticket2 9-10, sg 35-61,
@@ -1641,7 +1651,7 @@ FLEET = [
     # max_age_h 96, not 36: a MISS on one property is normal and self-heals,
     # and both stamps are date-only (they parse as midnight, so a normal
     # morning already reads ~29 h). 96 fires on ~3 dead nights, not on one.
-    {"name": "dhaka-hotels (nightly award-rate research)", "repo": None,
+    {"name": "dhaka-hotels (nightly award-rate research)", "feeds_screen": True, "screen_side": True, "screen_repo": "dhaka-flights", "repo": None,
      "probe": "web_fresh",
      "url": "https://dhaka-flights.vercel.app/hotel_rates.json", "bypass_env": "DHAKA_VERCEL_BYPASS",
      "json_key": "checked", "rows_key": "rows", "max_age_h": 96},
@@ -1707,7 +1717,7 @@ FLEET = [
     # mutual watching, so neither side can die silently.
     # Marker added 2026-09-12. The job prints its own dated confirmation after the
     # Notion write, so {date} is pinnable — a green run that wrote nothing fails.
-    {"name": "github-notion-sync (daily health stamp)", "repo": "github-notion-sync",
+    {"name": "github-notion-sync (daily health stamp)", "feeds_screen": True, "screen_repo": "voices-bot", "repo": "github-notion-sync",
      "probe": "gh_run", "workflow": "health.yml", "max_age_h": 36,
      "log_grep": r"Notion updated: [1-9]\d* rows.*checked {date}",
      "expect_event": "workflow_dispatch"},
@@ -1737,7 +1747,7 @@ FLEET = [
     # which half of the day it is; the append line carries the metric count. Both
     # must match: the slot alone proves only that the job picked a slot, and the
     # append alone could be a stale re-run of yesterday's slot.
-    {"name": "financial-dashboard-history (2x-daily snapshots)", "repo": "financial-dashboard-history",
+    {"name": "financial-dashboard-history (2x-daily snapshots)", "feeds_screen": True, "screen_repo": "financial-telegram-bot", "repo": "financial-dashboard-history",
      "probe": "gh_run", "workflow": "scraper.yml", "max_age_h": 36,
      # no_rescue + either/or (red team, 2026-09-12). The AM and PM runs are
      # DIFFERENT snapshots, so the earlier-run fallbacks above were greening a
@@ -1830,12 +1840,12 @@ FLEET = [
     # reaching Reddit from GitHub turns red BEFORE the day the Mac dies. Listed
     # before the daily-data row on purpose: same repo, notion_health keeps the
     # LAST result per repo, and Telegram carries both.
-    {"name": "reddit-backup (GitHub RSS every 3 h)", "repo": "reddit-scraper",
+    {"name": "reddit-backup (GitHub RSS every 3 h)", "feeds_screen": True, "repo": "reddit-scraper",
      "probe": "gh_run", "workflow": "reddit_backup.yml", "max_age_h": 8,
      "rescue_max_failures": 1,
      "log_grep": [r"REDDIT BACKUP: refreshed \d+ of \d+",
                   r"GITHUB REDDIT CHECK: rss ok|REDDIT BACKUP: refreshed [1-9]"]},
-    {"name": "reddit-scraper (daily data)", "repo": "reddit-scraper",
+    {"name": "reddit-scraper (daily data)", "feeds_screen": True, "repo": "reddit-scraper",
      "probe": "gh_run", "workflow": "daily_scrape.yml", "max_age_h": 36,
      "log_grep": [r"last data/ commit: [^$\n]+ — proceeding"
                   r"|data/ already updated today \([^$\n]+\) — skipping",
@@ -1864,7 +1874,7 @@ FLEET = [
     #      missed 12-hourly runs read ~33-35 h (green), three ~45-47 h (red).
     #      Not graded: `reddit_missing` (lists never saved).
     # repo None on both: notion_health stamps one row per repo, last result wins.
-    {"name": "reddit-browser (Mac 07:35/19:35 Reddit lists)", "repo": None,
+    {"name": "reddit-browser (Mac 07:35/19:35 Reddit lists)", "feeds_screen": True, "screen_repo": "reddit-scraper", "repo": None,
      "probe": "log_block", "log_path": "~/Library/Logs/reddit-browser.log",
      "block_re": r"^== (\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) start",
      # "(scraper exit 0)" on BOTH arms (round 8): reddit-browser.sh prints
@@ -2207,7 +2217,7 @@ FLEET = [
     # the API is what the consumers actually read, while the site is what Jalal
     # reads. A dead Vercel frontend leaves the API serving perfectly, and a
     # frozen API leaves the frontend rendering a stale page at HTTP 200.
-    {"name": "NUTS (trading signal API)", "repo": "NUTS",
+    {"name": "NUTS (trading signal API)", "feeds_screen": True, "screen_side": True, "repo": "NUTS",
      "probe": "nuts",
      "url": "https://ju9t7h8903.execute-api.us-east-1.amazonaws.com/evaluate"},
     # nuts-sooty, NOT nuts.vercel.app — that is an unrelated old app that would
@@ -2218,7 +2228,7 @@ FLEET = [
     # nuts-radar's risk is not uptime, it is a stale copy of NUTS's tree shape
     # silently reporting the wrong consequences — so this runs the repo's own
     # selfcheck.js against live /evaluate. See probe_nuts_radar.
-    {"name": "nuts-radar (catalyst board)", "repo": "nuts-radar",
+    {"name": "nuts-radar (catalyst board)", "feeds_screen": True, "screen_side": True, "repo": "nuts-radar",
      "probe": "nuts_radar", "url": "https://nuts-radar.vercel.app",
      "repo_dir": "~/PycharmProjects/nuts-radar",
      "catalysts_url": "https://nuts-radar.vercel.app/catalysts.json"},
@@ -2229,7 +2239,7 @@ FLEET = [
     # completed recently. Primary trigger: com.jalal.health-tick every 5 min;
     # backstop: hourly GH tick.yml. max_age_h=3 tolerates a dead Mac (backstop
     # hourly, GH cron up to ~90 min late) yet pages the morning both are gone.
-    {"name": "health-hub (tick loop fresh)", "repo": "health-hub",
+    {"name": "health-hub (tick loop fresh)", "feeds_screen": True, "repo": "health-hub",
      "probe": "web_fresh", "url": "https://jalal-health.vercel.app/api/health",
      "json_key": "last_tick", "max_age_h": 3},
     # Same two-independent-deaths reasoning as the other webhook bots; repo None
@@ -2335,6 +2345,35 @@ FLEET = [
     {"name": "aoife-puzzles (screen sees her newest session)", "repo": "aoife-puzzles",
      "probe": "freshness", "url": "https://aoife-puzzles.vercel.app/api/freshness",
      "expect_items": ["position", "rematches", "avoidList"]},
+    # moneymap-jalal (2026-10-02): the plan the site serves vs the plan files on the
+    # Mac (stamped to KV every 30 min by com.jalal.moneymap-input-stamp).
+    {"name": "moneymap-jalal (served plan = newest plan files)", "repo": None, "screen_repo": "moneymap-jalal",
+     "probe": "freshness", "url": "https://moneymap-jalal.vercel.app/api/freshness",
+     "expect_items": ["plan", "plan-input-stamp"]},
+    # health-hub (2026-10-02): the morning digest card vs the newest sender item,
+    # and the clean-streak chip recomputed each ET day. Rewrite -> /api/health?fresh=1.
+    {"name": "health-hub (digest card + streak served fresh)", "repo": "health-hub",
+     "probe": "freshness", "url": "https://jalal-health.vercel.app/api/freshness",
+     "expect_items": ["digest-card", "clean-streak"]},
+    # financial dashboard (2026-10-02): the Rubber Band card vs the newest NYSE close,
+    # and the history sheet behind "What moved" / tap charts (2 runs/day).
+    {"name": "financial-dashboard (rubber band + history served fresh)", "repo": "financial-telegram-bot",
+     "probe": "freshness", "url": "https://financial-telegram-bot-beryl.vercel.app/api/freshness",
+     "expect_items": ["rubber-band", "history-sheet"]},
+    # Daily Reader (2026-10-02): every tab graded through get_data(), the page's own
+    # path. The reddit-browser web_fresh row reads the Mac's `checked` stamp, which
+    # stays fresh even when list_problem() rejects the new list and the old one shows.
+    {"name": "reddit-scraper (live site: every tab serves fresh data)", "repo": "reddit-scraper",
+     "probe": "freshness", "url": "https://reddit-scraper-lyart.vercel.app/api/freshness",
+     "expect_items": ["reddit-monthly", "reddit-yearly", "news", "am-reads", "satpost", "github-trending"]},
+    # voices-bot (2026-10-02): the /status reply reads health.json (this repo's own
+    # run). aoife-milestones-bot: Doc + Notion mirrors vs the newest Sheet row.
+    {"name": "voices-bot (/status serves a fresh fleet file)", "repo": "voices-bot",
+     "probe": "freshness", "url": "https://voices-bot.vercel.app/api/freshness",
+     "expect_items": ["fleet-status"]},
+    {"name": "aoife-milestones-bot (Doc/Notion/recap reflect the Sheet)", "repo": "aoife-milestones-bot",
+     "probe": "freshness", "url": "https://aoife-milestones-bot.vercel.app/api/freshness",
+     "expect_items": ["doc-mirror", "notion-mirror", "monthly-recap"]},
 
     # financial-telegram-bot's two LOCAL launchd jobs. The two existing
     # financial-telegram-bot rows grade the cloud daily report and the
@@ -2359,7 +2398,7 @@ FLEET = [
     # round 4): every run prints `published -> <gist raw URL>` after the gist
     # write succeeds. Graded on the newest run block only; 72h covers Fri 18:30
     # to the Monday 05:00 check.
-    {"name": "rubber-band (weekday evening check)", "repo": None,
+    {"name": "rubber-band (weekday evening check)", "feeds_screen": True, "screen_repo": "financial-telegram-bot", "repo": None,
      "probe": "log_block", "log_path": "~/Library/Logs/rubber-band.log",
      "block_re": r"^rubber-band run (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)",
      # Round 8: `published` prints even when every Composer curve failed
@@ -2428,21 +2467,21 @@ FLEET = [
     {"name": "mac-heartbeat (One Clock dead-man switch)", "repo": "one-clock",
      "probe": "launchd_exit", "label": "com.jalal.mac-heartbeat",
      "weak_ok": "exit code only; the real check is the cloud alarm itself, which fires within 45 min of the beats stopping"},
-    {"name": "dhaka-yearly (01:15 nightly run ended OK)", "repo": None,
+    {"name": "dhaka-yearly (01:15 nightly run ended OK)", "feeds_screen": True, "screen_repo": "dhaka-yearly", "repo": None,
      "probe": "log_tail", "path": "~/PycharmProjects/dhaka-yearly/data/run-{today_ymd}.log",
      # NIGHTLY IDLE (2026-09-27): after the booked departure no year is left to
      # search (6-31 Jan 2027), so the run deliberately does nothing.
      "last_line": r"^(?:NIGHTLY OK plans=[1-9]\d* problems=0 pushed=[0-9a-f]{7} notify=(?:ok|none)"
                   r"|NIGHTLY IDLE: no year to search: .+)$",
      "max_age_h": 8},
-    {"name": "dhaka-yearly (nightly trip plans, live site)", "repo": None,
+    {"name": "dhaka-yearly (nightly trip plans, live site)", "screen_side": True, "screen_repo": "dhaka-yearly", "repo": None,
      "probe": "web_fresh", "url": "https://dhaka-yearly.vercel.app/data.json",
      "json_key": "updated_tz", "max_age_h": 26},
     # AM Reads (reddit-scraper am_reads.yml, 07:45 ET + two backup crons). Both
     # outcome lines are anchored on the log's own "…Z " timestamp: the echoed
     # workflow source also contains "NO CHANGE: AM Reads already current" (the
     # Actions echo trap), but there it follows `echo "`, never the stamp.
-    {"name": "reddit-scraper (AM Reads morning list)", "repo": "reddit-scraper",
+    {"name": "reddit-scraper (AM Reads morning list)", "feeds_screen": True, "repo": "reddit-scraper",
      "probe": "gh_run", "workflow": "am_reads.yml", "max_age_h": 30,
      # Round 8: "Fetching AM Reads post" prints BEFORE the fetch, so a fetch that
      # failed (returns []) still matched it, and the empty run then said NO CHANGE.
@@ -2935,11 +2974,17 @@ def lint_roster(fleet=None):
             offenders.append(item)
         # 2026-10-02 (aoife-typing): a writer that feeds a screen needs a row that
         # reads the SCREEN side too -- a green writer proved nothing for 3 weeks.
+        # A web_fresh/nuts row that fetches the SAME file the page renders may
+        # stand in, marked screen_side=True (dhaka-flights data.json, 2026-10-02).
+        # screen_repo: the app a row's writer feeds / its screen check belongs to,
+        # when `repo` is None or a different repo (Notion stamping uses `repo`).
         elif item.get("feeds_screen") and not any(
-                r["probe"] == "freshness" and r.get("repo") == item.get("repo")
+                (r["probe"] == "freshness" or r.get("screen_side"))
+                and (r.get("screen_repo") or r.get("repo"))
+                == (item.get("screen_repo") or item.get("repo"))
                 for r in (FLEET if fleet is None else fleet)):
-            offenders.append(dict(item, lint_why="feeds_screen but no 'freshness' row "
-                                                 f"for repo {item.get('repo')!r}"))
+            offenders.append(dict(item, lint_why="feeds_screen but no 'freshness'/screen_side row "
+                                                 f"for {item.get('screen_repo') or item.get('repo')!r}"))
     return offenders
 
 

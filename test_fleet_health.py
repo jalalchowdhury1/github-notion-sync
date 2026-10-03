@@ -166,7 +166,10 @@ class TestRosterGuards(unittest.TestCase):
         failing = "REDDIT BACKUP: refreshed 0 of 26 lists that needed it (tried 6)"
         for log, ok in ((quiet, True), (busy, True), (dead, False), (failing, False)):
             self.assertEqual(all(re.search(g, log) for g in gh["log_grep"]), ok, log)
-        self.assertEqual(fh.lint_roster([mac, gh]), [])
+        # gh feeds the Daily Reader screen (2026-10-02): its screen row must ride along
+        screen = self._row("reddit-scraper (live site: every tab")
+        self.assertEqual(fh.lint_roster([mac, gh, screen]), [])
+        self.assertEqual([r["name"] for r in fh.lint_roster([mac, gh])], [gh["name"]])
 
     def test_every_telegram_webhook_row_names_a_token_and_a_path(self):
         for r in fh.FLEET:

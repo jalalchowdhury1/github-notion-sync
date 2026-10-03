@@ -1264,6 +1264,8 @@ class ServedFreshness(unittest.TestCase):
         self.assertFalse(self.grade([{"name": "feed", "inputAgeH": None, "servedAgeH": 30,
                                       "graceH": 1, "maxAgeH": 26}])[0])
         self.assertFalse(self.grade([{"name": "c", "inputAgeH": -400000, "servedAgeH": 1, "graceH": 3}])[0])
+        self.assertFalse(self.grade([{"name": "stamp", "inputAgeH": None, "servedAgeH": None,
+                                      "graceH": 0, "maxAgeH": 3}])[0])
 
     def test_missing_item_or_bad_shape_red(self):
         self.assertFalse(self.grade([{"name": "other", "inputAgeH": 1, "servedAgeH": 1, "graceH": 3}],
@@ -1276,6 +1278,8 @@ class ServedFreshness(unittest.TestCase):
         f = {"name": "f", "repo": "r", "probe": "freshness", "url": "u"}
         self.assertEqual(len(fh.lint_roster([w])), 1)
         self.assertEqual(fh.lint_roster([w, f]), [])
+        side = {"name": "s", "repo": "r", "probe": "web_fresh", "url": "u", "screen_side": True}
+        self.assertEqual(fh.lint_roster([w, side]), [])
 
 
 if __name__ == "__main__":

@@ -191,7 +191,11 @@ trigger.
 7. **Writer feeds a screen? Grade the screen too** (2026-10-02). If the job writes data
    that a live app later SHOWS (KV doc, report, mission, feed), mark its row
    `feeds_screen: True` and add a `freshness` row for the same repo that reads the app's
-   `/api/freshness`. The lint refuses a `feeds_screen` row without one. Why: the aoife-typing
+   `/api/freshness`. The lint refuses a `feeds_screen` row without one. A `web_fresh`/`nuts`
+   row that fetches the SAME file the page renders may stand in: mark it `screen_side: True`.
+   Rows match by `screen_repo` (falls back to `repo`), so a writer with `repo: None` or a
+   different repo (rubber-band → financial-telegram-bot) still pairs. Spec + judge rule:
+   `~/PycharmProjects/FRESHNESS-CONTRACT.md`; `/ship` runs `freshness-check <url>` (same judge). Why: the aoife-typing
    coach logged `wrote coach` every 15 min (green) while the screen served the 11 Sep
    mission for three weeks (reader read `at`, writer stamped `generatedAt`).
 
