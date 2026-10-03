@@ -2059,10 +2059,8 @@ FLEET = [
      "probe": "web_render", "url": "https://aoife-math.vercel.app",
      "expect_text": "Try 1 of 2",
      "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
-    {"name": "nafis-mortgage (site)", "repo": "nafis-mortgage",
-     "probe": "web_200", "url": "https://nafis-mortgage.vercel.app",
-     "bypass_env": "NAFIS_VERCEL_BYPASS",   # login-only since 2026-09-27
-     "weak_ok": "finished work, nothing scheduled; proves it is served from its own host, not that the page renders"},
+    # nafis-mortgage (site) row DELETED 2026-10-03: Jalal no longer uses it ("a one
+    # time thing"); its GitHub repo no longer exists. Code stays on the Mac.
     # Rostered 2026-08-25 during a coverage audit: aoife-math/columns/frameworks
     # were watched while these three equally-live sisters were not — coverage by
     # accident of when each was built, not by risk. aoife-puzzles matters most:
@@ -2486,7 +2484,8 @@ FLEET = [
     # a push to main DEPLOYS several of these repos, so pushing is Jalal's call.
     {"name": "unpushed work (commits only on this Mac)", "repo": None,
      "probe": "unpushed_work", "quiet_red": True,
-     "roots": ["~/PycharmProjects", "~/.local/bin", "~/concierge"], "max_age_h": 24},
+     "roots": ["~/PycharmProjects", "~/.local/bin", "~/concierge"], "max_age_h": 24,
+     "ignore": {"nafis-mortgage": "retired one-off (3 Oct 2026); GitHub repo gone, kept on the Mac only"}},
 
     # financial-telegram-bot's two LOCAL launchd jobs. The two existing
     # financial-telegram-bot rows grade the cloud daily report and the
