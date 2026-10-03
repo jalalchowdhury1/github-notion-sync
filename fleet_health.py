@@ -2391,7 +2391,8 @@ FLEET = [
     # stays fresh even when list_problem() rejects the new list and the old one shows.
     {"name": "reddit-scraper (live site: every tab serves fresh data)", "repo": "reddit-scraper",
      "probe": "freshness", "url": "https://reddit-scraper-lyart.vercel.app/api/freshness",
-     "expect_items": ["reddit-monthly", "reddit-yearly", "news", "am-reads", "satpost", "github-trending"]},
+     "expect_items": ["reddit-monthly", "reddit-yearly", "news", "am-reads", "am-reads-check",
+                      "satpost", "github-trending"]},
     # voices-bot (2026-10-02): the /status reply reads health.json (this repo's own
     # run). aoife-milestones-bot: Doc + Notion mirrors vs the newest Sheet row.
     {"name": "voices-bot (/status serves a fresh fleet file)", "repo": "voices-bot",
