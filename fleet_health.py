@@ -1971,7 +1971,12 @@ FLEET = [
     # green. probe_rsync_log grades the final run block instead and asserts a
     # non-zero file count, so an unmounted source now FAILS.
     {"name": "T7 Google-Drive backup (real tree copied)", "repo": None,
-     "probe": "rsync_log", "log_path": "/Volumes/T7Files/sync.log",
+     # 3 Oct 2026: reads the script's MIRROR in ~/.local/state, not the T7 copy.
+     # Every brew python upgrade is a new binary path, macOS re-asks the Removable
+     # Volumes permission, and the read hung on a prompt nobody could answer remotely
+     # while the backup itself was fine. Same run blocks, written by the backup script.
+     # An unmounted T7 still fails: the script exits before writing a fresh block.
+     "probe": "rsync_log", "log_path": "~/.local/state/t7-sync/sync.log",
      # Live reg-count has sat at 26,968-26,975 across every run in the log.
      # 20,000 is a ~26% floor: deleting a large folder must not page, but an
      # unmounted source (reg: absent) or a half-mounted one cannot reach it.
