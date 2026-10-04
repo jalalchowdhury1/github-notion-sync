@@ -77,7 +77,7 @@ def _read(path) -> str:
         return f.read()
 
 
-DATE_TOKENS = ("{today}", "{date}", "{weekday}")
+DATE_TOKENS = ("{today}", "{date}", "{weekday}", "{utctoday}")
 # Probes whose log_grep expands DATE_TOKENS. Any other probe would search for the
 # literal text "{date}" and could never match -- lint_roster refuses that.
 TOKEN_PROBES = {"gh_run", "log_marker", "cloudwatch_marker"}
@@ -86,10 +86,15 @@ TOKEN_PROBES = {"gh_run", "log_marker", "cloudwatch_marker"}
 def _expand_dates(pattern, today=None):
     """{today} = today only; {date} = today|yesterday; {weekday} = today|the
     previous weekday. One helper for every probe (round 8: each probe used to
-    expand its own subset, and {weekday} outside gh_run stayed literal)."""
+    expand its own subset, and {weekday} outside gh_run stayed literal).
+    {utctoday} = the UTC date, for jobs that label their output by UTC date: the
+    23:00 ET quiet run (3 Oct 2026) is already tomorrow in UTC, so {today} paged a
+    healthy financial-dashboard-history. A caller-supplied `today` stands in for it."""
+    utc = today or datetime.datetime.now(datetime.timezone.utc).date()
     today = today or datetime.date.today()
     yday = today - datetime.timedelta(days=1)
     return (pattern.replace("{today}", today.isoformat())
+            .replace("{utctoday}", utc.isoformat())
             .replace("{weekday}", f"(?:{'|'.join(_weekday_dates(today))})")
             .replace("{date}", f"(?:{today.isoformat()}|{yday.isoformat()})"))
 
@@ -1846,7 +1851,9 @@ FLEET = [
      # the four snapshots in the window could be missing and the row stayed green.
      # Pinned to today, the alternation is safe: at the 05:00 ET check only the
      # AM slot can exist yet, so a missed AM now goes red the same morning.
-     "log_grep": [r"slot {today}-(?:AM|PM)",
+     # {utctoday} (4 Oct 2026): the job labels slots by UTC date, and the 23:00 ET
+     # quiet run is past midnight UTC -- {today} paged the healthy 21:30 ET run.
+     "log_grep": [r"slot {utctoday}-(?:AM|PM)",
                   # carried_forward capped under half of the 38 metrics (producer-side red
                   # team 2026-09-12): with every fetcher down, apply_fallbacks copies the
                   # last row forward and still prints "successfully appended". Normal is
@@ -1854,7 +1861,7 @@ FLEET = [
                   # 2026-09-27: the producer now caps each carry at 4 runs and prints
                   # stale=N (columns it had to leave blank); any stale column is red.
                   r"(?:Data successfully appended to Google Sheet\. \(\d+ metrics; carried_forward=(?:1[0-8]|[0-9]), na_remaining=\d+, stale=0\)"
-                  r"|dedupe guard: slot {today}-(?:AM|PM) already has a successful run)"],
+                  r"|dedupe guard: slot {utctoday}-(?:AM|PM) already has a successful run)"],
      "expect_event": "workflow_dispatch"},
     # vix-fear-greed: RETIRED + ARCHIVED 2026-08-29, probe deliberately removed.
     # Its whole job was writing the FEAR/GREED tag into the VIX sheet's cell C2.

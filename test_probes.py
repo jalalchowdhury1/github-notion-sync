@@ -1131,6 +1131,7 @@ class DateTokens(unittest.TestCase):
         self.assertEqual(fh._expand_dates("{date}", mon), "(?:2026-09-28|2026-09-27)")
         self.assertEqual(fh._expand_dates("{weekday}", mon), "(?:2026-09-28|2026-09-25)")
         self.assertEqual(fh._expand_dates(r"\d{4}", mon), r"\d{4}")   # quantifiers untouched
+        self.assertEqual(fh._expand_dates("slot {utctoday}", mon), "slot 2026-09-28")
 
     def test_log_marker_now_understands_weekday(self):
         import re
