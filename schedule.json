@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-05 05:03",
+ "updated": "2026-10-07 05:02",
  "jobs": [
   {
    "key": "com.jalal.aoife-gcal-drift",
@@ -149,6 +149,16 @@
    "mechanism": "launchd com.jalal.dhaka-yearly → ~/PycharmProjects/dhaka-yearly/nightly.sh",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/dhaka-yearly.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.emerald-dragon-reminder",
+   "title": "com.jalal.emerald-dragon-reminder",
+   "when": "10:00 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.emerald-dragon-reminder → ~/.local/bin/emerald-dragon-reminder.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "—",
    "notes": ""
   },
   {
