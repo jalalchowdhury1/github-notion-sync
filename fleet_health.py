@@ -545,7 +545,6 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None,
                 f"gh-dispatcher Lambda logs.\nlatest run: {run_url}")
     if log_grep:
         patterns = [log_grep] if isinstance(log_grep, str) else list(log_grep)
-        _today = datetime.date.today()
         # {today} pins to today alone, no buffer — same token probe_cloudwatch_marker
         # uses. Added here 2026-09-12 (red team round 3) for rows where the
         # today|yesterday buffer is too loose to mean anything. Safe because this
@@ -554,7 +553,10 @@ def probe_gh_run(repo, workflow, max_age_h, log_grep=None, expect_event=None,
         # ends) and midnight.
         # {weekday} = today|the previous weekday, for weekday-only jobs (hedgelab):
         # {date}'s one-day buffer paged Friday's good plan every Sunday and Monday.
-        patterns = [_expand_dates(p, _today) for p in patterns]
+        # No `today` argument (6 Oct 2026): passing the local date overrode
+        # {utctoday}, so the 23:00 ET quiet run still graded a UTC-labelled slot
+        # against the local date and paged a healthy financial-dashboard-history.
+        patterns = [_expand_dates(p) for p in patterns]
         lp = subprocess.run(
             ["gh", "run", "view", str(run["databaseId"]), "-R",
              f"{GH_USER}/{repo}", "--log"],

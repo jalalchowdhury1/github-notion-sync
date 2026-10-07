@@ -296,6 +296,26 @@ class GhRun(_Patched):
         self.runs = [self.run_(1, 0.2, status="in_progress"), self.run_(2, 5)]
         self.assertTrue(fh.probe_gh_run("r", "w.yml", 26)[0])
 
+    def test_utctoday_uses_the_utc_date_in_the_evening(self):
+        # 6 Oct 2026, 23:00 ET quiet run: gh_run passed the LOCAL date into
+        # _expand_dates, which overrode {utctoday}, so the 21:30 ET run's
+        # "slot 2026-10-07-AM" was graded against 2026-10-06 and paged red.
+        utc = datetime.datetime.now(datetime.timezone.utc).date()
+        self.runs = [self.run_(1, 1)]
+        self.logs = {1: f"2026-10-07T01:31:00Z slot {utc.isoformat()}-AM; proceeding.\n"}
+        real_date = fh.datetime.date
+
+        class LocalYesterday(real_date):
+            @classmethod
+            def today(cls):
+                return utc - datetime.timedelta(days=1)
+        fh.datetime.date = LocalYesterday
+        try:
+            ok, d = fh.probe_gh_run("r", "w.yml", 26, log_grep=r"slot {utctoday}-(?:AM|PM)")
+        finally:
+            fh.datetime.date = real_date
+        self.assertTrue(ok, d)
+
     def test_failure_with_no_rescue_shows_log_tail(self):
         self.runs = [self.run_(1, 1, "failure")]
         ok, d = fh.probe_gh_run("r", "w.yml", 26)
