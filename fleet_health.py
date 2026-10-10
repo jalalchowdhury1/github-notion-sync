@@ -103,6 +103,22 @@ def _age_hours(ts: float) -> float:
     return (datetime.datetime.now().timestamp() - ts) / 3600
 
 
+def _weekday_age_hours(ts: float, now: float = None) -> float:
+    """Hours from ts to now that fall on Mon-Fri (local time) -- the age of a
+    weekdays-only job's last run, with the weekend it legitimately skips left out.
+    10 Oct 2026 audit: a flat 72 h (sized for Fri -> Mon) let a missed Tuesday stay
+    green until Thursday evening."""
+    now = datetime.datetime.now().timestamp() if now is None else now
+    t, end = datetime.datetime.fromtimestamp(ts), datetime.datetime.fromtimestamp(now)
+    total = 0.0
+    while t < end:
+        nxt = min(end, datetime.datetime.combine(t.date() + datetime.timedelta(days=1), datetime.time()))
+        if t.weekday() < 5:
+            total += (nxt - t).total_seconds()
+        t = nxt
+    return total / 3600
+
+
 def _weekday_dates(today: datetime.date) -> list:
     """Today plus the most recent weekday before it — the `{weekday}` log_grep token,
     for weekday-only jobs whose newest output on a Sunday or Monday morning is Friday's."""
@@ -1374,7 +1390,8 @@ def probe_cloudwatch_marker(log_group, log_grep, max_age_h=30, today_only=True,
     return True, "delivery marker confirmed"
 
 
-def probe_log_block(log_path, block_re, log_grep, max_age_h, fail_grep=None, **_):
+def probe_log_block(log_path, block_re, log_grep, max_age_h, fail_grep=None,
+                    weekday_only=False, **_):
     """Assert markers inside the LAST run block of an append-only log.
 
     Added 2026-09-12 for toolcheck, which had no probe at all. The generic
@@ -1391,6 +1408,7 @@ def probe_log_block(log_path, block_re, log_grep, max_age_h, fail_grep=None, **_
     `block_re` must capture a parseable "YYYY-MM-DD HH:MM:SS" as group 1.
     `fail_grep` (round 8): a line the producer prints on a partial failure that
     does not stop it printing its success marker; a match in the block is red.
+    `weekday_only`: max_age_h counts Mon-Fri hours only (_weekday_age_hours).
     """
     path = os.path.expanduser(log_path)
     try:
@@ -1405,8 +1423,11 @@ def probe_log_block(log_path, block_re, log_grep, max_age_h, fail_grep=None, **_
         ts = datetime.datetime.strptime(last.group(1).replace("T", " "), "%Y-%m-%d %H:%M:%S").timestamp()
     except (ValueError, IndexError):
         return False, f"unparseable block stamp {last.group(0)[:60]!r}"
-    age = _age_hours(ts)
+    age = _weekday_age_hours(ts) if weekday_only else _age_hours(ts)
     if age > max_age_h:
+        if weekday_only:
+            return False, (f"last run {_age_hours(ts)/24:.1f}d ago = {age:.0f} weekday h "
+                           f"(limit {max_age_h}h) — job has stopped firing")
         return False, (f"last run {age/24:.1f}d ago "
                        f"(limit {max_age_h/24:.1f}d) — job has stopped firing")
     block = text[last.start():]
@@ -2558,8 +2579,11 @@ FLEET = [
      # (a failed reminder used to leave no trace). Only failed=0 is green.
      "last_line": r"^nag outcome: sent=\d+ failed=0 pending=\w+$", "max_age_h": 11},
     # rubber-band is weekdays 18:30 ONLY, so a Monday 05:00 check is looking at
-    # Friday evening — ~58 h. A dated marker would page every Monday. mtime at
-    # 72 h clears the weekend and still catches a genuine multi-day stall.
+    # Friday evening — ~58 h. A dated marker would page every Monday.
+    # 10 Oct 2026: was a flat 72 h, so a missed Tuesday stayed green until Thursday
+    # evening. Now weekday_only: Fri 18:30 -> Mon 05:00 counts 10.5 h; one missed
+    # weekday run -> 34.5 h at the next morning check -> red. 28 h leaves room for
+    # a late-firing run (Mac asleep at 18:30) without a false red at 20:00.
     # Was file_mtime with weak_ok "prints no success marker". Not true (red team
     # round 4): every run prints `published -> <gist raw URL>` after the gist
     # write succeeds. Graded on the newest run block only; 72h covers Fri 18:30
@@ -2574,7 +2598,7 @@ FLEET = [
      "log_grep": [r"^\s*published → https://gist\.githubusercontent\.com/",
                   r"^=== exit 0 ===$"],
      "fail_grep": r"curve \S+: FAILED|alert \(\d+ changes\): NOT sent",
-     "max_age_h": 72},
+     "weekday_only": True, "max_age_h": 28},
 
     # The tranche pair. 07:12 publish is the one Jalal would actually notice
     # missing. nag prints no date ("sent N chars" / "nothing due"), so it gets

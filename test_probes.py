@@ -1088,7 +1088,8 @@ class LogBlockFailGrep(_Patched):
     def grade(self, text):
         row = next(r for r in fh.FLEET if r["name"].startswith("rubber-band"))
         return fh.probe_log_block(self.write("rb.log", text), row["block_re"], row["log_grep"],
-                                  row["max_age_h"], fail_grep=row["fail_grep"])
+                                  row["max_age_h"], fail_grep=row["fail_grep"],
+                                  weekday_only=row.get("weekday_only", False))
 
     def test_clean_block_green(self):
         self.assertTrue(self.grade(self._block())[0])
@@ -1105,6 +1106,31 @@ class LogBlockFailGrep(_Patched):
     def test_failure_in_an_older_block_does_not_count(self):
         old = self._block("  curve m1: FAILED (401)\n").replace(_local(2, "%Y-%m-%dT%H"), _local(30, "%Y-%m-%dT%H"))
         self.assertTrue(self.grade(old + self._block())[0])
+
+
+class WeekdayAge(unittest.TestCase):
+    """10 Oct 2026: rubber-band (weekdays 18:30) was a flat 72 h, so a missed
+    Tuesday stayed green until Thursday evening."""
+
+    def ts(self, *a):
+        return datetime.datetime(*a).timestamp()
+
+    def test_weekend_is_not_counted(self):
+        # Fri 9 Oct 18:30 -> Mon 12 Oct 05:00 = 10.5 weekday hours
+        self.assertAlmostEqual(fh._weekday_age_hours(self.ts(2026, 10, 9, 18, 30),
+                                                     self.ts(2026, 10, 12, 5, 0)), 10.5)
+
+    def test_missed_tuesday_is_red_by_wednesday_morning(self):
+        row = next(r for r in fh.FLEET if r["name"].startswith("rubber-band"))
+        self.assertTrue(row.get("weekday_only"))
+        # Mon 18:30 -> Wed 05:00 = 34.5 h > limit; Mon 18:30 -> Tue 20:00 = 25.5 h ok
+        self.assertGreater(fh._weekday_age_hours(self.ts(2026, 10, 12, 18, 30),
+                                                 self.ts(2026, 10, 14, 5, 0)), row["max_age_h"])
+        self.assertLess(fh._weekday_age_hours(self.ts(2026, 10, 12, 18, 30),
+                                              self.ts(2026, 10, 13, 20, 0)), row["max_age_h"])
+        # and a normal Friday -> Monday 06:30 re-check stays green
+        self.assertLess(fh._weekday_age_hours(self.ts(2026, 10, 9, 18, 30),
+                                              self.ts(2026, 10, 12, 6, 30)), row["max_age_h"])
 
 
 class TightenedMarkers(unittest.TestCase):
