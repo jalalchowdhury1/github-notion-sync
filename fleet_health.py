@@ -1932,8 +1932,10 @@ FLEET = [
     # reaching Reddit from GitHub turns red BEFORE the day the Mac dies. Listed
     # before the daily-data row on purpose: same repo, notion_health keeps the
     # LAST result per repo, and Telegram carries both.
+    # max_age_h 12 (was 8, 9 Oct): GitHub fires the 3-h cron only every 6-9.5 h
+    # (6-day sample, longest gap 9.5 h), so 8 h went red on GitHub's lag alone.
     {"name": "reddit-backup (GitHub RSS every 3 h)", "feeds_screen": True, "repo": "reddit-scraper",
-     "probe": "gh_run", "workflow": "reddit_backup.yml", "max_age_h": 8,
+     "probe": "gh_run", "workflow": "reddit_backup.yml", "max_age_h": 12,
      "rescue_max_failures": 1,
      "log_grep": [r"REDDIT BACKUP: refreshed \d+ of \d+",
                   r"GITHUB REDDIT CHECK: rss ok|REDDIT BACKUP: refreshed [1-9]"]},
