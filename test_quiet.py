@@ -143,3 +143,22 @@ class UnpushedWork(unittest.TestCase):
             rec = fh.loud_alert([{"name": row["name"], "ok": False, "detail": "x"}],
                                 now=datetime.datetime(2026, 10, 4, 6, 30), prev={})
         self.assertEqual(rec, {})
+
+
+class RunBudget(unittest.TestCase):
+    """10 Oct 2026: past RUN_BUDGET_S the remaining rows are filed, not probed."""
+
+    def test_rows_past_the_budget_are_not_probed(self):
+        calls = []
+        rows = [{"name": "a (x)", "probe": "fake"}, {"name": "b (x)", "probe": "fake"}]
+        def fake(**kw):
+            calls.append(kw["name"])
+            return True, "fine"
+        with mock.patch.object(fh, "FLEET", rows), \
+             mock.patch.dict(fh.PROBE_FNS, {"fake": fake}), \
+             mock.patch.object(fh, "lint_roster", lambda: []), \
+             mock.patch.object(fh, "RUN_BUDGET_S", -1):
+            res = fh.run_checks()
+        self.assertEqual(calls, [])
+        self.assertTrue(all(r["detail"].startswith("probe error: run budget exhausted") for r in res))
+        self.assertEqual(len(res), 2)

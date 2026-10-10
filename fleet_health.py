@@ -723,8 +723,16 @@ def probe_telegram_webhook(token_env, expect_url, require_guard=False, **_):
     if not token:
         return False, f"{token_env} not set (see run_health.sh)"
     url = f"https://api.telegram.org/bot{token}/getWebhookInfo"
-    with urllib.request.urlopen(urllib.request.Request(url), timeout=30) as r:
-        body = json.load(r)
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url), timeout=30) as r:
+            body = json.load(r)
+    except urllib.error.HTTPError as e:
+        # 10 Oct 2026 audit: a revoked/rotated token answers 401/404, which used to
+        # raise into "probe error" (= could not check) -- but this bot carries every
+        # loud alarm, so a dead token is the outage itself. Other codes stay errors.
+        if e.code in (401, 404):
+            return False, f"{token_env} rejected by Telegram (HTTP {e.code}) — token revoked or rotated; every loud alert is down"
+        raise
     if not body.get("ok"):
         return False, f"getWebhookInfo failed: {str(body)[:120]}"
     info = body.get("result", {})
@@ -2136,11 +2144,14 @@ FLEET = [
      "block_re": r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) JOB-REAPER OK watched=\d+ running=\d+ reaped=\d+$",
      "log_grep": r"JOB-REAPER OK",
      "max_age_h": 1},
+    # log_block, not log_marker (10 Oct 2026 audit): "TICK OK {date}" accepts
+    # yesterday's marker, so a loop that died after the 07:00 tick stayed green
+    # ~47 h. Ticks run 07:00-21:30 daily -> longest healthy gap 9.5 h.
     {"name": "aoife-school-bot (30-min Telegram tick)", "repo": "aoife-school-bot",
-     "probe": "log_marker",
+     "probe": "log_block",
      "log_path": "~/Library/Logs/aoife-school-bot-tick.log",
-     "log_grep": r"TICK OK {date}",
-     "live_since": "2026-08-19"},
+     "block_re": r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) TICK OK ",
+     "log_grep": r"TICK OK", "max_age_h": 10},
     # The tick above proves the OUTBOUND half (the Mac pushing previews). It says
     # nothing about the INBOUND half: Jalal replying to the bot. Those die
     # independently — the tick keeps writing TICK OK while an unhooked bot
@@ -2505,6 +2516,31 @@ FLEET = [
      "roots": ["~/PycharmProjects", "~/.local/bin", "~/concierge"], "max_age_h": 24,
      "ignore": {"nafis-mortgage": "retired one-off (3 Oct 2026); GitHub repo gone, kept on the Mac only"}},
 
+    # 10 Oct 2026 robustness audit: five Mac jobs had NO row, so a crash or a job
+    # that stopped firing was silent. Each row reads the job's own outcome line.
+    # aaii-macromicro: the AAII backup feed (Thu 13:30/17:30, Fri 09:30/14:00).
+    # Longest healthy gap = Fri 14:00 -> Thu 13:30 = 167.5 h. Exits 1 with "FAIL ..."
+    {"name": "aaii-macromicro (AAII backup feed, Mac)", "repo": "financial-telegram-bot",
+     "probe": "log_tail", "path": "~/Library/Logs/aaii-macromicro.out.log",
+     "last_line": r"^\S+ OK macromicro ", "max_age_h": 170},
+    # podcast-requests: :05/:35 every hour; prints one outcome line per run.
+    {"name": "podcast-requests (Podcast-this taps, every 30 min)", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/podcast-requests.log",
+     "last_line": r"PODCAST REQUESTS: \d+ new \(\d+ total\)$", "max_age_h": 2},
+    # ftb-fault-matrix: nightly 21:40; only Telegrams on a FAIL, so a crash or a
+    # skipped night was invisible. The backreference demands N/N -- every test passed.
+    {"name": "ftb-fault-matrix (nightly backup-path drill)", "repo": "financial-telegram-bot",
+     "probe": "log_tail", "path": "~/Library/Logs/ftb-fault-matrix.log",
+     "last_line": r"^=== (\d+)/\1 passed ===$", "max_age_h": 26},
+    # claude-mem-guard: 04:15 daily index-size guard; ends every run with "done".
+    {"name": "claude-mem-guard (04:15 memory index size)", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/claude-mem-guard.launchd.log",
+     "last_line": r"^\d{4}-\d\d-\d\d [\d:]+ done$", "max_age_h": 26},
+    # changedetection: KeepAlive server on :5055 (IRS page watches).
+    {"name": "changedetection (local watch server :5055)", "repo": None,
+     "probe": "web_200", "url": "http://127.0.0.1:5055/", "expect_text": "<title>Change Detection</title>",
+     "weak_ok": "a server that answers is the whole job; watches report on their own"},
+
     # financial-telegram-bot's two LOCAL launchd jobs. The two existing
     # financial-telegram-bot rows grade the cloud daily report and the
     # self-health monitor; neither sees these, on the highest-stakes
@@ -2670,6 +2706,9 @@ def _paused(item):
     return None
 
 
+RUN_BUDGET_S = 20 * 60   # job-reaper stops com.jalal.fleet-health at 30 min
+
+
 def run_checks() -> list:
     # The lint runs HERE, not only in main(). A red team (2026-09-12) pointed out
     # that a programmatic caller doing `from fleet_health import run_checks` would
@@ -2681,10 +2720,22 @@ def run_checks() -> list:
         names = ", ".join(i["name"] for i in bad)
         raise SystemExit(f"roster lint failed (see lint_roster): {names}")
     results = []
+    started = time.monotonic()
     for item in FLEET:
         fn = PROBE_FNS[item["probe"]]
         err = ""
         paused = _paused(item)
+        # Whole-run budget (10 Oct 2026 audit): every probe has its own timeout, but
+        # 14 gh_run rows x 3 slow attempts can pass the job-reaper's 30-min cap, which
+        # kills the run with NO report at all. Past the budget, remaining rows are
+        # filed as "probe error" (= could not check) and the run still publishes.
+        if time.monotonic() - started > RUN_BUDGET_S:
+            results.append({"name": item["name"], "repo": item.get("repo"),
+                            "probe": item["probe"], "ok": False,
+                            "detail": f"probe error: run budget exhausted ({RUN_BUDGET_S // 60} min) — row not checked",
+                            "cfg": _cfg_line(item)})
+            print(f"  ❌ {item['name']} — run budget exhausted, not checked")
+            continue
         for attempt in range(1, 0 if paused else PROBE_ATTEMPTS + 1):
             try:
                 ok, detail = fn(**item)
