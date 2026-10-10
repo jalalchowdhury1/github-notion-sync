@@ -2498,6 +2498,10 @@ FLEET = [
     # a push to main DEPLOYS several of these repos, so pushing is Jalal's call.
     {"name": "unpushed work (commits only on this Mac)", "repo": None,
      "probe": "unpushed_work", "quiet_red": True,
+     # human_fix (10 Oct 2026): red clears when Jalal pushes, not with the clock, so a
+     # noon red + morning green is a fix, not an hour-dependent check -- offhours_note
+     # skips it (9 Oct: carmax pushed 21:14 read as "only passes at certain hours").
+     "human_fix": True,
      "roots": ["~/PycharmProjects", "~/.local/bin", "~/concierge"], "max_age_h": 24,
      "ignore": {"nafis-mortgage": "retired one-off (3 Oct 2026); GitHub repo gone, kept on the Mac only"}},
 
@@ -3228,7 +3232,8 @@ def offhours_note(results, now=None, max_age_h=20) -> str:
     now are already in the failure list, so they are not repeated here."""
     import glob
     now = now or datetime.datetime.now()
-    green_now = {r["name"] for r in results if r.get("ok")}
+    human_fix = {c["name"] for c in FLEET if c.get("human_fix")}
+    green_now = {r["name"] for r in results if r.get("ok") and r["name"] not in human_fix}
     hits = {}
     for path in sorted(glob.glob(QUIET_SLOT_GLOB)):
         try:

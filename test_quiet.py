@@ -71,6 +71,12 @@ class OffHoursNote(unittest.TestCase):
         self._slot("12", "2026-10-02 12:00", [{"name": "x (y)", "ok": False}])
         self.assertEqual(self._note([{"name": "x (y)", "ok": True}]), "")
 
+    def test_human_fix_row_is_not_named(self):
+        # 9 Oct 2026: unpushed work red at noon, pushed 21:14, green at 05:00 = a fix.
+        name = "unpushed work (commits only on this Mac)"
+        self._slot("12", "2026-10-03 12:00", [{"name": name, "ok": False}])
+        self.assertEqual(self._note([{"name": name, "ok": True}]), "")
+
     def test_all_green_says_nothing(self):
         self._slot("12", "2026-10-03 12:00", [{"name": "x (y)", "ok": True}])
         self.assertEqual(self._note([{"name": "x (y)", "ok": True}]), "")
