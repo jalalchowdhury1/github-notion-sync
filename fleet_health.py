@@ -2695,6 +2695,20 @@ FLEET = [
      # sent=none|200 (round 8): the script logs whether the warning actually went
      # out; sent=notoken / sent=000 / sent=4xx is a warning that never arrived.
      "log_grep": r"{date} \d\d:\d\d:\d\d openrouter=\d[\d.]* sent=(?:none|200)\b"},
+    # money-burn (10 Oct 2026): 06:40 daily 💸 digest line (OpenRouter / Claude /
+    # GitHub / AWS spend). Each run ends with ONE line; only "MONEY OK posted=digest|direct"
+    # is green (MONEY FAIL, or a traceback as the last line = red). --dry never writes this log.
+    {"name": "money-burn (06:40 💸 digest spend line)", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/money-burn.log",
+     "last_line": r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d MONEY OK posted=(?:digest|direct) ", "max_age_h": 26},
+    # fleet-diagnose (10 Oct 2026): every 5 min it diagnoses queued red rows (read-only
+    # Claude → 🩺 card with ✅ Fix it / 🙈 Skip) and polls the taps. Each run ends with
+    # one DIAG line; a fix session's `fleet-diagnose notify` adds a "notify <id>: sent"
+    # line. A dead job (stale log) or a crash (no DIAG line) is red. A failed diagnosis
+    # is retried once, then reported by its own Telegram note.
+    {"name": "fleet-diagnose (auto-diagnosis of red rows)", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/fleet-diagnose.log",
+     "last_line": r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d (?:DIAG (?:OK|FAIL) |notify \S+: sent$)", "max_age_h": 1},
 ]
 
 
@@ -3092,6 +3106,49 @@ def loud_alert(results, now=None, prev=None):
     return {"date": today, "names": sorted(already | {r["name"] for r in bad})}
 
 
+DIAG_QUEUE = os.path.expanduser("~/.local/state/fleet-diagnose/queue")
+DIAG_LABEL = "com.jalal.fleet-diagnose"
+
+
+def queue_diagnosis(results, prev, loud, now=None):
+    """Hand rows that JUST buzzed to ~/.local/bin/fleet-diagnose (10 Oct 2026).
+
+    Owner ask: wake up to "cause + proposed fix + Approve button", not a bare red
+    line. A read-only Claude run looks at each row and sends a 🩺 card. Only rows
+    this run buzzed for (loud_alert's own once-a-day rule), minus "probe error"
+    rows (the checker could not look) and human_fix rows (only Jalal clears them).
+    Never raises: a diagnosis problem must not break the morning check.
+    Returns the queued names.
+    """
+    try:
+        now = now or datetime.datetime.now()
+        today = now.date().isoformat()
+        if (loud or {}).get("date") != today:
+            return []
+        already = set(prev.get("names", [])) if (prev or {}).get("date") == today else set()
+        buzzed = (set(loud.get("names", [])) | set(loud.get("undelivered", []))) - already
+        human = {c["name"] for c in FLEET if c.get("human_fix")}
+        rows = [{"name": r["name"], "detail": str(r.get("detail", ""))[:600],
+                 "failing_since": r.get("failing_since")}
+                for r in results
+                if r["name"] in buzzed and not r.get("ok") and r["name"] not in human
+                and not str(r.get("detail", "")).startswith("probe error:")]
+        if not rows:
+            return []
+        os.makedirs(DIAG_QUEUE, exist_ok=True)
+        path = os.path.join(DIAG_QUEUE, f"{now:%Y%m%d-%H%M%S}.json")
+        with open(path + ".tmp", "w") as f:
+            json.dump({"day": today, "when": f"{now:%H:%M}", "rows": rows}, f, indent=2)
+        os.replace(path + ".tmp", path)
+        subprocess.run(["launchctl", "kickstart", f"gui/{os.getuid()}/{DIAG_LABEL}"],
+                       capture_output=True, timeout=15)
+        print(f"diagnosis queued for {len(rows)} row(s)")
+        return [r["name"] for r in rows]
+    except Exception as e:                   # noqa: BLE001 — never break the fleet run
+        print(f"WARN: could not queue diagnosis: {type(e).__name__}: {e}")
+        return []
+
+
 def publish(results, telegram_mode: str, loud=None) -> None:
     payload = {"checked": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
                # "sent"/"failed": unchanged contract — notion_health.py's Dead-Mac
@@ -3261,8 +3318,13 @@ def main(argv=()) -> None:
         if note:
             text += "\n\n" + note
         mode = _telegram_send(text, silent=True)   # 05:00 digest — no buzz (11 Sep 2026)
-        loud = loud_alert(results)
+        try:
+            prev_loud = json.loads(_read(HEALTH_FILE)).get("loud") or {}
+        except Exception:                    # noqa: BLE001
+            prev_loud = {}
+        loud = loud_alert(results, prev=prev_loud)
         publish(results, mode, loud)
+        queue_diagnosis(results, prev_loud, loud)
     finally:
         try:
             os.remove(LOCK_FILE)

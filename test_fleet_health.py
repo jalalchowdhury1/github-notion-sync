@@ -791,3 +791,62 @@ class RedTeam0927Part2(unittest.TestCase):
         self.assertIn("flapping", detail)
         ok, _ = fh.probe_gh_run("r", "w.yml", 8)            # old behaviour, no guard
         self.assertTrue(ok)
+
+
+class QueueDiagnosis(unittest.TestCase):
+    """10 Oct 2026: rows that just buzzed go to ~/.local/bin/fleet-diagnose."""
+
+    NOW = datetime.datetime(2026, 10, 11, 6, 31)
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.saved = (fh.DIAG_QUEUE, fh.subprocess.run, fh.FLEET)
+        fh.DIAG_QUEUE = self.tmp
+        self.calls = []
+        fh.subprocess.run = lambda *a, **k: self.calls.append(a[0])
+        fh.FLEET = [{"name": "push me", "human_fix": True}]
+
+    def tearDown(self):
+        fh.DIAG_QUEUE, fh.subprocess.run, fh.FLEET = self.saved
+
+    def queued(self):
+        files = sorted(os.listdir(self.tmp))
+        return [json.loads(Path(self.tmp, f).read_text()) for f in files]
+
+    def test_new_real_red_is_queued_and_job_kicked(self):
+        results = [{"name": "a", "ok": False, "detail": "no run in 2d", "failing_since": "2026-10-10"},
+                   {"name": "b", "ok": True}]
+        loud = {"date": "2026-10-11", "names": ["a"]}
+        self.assertEqual(fh.queue_diagnosis(results, {}, loud, now=self.NOW), ["a"])
+        job = self.queued()[0]
+        self.assertEqual(job["day"], "2026-10-11")
+        self.assertEqual(job["when"], "06:31")
+        self.assertEqual([r["name"] for r in job["rows"]], ["a"])
+        self.assertIn("kickstart", self.calls[0])
+
+    def test_already_buzzed_probe_error_and_human_fix_are_skipped(self):
+        results = [{"name": "old", "ok": False, "detail": "x"},
+                   {"name": "blind", "ok": False, "detail": "probe error: timeout"},
+                   {"name": "push me", "ok": False, "detail": "3 unpushed"}]
+        prev = {"date": "2026-10-11", "names": ["old"]}
+        loud = {"date": "2026-10-11", "names": ["old", "blind", "push me"]}
+        self.assertEqual(fh.queue_diagnosis(results, prev, loud, now=self.NOW), [])
+        self.assertEqual(self.queued(), [])
+        self.assertEqual(self.calls, [])
+
+    def test_undelivered_buzz_still_gets_a_diagnosis(self):
+        results = [{"name": "a", "ok": False, "detail": "x"}]
+        loud = {"date": "2026-10-11", "names": [], "undelivered": ["a"]}
+        self.assertEqual(fh.queue_diagnosis(results, {}, loud, now=self.NOW), ["a"])
+
+    def test_no_buzz_today_means_nothing_queued(self):
+        results = [{"name": "a", "ok": False, "detail": "x"}]
+        self.assertEqual(fh.queue_diagnosis(results, {}, {}, now=self.NOW), [])
+        self.assertEqual(fh.queue_diagnosis(results, {}, {"date": "2026-10-10", "names": ["a"]},
+                                            now=self.NOW), [])
+
+    def test_never_raises(self):
+        fh.DIAG_QUEUE = "/dev/null/cannot"
+        results = [{"name": "a", "ok": False, "detail": "x"}]
+        self.assertEqual(fh.queue_diagnosis(results, {}, {"date": "2026-10-11", "names": ["a"]},
+                                            now=self.NOW), [])
