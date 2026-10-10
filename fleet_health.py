@@ -2706,20 +2706,24 @@ FLEET = [
      # sent=none|200 (round 8): the script logs whether the warning actually went
      # out; sent=notoken / sent=000 / sent=4xx is a warning that never arrived.
      "log_grep": r"{date} \d\d:\d\d:\d\d openrouter=\d[\d.]* sent=(?:none|200)\b"},
-    # money-burn (10 Oct 2026): 06:40 daily 💸 digest line (OpenRouter / Claude /
-    # GitHub / AWS spend). Each run ends with ONE line; only "MONEY OK posted=digest|direct"
-    # is green (MONEY FAIL, or a traceback as the last line = red). --dry never writes this log.
-    {"name": "money-burn (06:40 💸 digest spend line)", "repo": None,
+    # money-burn (10 Oct 2026): 06:20 daily 💸 digest line (OpenRouter / Claude /
+    # GitHub / AWS spend). Runs at 06:20 so the 06:30 re-check grades TODAY's run (red
+    # team: at 06:40 every failure surfaced ~22 h late). Only "MONEY OK posted=… with a
+    # real OpenRouter number" is green; MONEY FAIL, openrouter=na or a traceback = red.
+    # --dry never writes this log.
+    {"name": "money-burn (06:20 💸 digest spend line)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/money-burn.log",
-     "last_line": r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d MONEY OK posted=(?:digest|direct) ", "max_age_h": 26},
+     "last_line": r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d MONEY OK posted=(?:digest|direct) openrouter=\d", "max_age_h": 26},
     # fleet-diagnose (10 Oct 2026): every 5 min it diagnoses queued red rows (read-only
     # Claude → 🩺 card with ✅ Fix it / 🙈 Skip) and polls the taps. Each run ends with
-    # one DIAG line; a fix session's `fleet-diagnose notify` adds a "notify <id>: sent"
-    # line. A dead job (stale log) or a crash (no DIAG line) is red. A failed diagnosis
-    # is retried once, then reported by its own Telegram note.
+    # one DIAG line. DIAG FAIL is STICKY for 24 h (red team: a broken login used to log
+    # FAIL once and OK five minutes later) and covers the daily Claude login canary, so
+    # an expired login turns this row red at the next 05:00/06:30 check. Also green:
+    # a fix session's "notify <id>: sent", and "diagnosing N row(s)" (a diagnosis in
+    # flight, ≤20 min; a run killed mid-way leaves it and goes stale → red after 1 h).
     {"name": "fleet-diagnose (auto-diagnosis of red rows)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/fleet-diagnose.log",
-     "last_line": r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d (?:DIAG (?:OK|FAIL) |notify \S+: sent$)", "max_age_h": 1},
+     "last_line": r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d (?:DIAG OK |notify \S+: sent$|diagnosing \d+ row)", "max_age_h": 1},
 ]
 
 
@@ -3149,7 +3153,11 @@ def queue_diagnosis(results, prev, loud, now=None):
         os.makedirs(DIAG_QUEUE, exist_ok=True)
         path = os.path.join(DIAG_QUEUE, f"{now:%Y%m%d-%H%M%S}.json")
         with open(path + ".tmp", "w") as f:
-            json.dump({"day": today, "when": f"{now:%H:%M}", "rows": rows}, f, indent=2)
+            # buzz_failed: the loud alert itself never reached the phone, so the
+            # 🩺 cards make a sound instead of arriving silent (red team 10 Oct).
+            undelivered = set(loud.get("undelivered", []))
+            json.dump({"day": today, "when": f"{now:%H:%M}", "rows": rows,
+                       "buzz_failed": any(r["name"] in undelivered for r in rows)}, f, indent=2)
         os.replace(path + ".tmp", path)
         subprocess.run(["launchctl", "kickstart", f"gui/{os.getuid()}/{DIAG_LABEL}"],
                        capture_output=True, timeout=15)
@@ -3334,8 +3342,10 @@ def main(argv=()) -> None:
         except Exception:                    # noqa: BLE001
             prev_loud = {}
         loud = loud_alert(results, prev=prev_loud)
-        publish(results, mode, loud)
+        # Before publish (red team 10 Oct): a git-push timeout in publish raises, and
+        # health.json already marks the rows as buzzed, so nothing would queue later.
         queue_diagnosis(results, prev_loud, loud)
+        publish(results, mode, loud)
     finally:
         try:
             os.remove(LOCK_FILE)

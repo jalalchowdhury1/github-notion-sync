@@ -851,6 +851,26 @@ The overnight send calls `digest_post("fleet", text, parse_mode)` first (health-
 
 
 
+## 🩺 Auto-diagnosis hand-off (10 Oct 2026)
+
+After `loud_alert` (and BEFORE `publish`, whose git push can raise), `queue_diagnosis()` writes the
+rows this run just buzzed — minus `probe error:` rows and `human_fix` rows — to
+`~/.local/state/fleet-diagnose/queue/<ts>.json` (`{day, when, rows, buzz_failed}`) and kickstarts
+`com.jalal.fleet-diagnose`. It never raises. Everything after that lives outside this repo:
+
+- `~/.local/bin/fleet-diagnose` (launchd every 5 min): one locked-down `claude -p` Sonnet run
+  (`--restricted --strict-mcp-config`, tools Read/Grep/Glob/Bash, read-only Bash allowlist) →
+  one 🩺 card per still-red row (one group card for a shared cause) with ✅ Fix it / 🙈 Skip, or
+  ✅ Done / 🙈 Skip when only Jalal can fix it. Taps land in health-hub KV (`fx:*`, see its
+  AGENTS.md); an approval parks a "Fix <row> <id4>" tmux session that reads a brief. Untapped
+  cards re-send every 3 h (09–21), expire after 3 days. A daily canary (`claude -p` + Telegram +
+  tap store) keeps `DIAG FAIL` sticky until the login works again.
+- `~/.local/bin/fleet-diag-tool`: the ONLY GitHub/CloudWatch/git access the diagnosis gets
+  (owner fixed, args validated, output scrubbed). Raw gh/aws/git are denied.
+- Testing: `FLEET_DIAG_STATE=<scratch dir>` isolates queue/pending/log; `--dry` prints cards.
+
+Rows here: `money-burn (06:20 💸 digest spend line)` and `fleet-diagnose (auto-diagnosis of red rows)`.
+
 ## History: the fleet-health §1 prose as it stood before the 2026-09-27 rewrite
 
 > Kept for the WHY behind each rule. **Superseded by §1 wherever they differ.** Known

@@ -838,6 +838,12 @@ class QueueDiagnosis(unittest.TestCase):
         results = [{"name": "a", "ok": False, "detail": "x"}]
         loud = {"date": "2026-10-11", "names": [], "undelivered": ["a"]}
         self.assertEqual(fh.queue_diagnosis(results, {}, loud, now=self.NOW), ["a"])
+        self.assertTrue(self.queued()[0]["buzz_failed"])     # cards make a sound instead
+
+    def test_delivered_buzz_keeps_cards_silent(self):
+        results = [{"name": "a", "ok": False, "detail": "x"}]
+        fh.queue_diagnosis(results, {}, {"date": "2026-10-11", "names": ["a"]}, now=self.NOW)
+        self.assertFalse(self.queued()[0]["buzz_failed"])
 
     def test_no_buzz_today_means_nothing_queued(self):
         results = [{"name": "a", "ok": False, "detail": "x"}]
