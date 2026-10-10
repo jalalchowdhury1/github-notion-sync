@@ -2454,9 +2454,12 @@ FLEET = [
      "expect_items": ["digest-card", "clean-streak"]},
     # financial dashboard (2026-10-02): the Rubber Band card vs the newest NYSE close,
     # and the history sheet behind "What moved" / tap charts (2 runs/day).
+    # 2026-10-09: + served:* — the 6 market routes can now serve a KV saved copy for days;
+    # red when the copy predates the newest NYSE close by > 6 h, or nothing is served.
     {"name": "financial-dashboard (rubber band + history served fresh)", "repo": "financial-telegram-bot",
      "probe": "freshness", "url": "https://financial-telegram-bot-beryl.vercel.app/api/freshness",
-     "expect_items": ["rubber-band", "history-sheet"]},
+     "expect_items": ["rubber-band", "history-sheet", "served:spy", "served:spy-daily-move",
+                      "served:market-extra", "served:fred", "served:sheets", "served:fear-greed"]},
     # Daily Reader (2026-10-02): every tab graded through get_data(), the page's own
     # path. The reddit-browser web_fresh row reads the Mac's `checked` stamp, which
     # stays fresh even when list_problem() rejects the new list and the old one shows.
