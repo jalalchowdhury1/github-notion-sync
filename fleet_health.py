@@ -2559,6 +2559,13 @@ FLEET = [
     {"name": "podcast-requests (Podcast-this taps, every 30 min)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/podcast-requests.log",
      "last_line": r"PODCAST REQUESTS: \d+ new \(\d+ total\)$", "max_age_h": 2},
+    # vercel-deploy-watch (10 Oct 2026): every 30 min (:07/:37) counts the last 24 h of
+    # Vercel deploys (free plan: 100/day for ALL projects; the cap was hit that day) and
+    # pings the alerts thread at 70 and 90. Its only output is one line per run, so a
+    # dead job or an expired Vercel login would silently end the warnings.
+    {"name": "vercel-deploy-watch (100 deploys/day early warning)", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/vercel-deploy-watch.log",
+     "last_line": r"^\S+ \S+ VERCEL DEPLOYS n=\d+ level=(ok|warn|crit) sent=[01]$", "max_age_h": 2},
     # ftb-fault-matrix: nightly 21:40; only Telegrams on a FAIL, so a crash or a
     # skipped night was invisible. The backreference demands N/N -- every test passed.
     {"name": "ftb-fault-matrix (nightly backup-path drill)", "repo": "financial-telegram-bot",
