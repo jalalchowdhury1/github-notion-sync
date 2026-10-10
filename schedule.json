@@ -1,6 +1,16 @@
 {
- "updated": "2026-10-07 05:02",
+ "updated": "2026-10-10 05:02",
  "jobs": [
+  {
+   "key": "com.jalal.aaii-macromicro",
+   "title": "com.jalal.aaii-macromicro",
+   "when": "Thursday, Friday 1:30 PM",
+   "frequency": "Weekly",
+   "mechanism": "launchd com.jalal.aaii-macromicro → ~/.nvm/versions/node/v24.15.0/bin/node",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/aaii-macromicro.out.log",
+   "notes": ""
+  },
   {
    "key": "com.jalal.aoife-gcal-drift",
    "title": "com.jalal.aoife-gcal-drift",
@@ -182,6 +192,16 @@
    "notes": ""
   },
   {
+   "key": "com.jalal.ftb-fault-matrix",
+   "title": "com.jalal.ftb-fault-matrix",
+   "when": "9:40 PM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.ftb-fault-matrix → ~/PycharmProjects/financial-telegram-bot/scripts/fault_matrix.py",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/ftb-fault-matrix.log",
+   "notes": ""
+  },
+  {
    "key": "com.jalal.health-tick",
    "title": "Health Hub scheduler tick — every 5 min",
    "when": "every 5 min, 12:00 AM–12:55 AM",
@@ -219,6 +239,16 @@
    "mechanism": "launchd com.jalal.llm-balance-check → ~/.local/bin/llm-balance-check.sh",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/llm-balance-check.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.mac-audit-tcc",
+   "title": "com.jalal.mac-audit-tcc",
+   "when": "12:05 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.mac-audit-tcc → ~/.local/libexec/mac-audit-tcc",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "—",
    "notes": ""
   },
   {
