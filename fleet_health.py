@@ -2468,6 +2468,17 @@ FLEET = [
     {"name": "later-jar (screen serves a fresh YNAB copy)", "repo": "later-jar",
      "probe": "freshness", "url": "https://later-jar.vercel.app/api/freshness",
      "expect_items": ["ynab-jars"]},
+    # tesla-watch (2026-10-10): Mac launchd com.jalal.tesla-watch 08:10/13:10/19:10 ET opens a real
+    # Chrome (Akamai blocks headless) on tesla.com -> public/data/latest.json -> git push -> Vercel.
+    # Writer row: the run line only counts when Tesla was read, every formula check matched
+    # Tesla's own quotes, and the data push landed. Screen row: /api/freshness reads the same file.
+    {"name": "tesla-watch (Tesla lease prices read + pushed)", "repo": "tesla-watch",
+     "probe": "log_marker", "log_path": "~/Library/Logs/tesla-watch.log",
+     "log_grep": r"tesla-watch run {date}T\S+ tesla_ok=True checks=(\d+)/\1 .* git=(?:pushed|nothing to commit)",
+     "live_since": "2026-10-11", "feeds_screen": True},
+    {"name": "tesla-watch (screen serves fresh Tesla prices)", "repo": "tesla-watch",
+     "probe": "freshness", "url": "https://tesla-watch-jalal.vercel.app/api/freshness",
+     "expect_items": ["tesla-prices", "watch-run"]},
     # aoife-puzzles (2026-10-02): position, rematch queue and avoid-list are all
     # recomputed from her raw sessions on each request; this proves the serving
     # helpers still see her newest session.
