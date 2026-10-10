@@ -136,6 +136,16 @@ class TestRosterGuards(unittest.TestCase):
         self.assertIsNone(re.search(r["last_line"],
                                     "2026-10-10 18:37:01 VERCEL DEPLOYS FAILED: HTTPError: 403"))
 
+    def test_openrouter_spend_watch_row_reads_the_outcome_line(self):
+        # 2026-10-10: Jalal asked for a ping when OpenRouter spends more than $1 in a day.
+        import re
+        r = self._row("openrouter-spend-watch")
+        self.assertEqual(r["probe"], "log_tail")
+        self.assertLessEqual(r["max_age_h"], 2)
+        self.assertRegex("2026-10-10 21:23:01 OPENROUTER SPEND today=1.24 sent=1", r["last_line"])
+        self.assertIsNone(re.search(r["last_line"],
+                                    "2026-10-10 21:23:01 OPENROUTER SPEND FAILED: HTTPError: 401"))
+
     def test_aoife_typing_log_tail_has_a_retry_grace_window(self):
         # 2026-09-19: probed 4 min before the cycle's `wrote coach` line and paged.
         r = self._row("aoife-typing")

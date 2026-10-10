@@ -2566,6 +2566,12 @@ FLEET = [
     {"name": "vercel-deploy-watch (100 deploys/day early warning)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/vercel-deploy-watch.log",
      "last_line": r"^\S+ \S+ VERCEL DEPLOYS n=\d+ level=(ok|warn|crit) sent=[01]$", "max_age_h": 2},
+    # openrouter-spend-watch (10 Oct 2026, Jalal: alert if OpenRouter spends > $1 in a day):
+    # hourly at :23 it reads the account's total usage and pings the alerts thread once a
+    # day over $1. One line per run is its only output, so a dead job = silent spend.
+    {"name": "openrouter-spend-watch ($1/day spend alert)", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/openrouter-spend-watch.log",
+     "last_line": r"^\S+ \S+ OPENROUTER SPEND today=-?\d+\.\d\d sent=[01]$", "max_age_h": 2},
     # ftb-fault-matrix: nightly 21:40; only Telegrams on a FAIL, so a crash or a
     # skipped night was invisible. The backreference demands N/N -- every test passed.
     {"name": "ftb-fault-matrix (nightly backup-path drill)", "repo": "financial-telegram-bot",
