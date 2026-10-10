@@ -3059,7 +3059,11 @@ def loud_alert(results, now=None, prev=None):
     lines.append("Full detail: tap 🛠 Fleet health in the morning card, or paste this to Claude.")
     if _telegram_send("\n".join(lines)) != "direct":
         print("WARN: loud alert not delivered")
-        return prev if prev.get("date") == today else {}
+        # 10 Oct 2026 audit: a dropped buzz used to leave no trace -- red rows then
+        # lived only on the silent card. `undelivered` makes notion_health.py's
+        # cloud watchdog fail loudly (from GitHub's network) the same morning.
+        kept = prev if prev.get("date") == today else {"date": today, "names": []}
+        return dict(kept, undelivered=sorted(r["name"] for r in new))
     print(f"loud alert sent for {len(new)} new failing system(s)")
     return {"date": today, "names": sorted(already | {r["name"] for r in bad})}
 
@@ -3109,8 +3113,9 @@ def already_ran_today() -> bool:
         today = datetime.date.today().isoformat()
         # A direct send at 05:00 is delivered, but it was SILENT: while rows are
         # still red and no loud alert went out today, the 6:30 slot must re-check.
+        loud = h.get("loud") or {}
         unbuzzed = (any(not r.get("ok") for r in h.get("results", []))
-                    and (h.get("loud") or {}).get("date") != today)
+                    and (loud.get("date") != today or bool(loud.get("undelivered"))))
         return (h.get("checked", "")[:10] == today
                 and h.get("telegram_mode") == "direct" and not unbuzzed)
     except Exception:                        # noqa: BLE001

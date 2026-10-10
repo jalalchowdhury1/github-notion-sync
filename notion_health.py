@@ -167,6 +167,17 @@ def pages_by_repo_url(token, db_id):
         cursor = data.get("next_cursor")
 
 
+def check_loud_delivered(health, checked) -> None:
+    """10 Oct 2026 audit: the 06:30 loud alert for still-red rows failed to send
+    (Telegram resets from the Mac are common) and left no trace -- the reds sat
+    only on the silent morning card. fleet_health.loud_alert now records them."""
+    loud = health.get("loud") or {}
+    if loud.get("undelivered") and loud.get("date") == checked[:10]:
+        die(f"the 06:30 LOUD alert was NOT delivered ({checked}) — still red: "
+            + ", ".join(loud["undelivered"][:8])
+            + ". Paste this to Claude.")
+
+
 def main():
     token = os.environ["NOTION_TOKEN"]
     db_id = os.environ["NOTION_DATABASE_ID"]
@@ -193,6 +204,8 @@ def main():
             f"as of {checked}. The checks ran, but the owner heard nothing — silence "
             f"here reads as health. Check TELEGRAM_TOKEN/TELEGRAM_CHAT_ID reaching "
             f"run_health.sh (sourced from the Dhaka flights .env).")
+
+    check_loud_delivered(health, checked)
 
     ensure_properties(token, db_id)
     pages = pages_by_repo_url(token, db_id)

@@ -721,6 +721,23 @@ class RedTeam0927Part2(unittest.TestCase):
         fh.loud_alert(self._res("x (daily)", "y"), now=now.replace(hour=16), prev=rec)
         self.assertEqual(len(self.sent), 2)                  # a NEW failure buzzes
 
+    def test_undelivered_buzz_is_recorded_for_the_cloud_watchdog(self):
+        # 10 Oct 2026: a failed send used to leave no trace in health.json.
+        fh._telegram_send = lambda text, silent=False: (self.sent.append((text, silent)), False)[1]
+        rec = fh.loud_alert(self._res("x (daily)"), now=datetime.datetime(2026, 9, 28, 6, 31), prev={})
+        self.assertEqual(rec, {"date": "2026-09-28", "names": [], "undelivered": ["x (daily)"]})
+        import notion_health as nh
+        died, orig = [], nh.die
+        nh.die = lambda msg: died.append(msg)
+        try:
+            nh.check_loud_delivered({"loud": rec}, "2026-09-28 06:31")
+            nh.check_loud_delivered({"loud": rec}, "2026-09-29 06:31")      # stale record: quiet
+            nh.check_loud_delivered({"loud": {"date": "2026-09-28", "names": ["x"]}}, "2026-09-28 06:31")
+        finally:
+            nh.die = orig
+        self.assertEqual(len(died), 1)
+        self.assertIn("x (daily)", died[0])
+
     def test_all_green_never_buzzes(self):
         fh.loud_alert(self._res(), now=datetime.datetime(2026, 9, 28, 6, 31), prev={})
         self.assertEqual(self.sent, [])
