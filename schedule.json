@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-10 05:02",
+ "updated": "2026-10-11 05:02",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -56,7 +56,7 @@
    "title": "com.jalal.aoife-typing-coach",
    "when": "every 15 min, 12:05 AM–12:50 AM",
    "frequency": "Daily",
-   "mechanism": "launchd com.jalal.aoife-typing-coach → /usr/local/bin/node",
+   "mechanism": "launchd com.jalal.aoife-typing-coach → ~/.nvm/versions/node/v24.15.0/bin/node",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/aoife-typing-coach.out.log",
    "notes": ""
@@ -172,6 +172,16 @@
    "notes": ""
   },
   {
+   "key": "com.jalal.fleet-diagnose",
+   "title": "com.jalal.fleet-diagnose",
+   "when": "every 5 min, 12:00 AM–12:55 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.fleet-diagnose → /opt/homebrew/opt/python@3.14/bin/python3.14",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/fleet-diagnose.out.log",
+   "notes": ""
+  },
+  {
    "key": "com.jalal.fleet-health",
    "title": "Fleet health check (all repos)",
    "when": "5:00 AM (retries 6:30 AM)",
@@ -282,11 +292,21 @@
    "notes": "Added 2026-08-28 after GitHub Actions schedule proved unreliable for this repo (fired +31m, +34m, +11h14m late, then never on 08-28). This is the delivery guarantee; GitHub's cron is now best-effort first-attempt. Markers MM-BACKSTOP OK/DISPATCHED date=… are date-pinned and graded by fleet-health's log_marker probe (runs after the 5 AM check, so yesterday's marker is the one graded)."
   },
   {
+   "key": "com.jalal.money-burn",
+   "title": "com.jalal.money-burn",
+   "when": "6:20 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.money-burn → /opt/homebrew/opt/python@3.14/bin/python3.14",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/money-burn.log",
+   "notes": ""
+  },
+  {
    "key": "com.jalal.moneymap-input-stamp",
    "title": "com.jalal.moneymap-input-stamp",
    "when": "12:05 AM (retries 12:35 AM)",
    "frequency": "Daily",
-   "mechanism": "launchd com.jalal.moneymap-input-stamp → /usr/local/bin/node",
+   "mechanism": "launchd com.jalal.moneymap-input-stamp → ~/.nvm/versions/node/v24.15.0/bin/node",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/moneymap-input-stamp.log",
    "notes": ""
@@ -302,6 +322,16 @@
    "notes": "04:30, deliberately BEFORE the 5:00 fleet check so a failed build is caught the same morning (it was 05:45 first, which put it after the check and made the 6:30 retry slot useless — fleet_health exits early once the digest has gone). Deterministic on purpose — no language model touches it, because an invented earnings date on a page read before the open is worse than an empty section. Build → deploy → message, in that order, so the link already shows today's rows. A failed build leaves yesterday's file and sends nothing; fleet-health's nuts_radar probe then calls the staleness (limit 30 h, which tolerates the 5:00 check seeing a 23 h-old file). deploy.sh always content-stamps the assets first — a cached assets/tree.js would self-check the OLD tree shape and pass silently"
   },
   {
+   "key": "com.jalal.openrouter-spend-watch",
+   "title": "com.jalal.openrouter-spend-watch",
+   "when": "12:23 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.openrouter-spend-watch → -I",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/openrouter-spend-watch.log",
+   "notes": ""
+  },
+  {
    "key": "com.jalal.overnight-blackout-check",
    "title": "Overnight blackout check — logged-out-Mac alarm",
    "when": "—",
@@ -310,6 +340,26 @@
    "what": "Fires on login (RunAtLoad, no calendar interval) and, once between 06:00-22:00, checks whether every overnight job (Dhaka flights, hotel rates, CarMax, catalyst radar, fleet health, daily trackers, mac-audit, Aoife calendar sync) has a run dated today. For any missing API-only job (catalyst radar, Aoife calendar sync, mac-audit, fleet health) it self-heals by running that job's own script straight away, into its normal log, so fleet-health still grades it. Chrome-driving jobs (Dhaka flights, hotel rates, CarMax) are never auto-run. Whatever is still missing after self-heal gets ONE loud Telegram message to the alerts chat naming it plus the replay command",
    "logs": "~/Library/Logs/overnight-blackout-check.log",
    "notes": "Added 2026-09-11 after macOS logged the user out at 23:57 to install 15.7.9, the install failed with a boot-policy error, the Mac restarted, and FileVault held it at the login screen until 09:01 — every overnight job is a *user* LaunchAgent and needs a logged-in session, so none of them ran. The non-obvious trap: launchd only replays a missed StartCalendarInterval when the agent was already loaded and the machine merely slept; with no session at midnight the agents did not exist at all, so when they finally loaded at 09:01 they just scheduled their next run for tonight — the whole night vanished with no error anywhere, and fleet-health, the thing that would normally have caught it, was itself a user agent and died with everything else. EVENT-DRIVEN, not scheduled — it has no calendar slot to grade, and it is SILENT on every normal day (session loads, all jobs already ran, nothing sent), so like the temporary reminder jobs above, do NOT add a fleet-health probe: a probe here would false-alarm on every quiet day. The self-heal split is deliberate: light jobs are plain API calls that finish in a couple of minutes and disturb nothing, so there is no reason to make Jalal ask for them; the heavy Chrome-driving scrapers take 10-35 min and would seize the machine mid-morning — standing rule is no daytime scheduling, so those always wait for Jalal. Companion manual command: `catchup-overnight` (~/.local/bin/catchup-overnight.sh, aliased in ~/.zshrc), which Jalal runs himself to replay whatever is still outstanding"
+  },
+  {
+   "key": "com.jalal.podcast-make-watch",
+   "title": "com.jalal.podcast-make-watch",
+   "when": "every 5 min, 12:02 AM–12:57 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.podcast-make-watch → /opt/homebrew/opt/python@3.14/bin/python3.14",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/podcast-make-watch.out.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.podcast-requests",
+   "title": "com.jalal.podcast-requests",
+   "when": "every 5 min, 12:00 AM–12:55 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.podcast-requests → ~/PycharmProjects/podcast-factory/favorites-queue/pull_requests.py",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/podcast-requests.log",
+   "notes": ""
   },
   {
    "key": "com.jalal.reddit-browser",
@@ -340,6 +390,16 @@
    "what": "Syncs files to the T7Files volume on the Samsung T7 drive",
    "logs": "/tmp/t7-drive-sync.log",
    "notes": "Fleet health probes its launchd exit code daily"
+  },
+  {
+   "key": "com.jalal.tesla-watch",
+   "title": "com.jalal.tesla-watch",
+   "when": "8:10 AM (retries 1:10 PM, 7:10 PM)",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.tesla-watch → ~/PycharmProjects/tesla-watch/scripts/run.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/tesla-watch.log",
+   "notes": ""
   },
   {
    "key": "com.jalal.toolcheck",
@@ -379,6 +439,16 @@
    "mechanism": "launchd com.jalal.trigger-board → ~/concierge/triggers/board/run.sh",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/trigger-board.err",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.vercel-deploy-watch",
+   "title": "com.jalal.vercel-deploy-watch",
+   "when": "12:07 AM (retries 12:37 AM)",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.vercel-deploy-watch → -I",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/vercel-deploy-watch.log",
    "notes": ""
   },
   {
