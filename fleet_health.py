@@ -2555,10 +2555,12 @@ FLEET = [
     {"name": "aaii-macromicro (AAII backup feed, Mac)", "repo": "financial-telegram-bot",
      "probe": "log_tail", "path": "~/Library/Logs/aaii-macromicro.out.log",
      "last_line": r"^\S+ OK macromicro ", "max_age_h": 170},
-    # podcast-requests: :05/:35 every hour; prints one outcome line per run.
-    {"name": "podcast-requests (Podcast-this taps, every 30 min)", "repo": None,
+    # podcast-requests: every 5 min since 10 Oct 2026 eve; takes taps AND uploads done
+    # scripts to ElevenReader. Every run ends with one PODCAST RUN line; stalled=N>0 means
+    # a tap is 2 h+ old and not in ElevenReader (it also pinged why) -> red until it lands.
+    {"name": "podcast-requests (Podcast-this taps -> ElevenReader, every 5 min)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/podcast-requests.log",
-     "last_line": r"PODCAST REQUESTS: \d+ new \(\d+ total\)$", "max_age_h": 2},
+     "last_line": r"PODCAST RUN: docs=\d+ writing=\d+ uploaded=\d+ stalled=0$", "max_age_h": 1},
     # vercel-deploy-watch (10 Oct 2026): every 30 min (:07/:37) counts the last 24 h of
     # Vercel deploys (free plan: 100/day for ALL projects; the cap was hit that day) and
     # pings the alerts thread at 70 and 90. Its only output is one line per run, so a
