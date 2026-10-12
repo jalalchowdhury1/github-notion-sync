@@ -2699,10 +2699,11 @@ FLEET = [
     # GitHub / AWS spend). Runs at 06:20 so the 06:30 re-check grades TODAY's run (red
     # team: at 06:40 every failure surfaced ~22 h late). Only "MONEY OK posted=… with a
     # real OpenRouter number" is green; MONEY FAIL, openrouter=na or a traceback = red.
+    # posted=quiet (12 Oct 2026) = a day with nothing worth saying: no card, still green.
     # --dry never writes this log.
     {"name": "money-burn (06:20 💸 digest spend line)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/money-burn.log",
-     "last_line": r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d MONEY OK posted=(?:digest|direct) openrouter=\d", "max_age_h": 26},
+     "last_line": r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d MONEY OK posted=(?:digest|direct|quiet) openrouter=\d", "max_age_h": 26},
     # fleet-diagnose (10 Oct 2026): every 5 min it diagnoses queued red rows (read-only
     # Claude → 🩺 card with ✅ Fix it / 🙈 Skip) and polls the taps. Each run ends with
     # one DIAG line. DIAG FAIL is STICKY for 24 h (red team: a broken login used to log
