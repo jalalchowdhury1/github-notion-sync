@@ -2134,7 +2134,9 @@ FLEET = [
      "live_since": "2026-08-18"},
     # Added 2026-08-18 with the aoife-school-bot deploy (launchd
     # com.jalal.aoife-school-bot-tick, scripts/tick.sh, every 30 min
-    # 07:00–21:30 ET — the fleet's one deliberately daytime job).
+    # 07:00–21:30 ET — the fleet's one deliberately daytime job). Since
+    # 2026-10-11 it ticks around the clock (trip time zones); the server still
+    # sends only 07:00–21:59 family-local, so night lines are TICK OK ... none.
     # A today-or-YESTERDAY window, not a max_age_h: this check runs at 5:00 AM
     # and the tick's first slot of the day is 07:00, so the freshest marker is
     # ALWAYS yesterday's 21:30 line. Grading age would be grading how long ago
