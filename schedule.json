@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-11 05:02",
+ "updated": "2026-10-12 05:03",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -9,6 +9,16 @@
    "mechanism": "launchd com.jalal.aaii-macromicro → ~/.nvm/versions/node/v24.15.0/bin/node",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/aaii-macromicro.out.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.aoife-dhaka-plan-reminder",
+   "title": "com.jalal.aoife-dhaka-plan-reminder",
+   "when": "10:00 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.aoife-dhaka-plan-reminder → ~/.local/bin/aoife-dhaka-plan-reminder.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "—",
    "notes": ""
   },
   {
@@ -44,7 +54,7 @@
   {
    "key": "com.jalal.aoife-school-bot-tick",
    "title": "Aoife school-bot tick (Telegram morning preview / check-in)",
-   "when": "every 30 min, 7:00 AM–9:30 PM",
+   "when": "12:00 AM (retries 12:30 AM)",
    "frequency": "Daily",
    "mechanism": "launchd com.jalal.aoife-school-bot-tick → ~/PycharmProjects/aoife-school-bot/scripts/tick.sh",
    "what": "Curls aoife-school-bot.vercel.app/api/tick every 30 min so the family Telegram group gets its morning preview (~07:30) and, only when something is still unlogged, one dynamic evening check-in",
@@ -209,6 +219,16 @@
    "mechanism": "launchd com.jalal.ftb-fault-matrix → ~/PycharmProjects/financial-telegram-bot/scripts/fault_matrix.py",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/ftb-fault-matrix.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.gha-now-watch",
+   "title": "com.jalal.gha-now-watch",
+   "when": "every 15 min, 12:00 AM–12:45 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.gha-now-watch → ~/.local/bin/gha-now-watch",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/gha-now-watch.log",
    "notes": ""
   },
   {
