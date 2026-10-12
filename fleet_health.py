@@ -2535,6 +2535,16 @@ FLEET = [
      "screen_side": True, "screen_repo": "aoife-calendar",
      "probe": "pending_stamp", "path": "~/.local/state/aoife-gcal-drift.json",
      "max_check_age_h": 1.25, "pending_grace_h": 25},
+    # Aoife's schedule busy marks (2026-10-11): run.sh's gcal-busy reads Jalal's +
+    # Nabila's Google free/busy (07:00-21:59 ET via the bot tick, + 04:10) ->
+    # KV aoife_busy -> the amber "Busy" marks on the app. servedAgeH = the OLDEST
+    # calendar's last good read; null until both calendars are shared with the
+    # service account (free/busy only) -- red here is the reminder. quiet_red: a
+    # convenience overlay going stale is not an outage. repo None: aoifes-schedule
+    # already owns the aoife-planner-backup row (one Notion row per repo).
+    {"name": "aoifes-schedule (screen freshness)", "repo": None, "screen_repo": "aoifes-schedule",
+     "probe": "freshness", "url": "https://aoifes-schedule.vercel.app/api/freshness",
+     "expect_items": ["calendar busy times"], "quiet_red": True},
     # Work that lives only on this Mac (2026-10-03): on 2-3 Oct six repos had
     # commits never pushed (later-jar 8 days). quiet_red: shows in the morning card
     # but never buzzes -- a reminder, not an outage. Never pushes anything itself:
