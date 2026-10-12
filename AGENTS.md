@@ -85,6 +85,7 @@ zero rows.
 - `results[]`: `{name, repo, probe, ok, detail, cfg, failing_since}`
 
 **Digest contract.**
+- **12 Oct 2026:** all green is posted as a `quiet: true` heartbeat (no card row; still stamps delivered so the watchdog stays happy). Only reds/retired rows show.
 - All green: one line ("✅ … all N systems healthy", plus "· recovered: X" the day after).
 - Any red: one pasteable diagnostic block per failure. The block holds:
   - the config line
