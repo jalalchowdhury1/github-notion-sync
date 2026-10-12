@@ -2240,31 +2240,8 @@ FLEET = [
      "log_path": "~/Library/Logs/aoife-gcal-sync.log",
      "log_grep": r"GCAL-SYNC OK {today}",          # runs 04:10, before the check
      "live_since": "2026-08-20"},
-    # Added 2026-08-28 after GitHub's cron dropped mental-models entirely that
-    # morning (schedule is best-effort; observed +31m/+34m/+11h14m/never).
-    # launchd com.jalal.mental-models-backstop, 6:00 AM: if
-    # results/daily/$TODAY.json is absent from the repo, dispatch daily.yml.
-    # NOTE the workflow's skip-guard is `if: github.event_name == 'schedule'`
-    # ONLY — a dispatch bypasses it, so the script's artifact check IS the
-    # dedupe guard (the guard still stops a LATE cron arriving after a backstop
-    # dispatch). Runs AFTER this 05:00 check, so the {date} today|yesterday window
-    # is what grades it: yesterday's marker at 5 AM proves the backstop is
-    # alive; a dead backstop surfaces the following morning, the fleet-wide
-    # buffer. OK|DISPATCHED both count — either way the backstop RAN; ERROR
-    # lines deliberately don't match. This row watches the BACKSTOP; the
-    # mental-models gh_run row above still watches the primary path, so a
-    # backstop-only week still shows up there as late/odd runs.
-    # repo is None: mental-models already owns the gh_run row and
-    # notion_health.py's last-result-wins would let this green paint over a
-    # red primary.
-    {"name": "mental-models-backstop (6 AM cron-miss dispatcher)", "repo": None,
-     "probe": "log_marker",
-     "log_path": "~/Library/Logs/mental-models-backstop.log",
-     "log_grep": r"MM-BACKSTOP (OK|DISPATCHED) date={date}",
-     # 08-30, not 08-29: today's markers came from manual test runs; the first
-     # scheduled 6 AM run is 08-29, so 08-30 is the first morning where only a
-     # scheduled marker can satisfy the window (the gcal-sync lesson above).
-     "live_since": "2026-08-30"},
+    # mental-models-backstop (6 AM cron-miss dispatcher) — ROW RETIRED 2026-10-12
+    # with mental-models itself (see the mental-models note below).
     # Added 2026-08-24 with the daily-trackers deploy (launchd
     # com.jalal.daily-trackers, run_daily.sh, 3:30 AM + 4:30/5:30 AM retries —
     # widened from 4:30/5:30 to the fleet-standard 3-slot ladder the same
@@ -2303,27 +2280,12 @@ FLEET = [
      # AWS one-clock-sheets-backup (06:10 UTC) is the primary since 2 Oct 2026.
      "expect_event": "workflow_dispatch"},
     # ── ported off n8n 2026-08-24 ───────────────────────────────────────────
-    # mental-models: cron 05:10 UTC (00:10 EST / 01:10 EDT), so by the 09:00 UTC
-    # check a good night's run is ~4 h old and ONE missed night reads ~28 h.
-    # 24 catches the first miss with ~20 h of slack over anything observed.
-    #
-    # The marker is printed ONLY when the brief was delivered AND the rotation
-    # index advanced — `--dry-run` and `--no-telegram` deliberately cannot
-    # print it. That matters here because dry_run is a workflow_dispatch input:
-    # without that rule, running a manual test would paint the row ✅ while the
-    # nightly cron was dead. index=A->B in the marker is the proof of real work;
-    # a run that sent a message but did not advance is NOT a healthy night.
-    {"name": "mental-models (nightly 3 models)", "repo": "mental-models",
-     "probe": "gh_run", "workflow": "daily.yml", "max_age_h": 24,
-     # date={date}, not an unpinned \d{4}-..: on 2026-08-28 GitHub's cron never
-     # fired at all, yet the previous day's runs were still inside max_age_h, so
-     # an any-date marker reported healthy while no brief had been sent.
-     "log_grep": r"MENTAL-MODELS OK [1-3]/3 date={date} index=\d+->\d+",
-     # Primary trigger is one-clock-mental-models (EventBridge 00:10 ET). The
-     # Mac 6 AM backstop ALSO dispatches, so a workflow_dispatch alone does not
-     # prove AWS fired — but a `schedule` run means BOTH AWS and the Mac missed
-     # and GitHub's demoted cron covered. Pair with the MM-BACKSTOP marker above.
-     "expect_event": "workflow_dispatch"},
+    # mental-models — ROWS RETIRED 2026-10-12 (Jalal: hardly reads it). daily.yml +
+    # keepalive.yml disabled (gh workflow disable), AWS one-clock-mental-models
+    # DISABLED, Mac backstop plist → com.jalal.mental-models-backstop.plist.retired.
+    # Re-enable: see mental-models/AGENTS.md top note, then restore the gh_run row
+    # (workflow daily.yml, max_age_h 24, log_grep MENTAL-MODELS OK [1-3]/3
+    # date={date} index=\d+->\d+, expect_event workflow_dispatch) from git history.
     # voices-bot is a WEBHOOK, not a cron — there is no scheduled run to grade,
     # so "did it run" is the wrong question. The two ways it dies silently are
     # (a) the Vercel function stops serving and (b) Telegram stops pointing at
