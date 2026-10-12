@@ -2993,15 +2993,17 @@ def format_digest(results, recovered=()) -> str:
     return "\n".join([header, ""] + note + body + footer)
 
 
-def digest_post(item_id, text, parse_mode="HTML", photo=None, caption=None) -> bool:
+def digest_post(item_id, text, parse_mode="HTML", photo=None, caption=None, quiet=False) -> bool:
     """Hand an overnight message to the health-hub Silent digest instead of the chat
     (one 07:00 card, a button per item; a tap replays the full message — 11 Sep 2026).
     True = stored; False = caller sends to Telegram as before. Needs DIGEST_URL + DIGEST_KEY."""
     url, key = os.environ.get("DIGEST_URL"), os.environ.get("DIGEST_KEY")
     if not url or not key:
         return False
-    body = json.dumps({"id": item_id, "text": text, "parse_mode": parse_mode,
-                       "photo": photo, "caption": caption}).encode()
+    payload = {"id": item_id, "text": text, "parse_mode": parse_mode, "photo": photo, "caption": caption}
+    if quiet:   # counts as reported + delivered, but no row/button on the card (12 Oct 2026)
+        payload["quiet"] = True
+    body = json.dumps(payload).encode()
     req = urllib.request.Request(f"{url}?k={urllib.parse.quote(key)}", data=body,
                                  headers={"Content-Type": "application/json"})
     try:
@@ -3025,7 +3027,8 @@ def _telegram_send(text, silent=False) -> str:
     6 AM backstop) reaches Jalal's card still showing yesterday's — well,
     this morning's — stale red.
     """
-    if silent and digest_post("fleet", text, ""):   # Silent digest card first (11 Sep 2026)
+    # all green = a quiet heartbeat: Jalal only wants to hear about breakage (12 Oct 2026)
+    if silent and digest_post("fleet", text, "", quiet=text.startswith("✅")):   # Silent digest card first (11 Sep 2026)
         print("handed to the Silent digest (health-hub)")
         return "digest"
     token = os.environ.get("TELEGRAM_TOKEN")
