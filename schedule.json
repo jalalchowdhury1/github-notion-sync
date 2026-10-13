@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-12 05:03",
+ "updated": "2026-10-13 05:02",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -300,16 +300,6 @@
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "—",
    "notes": ""
-  },
-  {
-   "key": "com.jalal.mental-models-backstop",
-   "title": "Mental-models cron-miss backstop",
-   "when": "6:00 AM",
-   "frequency": "Daily",
-   "mechanism": "launchd com.jalal.mental-models-backstop → ~/.local/bin/mental-models-backstop.sh",
-   "what": "6:00 AM check: if results/daily/$TODAY.json is absent from the mental-models repo (GitHub's 05:10 UTC cron dropped the run), dispatches daily.yml via gh. The artifact check is the dedupe guard — the workflow's own skip-guard covers schedule events only, so a dispatch always runs; the guard still no-ops a LATE cron that fires after a backstop dispatch",
-   "logs": "~/Library/Logs/mental-models-backstop.log",
-   "notes": "Added 2026-08-28 after GitHub Actions schedule proved unreliable for this repo (fired +31m, +34m, +11h14m late, then never on 08-28). This is the delivery guarantee; GitHub's cron is now best-effort first-attempt. Markers MM-BACKSTOP OK/DISPATCHED date=… are date-pinned and graded by fleet-health's log_marker probe (runs after the 5 AM check, so yesterday's marker is the one graded)."
   },
   {
    "key": "com.jalal.money-burn",
