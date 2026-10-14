@@ -2017,7 +2017,10 @@ FLEET = [
     {"name": "reddit-browser (backup methods: page, json, rss all work)", "repo": None,
      "probe": "log_block", "log_path": "~/Library/Logs/reddit-browser.log",
      "block_re": r"^== (\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) start",
-     "log_grep": r"METHOD CHECK: page ok · json ok · rss ok",
+     # 2026-10-14: json is a dead backup (Reddit 403s every .json url from the
+     # Mac since 12 Oct, fresh profile too), so the row grades page + rss only.
+     # The line still says "json ok"/"json FAILED" honestly; it just isn't graded.
+     "log_grep": r"METHOD CHECK: page ok · json (?:ok|FAILED) · rss ok",
      "max_age_h": 26},
     # financial-telegram-bot is the owner's most important repo and was entirely
     # unrostered. Its own health-check Telegrams on warn/critical, but nothing

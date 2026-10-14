@@ -175,7 +175,13 @@ class TestRosterGuards(unittest.TestCase):
         mac = self._row("reddit-browser (backup methods")
         self.assertEqual((mac["probe"], mac["repo"]), ("log_block", None))
         self.assertRegex("METHOD CHECK: page ok · json ok · rss ok  (page saved 26 of 26 lists)", mac["log_grep"])
-        self.assertNotRegex("METHOD CHECK: page ok · json FAILED · rss ok  (page saved 26 of 26 lists; json: HTTP 403)",
+        # 2026-10-14: json is retired (403 from the Mac since 12 Oct): a dead json alone stays green...
+        self.assertRegex("METHOD CHECK: page ok · json FAILED · rss ok  (page saved 26 of 26 lists; json: HTTP 403)",
+                         mac["log_grep"])
+        # ...but rss dying (with or without json) is still red.
+        self.assertNotRegex("METHOD CHECK: page ok · json ok · rss FAILED  (page saved 26 of 26 lists; rss: HTTP 403)",
+                            mac["log_grep"])
+        self.assertNotRegex("METHOD CHECK: page ok · json FAILED · rss FAILED  (page saved 26 of 26 lists)",
                             mac["log_grep"])
         self.assertNotRegex("METHOD CHECK: page FAILING · json ok · rss ok  (page saved 3 of 26 lists)", mac["log_grep"])
         gh = self._row("reddit-backup (GitHub")
