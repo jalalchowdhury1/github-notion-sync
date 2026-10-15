@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-14 05:02",
+ "updated": "2026-10-15 05:02",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -9,6 +9,16 @@
    "mechanism": "launchd com.jalal.aaii-macromicro → ~/.nvm/versions/node/v24.15.0/bin/node",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/aaii-macromicro.out.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.aoife-bookshelf-bot",
+   "title": "com.jalal.aoife-bookshelf-bot",
+   "when": "—",
+   "frequency": "Always on",
+   "mechanism": "launchd com.jalal.aoife-bookshelf-bot → ~/PycharmProjects/aoife-bookshelf/bot/bookbot.py",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/aoife-bookshelf-bot.log",
    "notes": ""
   },
   {
