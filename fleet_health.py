@@ -2533,9 +2533,11 @@ FLEET = [
     # that stopped firing was silent. Each row reads the job's own outcome line.
     # aaii-macromicro: the AAII backup feed (Thu 13:30/17:30, Fri 09:30/14:00).
     # Longest healthy gap = Fri 14:00 -> Thu 13:30 = 167.5 h. Exits 1 with "FAIL ..."
+    # Success = "OK" (repo already current) or "PUSHED" (new week committed, 16 Oct 2026:
+    # the 15 Oct real push read red because only OK matched). DRY never counts.
     {"name": "aaii-macromicro (AAII backup feed, Mac)", "repo": "financial-telegram-bot",
      "probe": "log_tail", "path": "~/Library/Logs/aaii-macromicro.out.log",
-     "last_line": r"^\S+ OK macromicro ", "max_age_h": 170},
+     "last_line": r"^\S+ (OK|PUSHED) macromicro ", "max_age_h": 170},
     # podcast-requests: every 5 min since 10 Oct 2026 eve; takes taps AND uploads done
     # scripts to ElevenReader. Every run ends with one PODCAST RUN line; stalled=N>0 means
     # a tap is 2 h+ old and not in ElevenReader (it also pinged why) -> red until it lands.

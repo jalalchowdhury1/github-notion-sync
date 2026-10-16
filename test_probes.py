@@ -1158,6 +1158,14 @@ class TightenedMarkers(unittest.TestCase):
         self.assertTrue(re.search(pat, "REDDIT PUSHED: 27 files in eb8d61d (scraper exit 0)"))
         self.assertFalse(re.search(pat, "REDDIT PUSHED: 1 files in eb8d61d (scraper exit 1)"))
 
+    def test_aaii_macromicro_push_is_green(self):
+        import re
+        pat = self.row("aaii-macromicro")["last_line"]
+        self.assertTrue(re.search(pat, "2026-10-15T21:30:14.351Z PUSHED macromicro 2026-10-15 \u2192 week 2026-10-14: bull 38.7 | commit 09dd4bd"))
+        self.assertTrue(re.search(pat, "2026-10-09T18:00:11.855Z OK macromicro 2026-10-08 \u2192 week 2026-10-07: bull 40.3 | repo already has 2026-10-07"))
+        self.assertFalse(re.search(pat, "2026-10-15T17:31:06.341Z FAIL Cloudflare challenge did not clear"))
+        self.assertFalse(re.search(pat, "2026-10-15T17:31:06.341Z DRY macromicro 2026-10-15"))
+
     def test_sheets_backup_zero_tabs_is_red(self):
         import re
         pat = self.row("sheets-backup")["log_grep"]
