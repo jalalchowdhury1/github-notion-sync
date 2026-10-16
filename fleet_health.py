@@ -1444,7 +1444,7 @@ def probe_log_block(log_path, block_re, log_grep, max_age_h, fail_grep=None,
     return True, f"clean run {age/24:.1f}d ago"
 
 
-def probe_log_tail(path, last_line, max_age_h, grace_min=0, grace_lines=12, **_):
+def probe_log_tail(path, last_line, max_age_h, grace_min=0, grace_lines=12, grace_unless=None, **_):
     """Fresh log whose LAST non-empty line is a success shape.
 
     For a job that prints a one-line outcome but no timestamp (tranche-nag:
@@ -1459,6 +1459,10 @@ def probe_log_tail(path, last_line, max_age_h, grace_min=0, grace_lines=12, **_)
     grace_lines lines proves the previous cycle finished; only a tail with no
     success at all in that window fails (false alarm 2026-09-19: probed 4 min
     before the cycle's `wrote coach` line).
+
+    grace_unless (2026-10-15): a regex for a last line that means the run FINISHED
+    (dhaka-yearly: "NIGHTLY ..."). Grace is for mid-run tails only; a finished
+    failure right after an earlier success must not borrow that success.
     """
     # {today_ymd} (round 8): for a job that writes one log per day, e.g.
     # dhaka-yearly's data/run-20260928.log.
@@ -1472,7 +1476,7 @@ def probe_log_tail(path, last_line, max_age_h, grace_min=0, grace_lines=12, **_)
     lines = [l for l in _read(p).splitlines() if l.strip()]
     last = lines[-1].strip() if lines else ""
     if not re.search(last_line, last):
-        if grace_min and age * 60 <= grace_min:
+        if grace_min and age * 60 <= grace_min and not (grace_unless and re.search(grace_unless, last)):
             hit = next((l.strip() for l in reversed(lines[-grace_lines:])
                         if re.search(last_line, l.strip())), None)
             # Red team 2026-09-27: a 15-min job keeps the file young forever, so
@@ -2669,6 +2673,12 @@ FLEET = [
      # 24, not 8 (3 Oct 2026): the dated filename + required last line already pin
      # this to TONIGHT's run; 8 h turned any off-schedule fleet run after ~09:45
      # into a false loud alert for a run that had ended OK.
+     # grace (15 Oct 2026): a manual re-run appends ~300 lines to the same dated
+     # file; a fleet check landing mid-run read "flights home: 18 outbound(s)
+     # clicked" as the last line and paged red. While the file was written in the
+     # last 75 min (a run is capped at 60), an earlier OK line from today passes.
+     # The 01:15 run itself has no earlier OK line, so it cannot hide behind this.
+     "grace_min": 75, "grace_lines": 2000, "grace_unless": r"^NIGHTLY ",
      "max_age_h": 24},
     {"name": "dhaka-yearly (nightly trip plans, live site)", "screen_side": True, "screen_repo": "dhaka-yearly", "repo": None,
      "probe": "web_fresh", "url": "https://dhaka-yearly.vercel.app/data.json",

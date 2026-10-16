@@ -1249,6 +1249,22 @@ class DatedLogTail(_Patched):
                      "NIGHTLY OK plans=0 problems=0 pushed=0db75b1 notify=ok", "== done"):
             self.assertFalse(self.grade(last)[0], last)
 
+    def test_mid_rerun_after_an_ok_night_stays_green(self):
+        # 15 Oct 2026: a fleet check landed mid manual re-run and paged red
+        ok, d = self.grade("NIGHTLY OK plans=40 problems=0 pushed=097eec3 notify=ok\n"
+                           "== Thu Oct 15 10:29:36 EDT 2026 start (--force)\n"
+                           "  flights home: 18 outbound(s) clicked")
+        self.assertTrue(ok, d)
+        self.assertIn("mid-run", d)
+
+    def test_failed_rerun_after_an_ok_night_is_red(self):
+        ok, d = self.grade("NIGHTLY OK plans=40 problems=0 pushed=097eec3 notify=ok\n"
+                           "== start (--force)\nNIGHTLY FAILED: page test")
+        self.assertFalse(ok, d)
+
+    def test_tonights_run_in_progress_without_an_ok_is_red(self):
+        self.assertFalse(self.grade("  flights home: 18 outbound(s) clicked")[0])
+
     def test_yesterdays_file_does_not_count(self):
         y = datetime.date.today() - datetime.timedelta(days=1)
         self.write(f"run-{y:%Y%m%d}.log", "NIGHTLY OK plans=58 problems=0 pushed=0db75b1 notify=ok\n")
