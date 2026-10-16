@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-15 05:02",
+ "updated": "2026-10-16 05:02",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -174,11 +174,21 @@
   {
    "key": "com.jalal.dhaka-yearly",
    "title": "com.jalal.dhaka-yearly",
-   "when": "1:15 AM",
+   "when": "1:15 AM (retries 2:45 AM)",
    "frequency": "Daily",
    "mechanism": "launchd com.jalal.dhaka-yearly → ~/PycharmProjects/dhaka-yearly/nightly.sh",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/dhaka-yearly.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.drive-plan-reminder",
+   "title": "com.jalal.drive-plan-reminder",
+   "when": "9:30 PM (retries 9:45 PM)",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.drive-plan-reminder → ~/.local/bin/drive-plan-reminder.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "—",
    "notes": ""
   },
   {
