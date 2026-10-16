@@ -1739,6 +1739,42 @@ PROBE_FNS = {"web_fresh": probe_web_fresh, "web_200": probe_web_200,
 # for two days past its retirement).
 PROBE_FNS["log_tail"] = probe_log_tail
 
+
+def _outcome_drift(item):
+    """Outcome words a log_tail row's job can log that the row never classified.
+
+    16 Oct 2026: aaii-macromicro learned to log "PUSHED" (a real new-week commit)
+    but its row only knew "OK", so the first real push read as a 06:30 red buzz.
+    A row may carry `outcomes`: the job's source file, a regex whose group 1 is an
+    outcome word in that source, and every word sorted into "ok" (word -> a real
+    sample line, which a test proves last_line accepts) or "not_ok". Any other word
+    found in the source = drift, caught the day the job's code changes, before the
+    new line is ever written.
+    """
+    o = item["outcomes"]
+    src = os.path.expanduser(o["src"])
+    if not os.path.exists(src):
+        return [f"source {o['src']} missing"]
+    known = set(o["ok"]) | set(o.get("not_ok", ()))
+    found = set(re.findall(o["verb_re"], _read(src)))
+    if not found:
+        return [f"no outcome words match {o['verb_re']!r} in {o['src']} (pattern stale?)"]
+    return [f"logs {w!r}, not classified" for w in sorted(found - known)]
+
+
+def probe_outcome_drift(**_):
+    """Every log_tail row with `outcomes` knows every outcome word its job logs."""
+    rows = [i for i in FLEET if i.get("outcomes")]
+    bad = [f"{i['name'].split(' (')[0]}: {d}" for i in rows for d in _outcome_drift(i)]
+    if bad:
+        return False, ("checker drift (the job may be fine; its fleet row does not know "
+                       "this outcome yet, so add it to the row's outcomes + last_line):\n"
+                       + "\n".join(bad))
+    return True, f"{len(rows)} rows: every logged outcome word is classified"
+
+
+PROBE_FNS["outcome_drift"] = probe_outcome_drift
+
 FLEET = [
     {"name": "dhaka-flights (nightly trip tracker)", "feeds_screen": True, "screen_side": True, "repo": "dhaka-flights",
      "probe": "web_fresh", "url": "https://dhaka-flights.vercel.app/data.json", "bypass_env": "DHAKA_VERCEL_BYPASS",
@@ -2497,7 +2533,10 @@ FLEET = [
     {"name": "nuts-radar Tranche tab (gist reflects the newest plan)", "repo": None,
      "screen_side": True, "screen_repo": "nuts-radar-tranche",
      "probe": "log_tail", "path": "~/Library/Logs/tranche-fresh.log",
-     "last_line": r"^\S+ TRANCHE FRESH OK inputAgeH=", "max_age_h": 1.5},
+     "last_line": r"^\S+ TRANCHE FRESH OK inputAgeH=", "max_age_h": 1.5,
+     "outcomes": {"src": "~/.local/bin/tranche-fresh-check.py", "verb_re": r"TRANCHE (FRESH OK|[A-Z]+)",
+                  "ok": {"FRESH OK": "2026-10-16T15:30:05-04:00 TRANCHE FRESH OK inputAgeH=114.08 servedAgeH=8.3 lagH=-105.78 input=059ce987e2cf env=match"},
+                  "not_ok": ["STALE"]}},
     # Aoife's Google Calendar copy (2026-10-03): gcal-drift dry-runs the sync at
     # :15/:45 (read-only scope) and stamps pending changes. A daytime planner edit
     # clears in 30 min, a late one by 04:10 (~7 h), a hand edit on the calendar by
@@ -2537,26 +2576,41 @@ FLEET = [
     # the 15 Oct real push read red because only OK matched). DRY never counts.
     {"name": "aaii-macromicro (AAII backup feed, Mac)", "repo": "financial-telegram-bot",
      "probe": "log_tail", "path": "~/Library/Logs/aaii-macromicro.out.log",
-     "last_line": r"^\S+ (OK|PUSHED) macromicro ", "max_age_h": 170},
+     "last_line": r"^\S+ (OK|PUSHED) macromicro ", "max_age_h": 170,
+     "outcomes": {"src": "~/PycharmProjects/financial-telegram-bot/scripts/aaii-mac/aaii-macromicro.mjs",
+                  "verb_re": r"log\(`([A-Z]+) ",
+                  "ok": {"OK": "2026-10-09T18:00:11.855Z OK macromicro 2026-10-08 → week 2026-10-07: bull 40.3 | repo already has 2026-10-07 (macromicro) — no commit",
+                         "PUSHED": "2026-10-15T21:30:14.351Z PUSHED macromicro 2026-10-15 → week 2026-10-14: bull 38.7 | replaced 2026-10-07 | commit 09dd4bd"},
+                  "not_ok": ["FAIL", "DRY"]}},
     # podcast-requests: every 5 min since 10 Oct 2026 eve; takes taps AND uploads done
     # scripts to ElevenReader. Every run ends with one PODCAST RUN line; stalled=N>0 means
     # a tap is 2 h+ old and not in ElevenReader (it also pinged why) -> red until it lands.
     {"name": "podcast-requests (Podcast-this taps -> ElevenReader, every 5 min)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/podcast-requests.log",
-     "last_line": r"PODCAST RUN: docs=\d+ writing=\d+ uploaded=\d+ stalled=0$", "max_age_h": 1},
+     "last_line": r"PODCAST RUN: docs=\d+ writing=\d+ uploaded=\d+ stalled=0$", "max_age_h": 1,
+     "outcomes": {"src": "~/PycharmProjects/podcast-factory/favorites-queue/pull_requests.py",
+                  "verb_re": r"PODCAST (RUN|REQUESTS(?: FAILED)?)",
+                  "ok": {"RUN": "2026-10-16T19:45:06Z PODCAST RUN: docs=0 writing=0 uploaded=0 stalled=0"},
+                  "not_ok": ["REQUESTS", "REQUESTS FAILED"]}},
     # vercel-deploy-watch (10 Oct 2026): every 30 min (:07/:37) counts the last 24 h of
     # Vercel deploys (free plan: 100/day for ALL projects; the cap was hit that day) and
     # pings the alerts thread at 70 and 90. Its only output is one line per run, so a
     # dead job or an expired Vercel login would silently end the warnings.
     {"name": "vercel-deploy-watch (100 deploys/day early warning)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/vercel-deploy-watch.log",
-     "last_line": r"^\S+ \S+ VERCEL DEPLOYS n=\d+ level=(ok|warn|crit) sent=[01]$", "max_age_h": 2},
+     "last_line": r"^\S+ \S+ VERCEL DEPLOYS n=\d+ level=(ok|warn|crit) sent=[01]$", "max_age_h": 2,
+     "outcomes": {"src": "~/.local/bin/vercel-deploy-watch", "verb_re": r"(VERCEL DEPLOYS(?: [A-Z]+\b)?)",
+                  "ok": {"VERCEL DEPLOYS": "2026-10-16 15:37:05 VERCEL DEPLOYS n=34 level=ok sent=0"},
+                  "not_ok": ["VERCEL DEPLOYS FAILED"]}},
     # openrouter-spend-watch (10 Oct 2026, Jalal: alert if OpenRouter spends > $1 in a day):
     # hourly at :23 it reads the account's total usage and pings the alerts thread once a
     # day over $1. One line per run is its only output, so a dead job = silent spend.
     {"name": "openrouter-spend-watch ($1/day spend alert)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/openrouter-spend-watch.log",
-     "last_line": r"^\S+ \S+ OPENROUTER SPEND today=-?\d+\.\d\d sent=[01]$", "max_age_h": 2},
+     "last_line": r"^\S+ \S+ OPENROUTER SPEND today=-?\d+\.\d\d sent=[01]$", "max_age_h": 2,
+     "outcomes": {"src": "~/.local/bin/openrouter-spend-watch", "verb_re": r"(OPENROUTER SPEND(?: [A-Z]+\b)?)",
+                  "ok": {"OPENROUTER SPEND": "2026-10-16 15:23:04 OPENROUTER SPEND today=0.04 sent=0"},
+                  "not_ok": ["OPENROUTER SPEND FAILED"]}},
     # ftb-fault-matrix: nightly 21:40; only Telegrams on a FAIL, so a crash or a
     # skipped night was invisible. The backreference demands N/N -- every test passed.
     {"name": "ftb-fault-matrix (nightly backup-path drill)", "repo": "financial-telegram-bot",
@@ -2718,7 +2772,10 @@ FLEET = [
     # --dry never writes this log.
     {"name": "money-burn (06:20 💸 digest spend line)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/money-burn.log",
-     "last_line": r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d MONEY OK posted=(?:digest|direct|quiet) openrouter=\d", "max_age_h": 26},
+     "last_line": r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d MONEY OK posted=(?:digest|direct|quiet) openrouter=\d", "max_age_h": 26,
+     "outcomes": {"src": "~/.local/bin/money-burn", "verb_re": r"MONEY ([A-Z]+)",
+                  "ok": {"OK": "2026-10-16 06:20:11 MONEY OK posted=digest openrouter=6.53 github=352 claude=ok aws=0.00 secs=6"},
+                  "not_ok": ["DRY", "FAIL"]}},
     # fleet-diagnose (10 Oct 2026): every 5 min it diagnoses queued red rows (read-only
     # Claude → 🩺 card with ✅ Fix it / 🙈 Skip) and polls the taps. Each run ends with
     # one DIAG line. DIAG FAIL is STICKY for 24 h (red team: a broken login used to log
@@ -2729,6 +2786,11 @@ FLEET = [
     {"name": "fleet-diagnose (auto-diagnosis of red rows)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/fleet-diagnose.log",
      "last_line": r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d (?:DIAG OK |notify \S+: sent$|diagnosing \d+ row)", "max_age_h": 1},
+    # checker drift (16 Oct 2026): reads each job's SOURCE for outcome words its
+    # log_tail row never classified (see _outcome_drift). quiet_red: a stale checker
+    # is a to-do for the checker, not an outage -- morning card only, never a buzz.
+    {"name": "fleet checker drift (job logs an outcome its row does not know)", "repo": None,
+     "probe": "outcome_drift", "quiet_red": True, "max_age_h": 24},
 ]
 
 

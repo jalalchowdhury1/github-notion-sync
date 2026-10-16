@@ -101,7 +101,7 @@ zero rows.
 `run_checks` retries it 3× with 20 s pauses. A returned `False` is real signal and is
 never retried.
 
-### 1.2 Probe reference (22 types, `PROBE_FNS`)
+### 1.2 Probe reference (23 types, `PROBE_FNS`)
 
 Contract: `fn(**row) -> (ok, detail)`; raise only for infra trouble.
 
@@ -125,7 +125,8 @@ run):
 | `gh_run` | newest run recent + green + log markers | `repo`, `workflow`, `max_age_h`, `log_grep`, `expect_event`, `no_rescue`, `rescue_max_failures`. See §1.3 |
 | `log_marker` | a local log carries today's success marker | `log_path`, `log_grep`, `live_since` |
 | `log_block` | markers inside the NEWEST run block of an append-only log | `log_path`, `block_re` (group 1 = stamp), `log_grep`, `fail_grep`, `max_age_h`. For weekly jobs |
-| `log_tail` | fresh log whose LAST line is a success shape | `path`, `last_line`, `max_age_h`, `grace_min`, `grace_lines` |
+| `log_tail` | fresh log whose LAST line is a success shape | `path`, `last_line`, `max_age_h`, `grace_min`, `grace_lines`, `outcomes` (see §1.4 step 8) |
+| `outcome_drift` | every `outcomes` row knows every outcome word its job's SOURCE can log (quiet_red) | none |
 | `local_stamp` | a stamp file holds a recent ISO date | `path`, `max_age_h` |
 | `launchd_running` | a KeepAlive daemon has a live pid right now | `label` |
 | `planner_backup` | today's dated JSON snapshots parse, and the OK marker is present | `dest_dir`, `names`, `log_path` |
@@ -206,6 +207,14 @@ trigger.
    `PAUSED — …` (ok) instead of a false red; the writer's row still grades the job. Why: the aoife-typing
    coach logged `wrote coach` every 15 min (green) while the screen served the 11 Sep
    mission for three weeks (reader read `at`, writer stamped `generatedAt`).
+8. **Job logs outcome WORDS (`OK …`, `PUSHED …`, `FAIL …`)? Give the row `outcomes`**
+   (16 Oct 2026): `{"src": job file, "verb_re": regex, group 1 = the word in that source,
+   "ok": {word: a REAL sample line}, "not_ok": [words]}`. The test proves every `ok` sample
+   passes `last_line`; the quiet `fleet checker drift` row reads the job's source each run
+   and flags any word nobody sorted. Why: aaii-macromicro learned `PUSHED` but its row knew
+   only `OK`, so its first real push read as a false 06:30 buzz. When the job grows a new
+   word: sort it here (and widen `last_line` if it is a success). Never sort a real failure
+   into `ok` to quiet the drift row.
 
 ### 1.5 Testing and dry runs
 

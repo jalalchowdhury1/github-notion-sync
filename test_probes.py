@@ -1440,3 +1440,57 @@ class WebFreshBypassHeader(unittest.TestCase):
         (ok, _), req = self._run({})
         self.assertTrue(ok)
         self.assertIsNone(req.get_header("X-vercel-protection-bypass"))
+
+
+class OutcomeDrift(unittest.TestCase):
+    """16 Oct 2026: a job's new success word (aaii-macromicro PUSHED) must surface
+    as quiet checker drift the day the code changes, not as a 06:30 false buzz."""
+
+    def rows(self):
+        return [r for r in fh.FLEET if r.get("outcomes")]
+
+    def test_every_ok_sample_is_green_for_its_row(self):
+        import re
+        self.assertGreaterEqual(len(self.rows()), 6)
+        for r in self.rows():
+            for word, sample in r["outcomes"]["ok"].items():
+                with self.subTest(row=r["name"], word=word):
+                    self.assertRegex(sample, r["last_line"])
+
+    def test_ok_and_not_ok_never_overlap(self):
+        for r in self.rows():
+            o = r["outcomes"]
+            self.assertFalse(set(o["ok"]) & set(o.get("not_ok", ())), r["name"])
+
+    def test_catches_the_16_oct_bug(self):
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "job.mjs")
+            Path(src).write_text("log(`OK ${s}`);\nlog(`PUSHED ${s}`);\nlog(`FAIL ${e}`);\n")
+            item = {"name": "job (x)", "outcomes": {"src": src, "verb_re": r"log\(`([A-Z]+) ",
+                                                    "ok": {"OK": "x"}, "not_ok": ["FAIL"]}}
+            self.assertEqual(fh._outcome_drift(item), ["logs 'PUSHED', not classified"])
+            with mock.patch.object(fh, "FLEET", [item]):
+                ok, detail = fh.probe_outcome_drift()
+            self.assertFalse(ok)
+            self.assertIn("job: logs 'PUSHED'", detail)
+            item["outcomes"]["ok"]["PUSHED"] = "x"
+            self.assertEqual(fh._outcome_drift(item), [])
+
+    def test_missing_source_or_stale_pattern_is_drift(self):
+        with tempfile.TemporaryDirectory() as d:
+            gone = {"name": "a", "outcomes": {"src": os.path.join(d, "nope"), "verb_re": "X", "ok": {}}}
+            self.assertIn("missing", fh._outcome_drift(gone)[0])
+            src = os.path.join(d, "job.py")
+            Path(src).write_text("print('renamed everything')\n")
+            stale = {"name": "a", "outcomes": {"src": src, "verb_re": r"MONEY ([A-Z]+)", "ok": {}}}
+            self.assertIn("pattern stale", fh._outcome_drift(stale)[0])
+
+    def test_drift_row_is_quiet(self):
+        row = next(r for r in fh.FLEET if r["probe"] == "outcome_drift")
+        self.assertTrue(row.get("quiet_red"))
+
+    @unittest.skipUnless(os.path.exists(os.path.expanduser("~/.local/bin/money-burn")), "Mac only")
+    def test_real_jobs_have_no_drift_today(self):
+        for r in self.rows():
+            with self.subTest(row=r["name"]):
+                self.assertEqual(fh._outcome_drift(r), [])
