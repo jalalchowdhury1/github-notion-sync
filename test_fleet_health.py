@@ -882,3 +882,40 @@ class QueueDiagnosis(unittest.TestCase):
         results = [{"name": "a", "ok": False, "detail": "x"}]
         self.assertEqual(fh.queue_diagnosis(results, {}, {"date": "2026-10-11", "names": ["a"]},
                                             now=self.NOW), [])
+
+
+class QueueNight(QueueDiagnosis):
+    """18 Oct 2026: the SILENT 05:00 run queues its reds for the 05:45 Night fix."""
+
+    EARLY = datetime.datetime(2026, 10, 18, 5, 2)
+
+    def setUp(self):
+        super().setUp()
+        fh.FLEET = [{"name": "push me", "human_fix": True}, {"name": "flaky", "quiet_red": True}]
+
+    def test_0500_reds_queued_as_a_night_job(self):
+        results = [{"name": "a", "ok": False, "detail": "no run in 2d", "failing_since": "2026-10-17"},
+                   {"name": "b", "ok": True}]
+        self.assertEqual(fh.queue_night(results, now=self.EARLY), ["a"])
+        job = self.queued()[0]
+        self.assertTrue(job["night"])
+        self.assertEqual((job["day"], job["when"], job["buzz_failed"]), ("2026-10-18", "05:02", False))
+        self.assertEqual([r["name"] for r in job["rows"]], ["a"])
+        self.assertTrue(os.listdir(self.tmp)[0].endswith("-night.json"))
+        self.assertIn("kickstart", self.calls[0])
+
+    def test_probe_error_human_fix_quiet_red_skipped(self):
+        results = [{"name": "blind", "ok": False, "detail": "probe error: timeout"},
+                   {"name": "push me", "ok": False, "detail": "3 unpushed"},
+                   {"name": "flaky", "ok": False, "detail": "x"}]
+        self.assertEqual(fh.queue_night(results, now=self.EARLY), [])
+        self.assertEqual(self.queued(), [])
+
+    def test_0630_run_never_queues_a_night_job(self):
+        results = [{"name": "a", "ok": False, "detail": "x"}]
+        self.assertEqual(fh.queue_night(results, now=self.NOW), [])   # 06:31: that is queue_diagnosis's job
+        self.assertEqual(self.queued(), [])
+
+    def test_never_raises(self):
+        fh.DIAG_QUEUE = "/dev/null/cannot"
+        self.assertEqual(fh.queue_night([{"name": "a", "ok": False, "detail": "x"}], now=self.EARLY), [])

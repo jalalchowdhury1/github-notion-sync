@@ -879,6 +879,15 @@ rows this run just buzzed — minus `probe error:` rows and `human_fix` rows —
   (owner fixed, args validated, output scrubbed). Raw gh/aws/git are denied.
 - Testing: `FLEET_DIAG_STATE=<scratch dir>` isolates queue/pending/log; `--dry` prints cards.
 
+**Night fix (18 Oct 2026, his ask "before I even wake up … only what needs my permission comes to
+me"):** the SILENT 05:00 run also calls `queue_night()` — its red rows (minus `probe error:`,
+`human_fix`, `quiet_red`) go to the same queue as `<ts>-night.json` with `night: true`, no buzz,
+`loud` untouched. fleet-diagnose diagnoses them at ~05:05 and at 05:45 opens ONE `Night fix MMDD`
+Opus session for every fixable item (plus Mac audit findings and failed GitHub Actions runs) without
+a tap; the 06:30 re-check verifies; the 06:45 message becomes a report sent only when something is
+owed. Kill switch: `touch ~/.local/state/fleet-diagnose/night.off`. Tests: `QueueNight` here,
+N-series in `~/.local/bin/test_fleet_diagnose.py`.
+
 Rows here: `money-burn (06:20 💸 digest spend line)` and `fleet-diagnose (auto-diagnosis of red rows)`.
 
 ## History: the fleet-health §1 prose as it stood before the 2026-09-27 rewrite

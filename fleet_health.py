@@ -3238,6 +3238,42 @@ def queue_diagnosis(results, prev, loud, now=None):
         return []
 
 
+def queue_night(results, now=None):
+    """The 05:00 run hands its red rows to fleet-diagnose for the NIGHT FIX (18 Oct 2026).
+
+    Owner ask (17 Oct): "before I even wake up … whatever can be taken care of is taken
+    care of". The 05:00 run stays SILENT (no buzz, `loud` untouched); it only queues the
+    rows red right now so the diagnosis is ready when fleet-diagnose opens its 05:45
+    `Night fix` session. Same exclusions as queue_diagnosis (probe error, human_fix) plus
+    quiet_red (never buzzes, so never a night fix). Never raises. Returns the queued names.
+    """
+    try:
+        now = now or datetime.datetime.now()
+        if now.time() >= LOUD_FROM:          # only the silent early run queues this way
+            return []
+        skip = {c["name"] for c in FLEET if c.get("human_fix") or c.get("quiet_red")}
+        rows = [{"name": r["name"], "detail": str(r.get("detail", ""))[:600],
+                 "failing_since": r.get("failing_since")}
+                for r in results
+                if not r.get("ok") and r["name"] not in skip
+                and not str(r.get("detail", "")).startswith("probe error:")]
+        if not rows:
+            return []
+        os.makedirs(DIAG_QUEUE, exist_ok=True)
+        path = os.path.join(DIAG_QUEUE, f"{now:%Y%m%d-%H%M%S}-night.json")
+        with open(path + ".tmp", "w") as f:
+            json.dump({"day": now.date().isoformat(), "when": f"{now:%H:%M}", "rows": rows,
+                       "night": True, "buzz_failed": False}, f, indent=2)
+        os.replace(path + ".tmp", path)
+        subprocess.run(["launchctl", "kickstart", f"gui/{os.getuid()}/{DIAG_LABEL}"],
+                       capture_output=True, timeout=15)
+        print(f"night diagnosis queued for {len(rows)} row(s)")
+        return [r["name"] for r in rows]
+    except Exception as e:                   # noqa: BLE001 — never break the fleet run
+        print(f"WARN: could not queue night diagnosis: {type(e).__name__}: {e}")
+        return []
+
+
 def publish(results, telegram_mode: str, loud=None) -> None:
     payload = {"checked": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
                # "sent"/"failed": unchanged contract — notion_health.py's Dead-Mac
@@ -3415,6 +3451,7 @@ def main(argv=()) -> None:
         # Before publish (red team 10 Oct): a git-push timeout in publish raises, and
         # health.json already marks the rows as buzzed, so nothing would queue later.
         queue_diagnosis(results, prev_loud, loud)
+        queue_night(results, now)            # 18 Oct: the 05:00 run feeds the 05:45 Night fix (silent)
         publish(results, mode, loud)
     finally:
         try:
