@@ -1779,9 +1779,12 @@ FLEET = [
     {"name": "dhaka-flights (nightly trip tracker)", "feeds_screen": True, "screen_side": True, "repo": "dhaka-flights",
      "probe": "web_fresh", "url": "https://dhaka-flights.vercel.app/data.json", "bypass_env": "DHAKA_VERCEL_BYPASS",
      "json_key": "updated", "max_age_h": 36,
-     # healthy nights 22 Aug-27 Sep: ticket1 2-8, ticket2 9-10, sg 35-61,
-     # flights 196-254 (flights=0 on 08-23 was the broken scrape this catches)
-     "min_rows": {"ticket1_options": 1, "ticket2_options": 5, "sg_tickets": 20, "flights": 100}},
+     # booked = hidden since 17 Oct (site/booked.json ticket1 "booked"): Ticket ①
+     # is bought, so ticket1_options and sg_tickets are published EMPTY on purpose;
+     # Ticket ② = 9 one-way reads. 18 Oct: ticket2 10, flights 124. Old layout
+     # (22 Aug-27 Sep) had flights 196-254. flights=0 on 08-23 was the broken
+     # scrape this catches; 60 sits far below both layouts.
+     "min_rows": {"ticket2_options": 5, "flights": 60}},
     # com.jalal.dhaka-hotels (launchd, 5:00 AM, run_hotel_rates.sh) — the award
     # -points research behind the trip site's Stays table. Rostered 2026-08-06;
     # schedule_snapshot has always listed it, the fleet never watched it.
