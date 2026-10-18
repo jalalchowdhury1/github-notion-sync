@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-16 05:02",
+ "updated": "2026-10-18 05:02",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -489,6 +489,16 @@
    "mechanism": "launchd com.jalal.vercel-deploy-watch → -I",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/vercel-deploy-watch.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.wordrain-open-reminder",
+   "title": "com.jalal.wordrain-open-reminder",
+   "when": "9:00 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.wordrain-open-reminder → ~/.local/bin/wordrain-open-reminder.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/wordrain-open-reminder.log",
    "notes": ""
   },
   {
