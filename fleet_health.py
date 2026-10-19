@@ -2492,6 +2492,12 @@ FLEET = [
     # aoife-puzzles (2026-10-02): position, rematch queue and avoid-list are all
     # recomputed from her raw sessions on each request; this proves the serving
     # helpers still see her newest session.
+    # aoife-cards (2026-10-18): Aoife's 500-card collection. Every game's server POSTs events; her Card Path page
+    # reads cards:state through /api/state. events = newest event vs the one the page serves; power = today's
+    # 9 AM power-game pick (null when he picks none). Ages only, no child data.
+    {"name": "aoife-cards (Card Path serves her newest cards)", "repo": "aoife-cards",
+     "probe": "freshness", "url": "https://aoife-cards.vercel.app/api/freshness",
+     "expect_items": ["events", "power"]},
     {"name": "aoife-puzzles (screen sees her newest session)", "repo": "aoife-puzzles",
      "probe": "freshness", "url": "https://aoife-puzzles.vercel.app/api/freshness",
      "expect_items": ["position", "rematches", "avoidList"]},
