@@ -34,6 +34,11 @@ WEEKDAYS = {0: "Sunday", 1: "Monday", 2: "Tuesday", 3: "Wednesday",
 
 # ── human-facing text for known jobs (key = launchd label / special id) ──────
 CATALOG = {
+    "com.jalal.inbox-export": {
+        "title": "Telegram Inbox — nightly archive copy to the Mac",
+        "what": "03:50 ~/.local/bin/inbox-export pulls the last 2 days of Telegram Inbox items (full cards, every version) from health-hub /api/inbox and appends new ones (dedup id+version) to ~/concierge/notes/inbox/YYYY-MM.jsonl, the archive the `inbox search` CLI reads for 'what did X say' questions",
+        "logs": "~/Library/Logs/inbox-export.log",
+        "notes": "Added 2026-10-19 (Telegram Inbox phase 2). Silent; exits 1 on any fetch failure. A missed night is harmless while the window is 2 days and KV keeps items 400 days — re-run by hand to catch up (INBOX_EXPORT_DAYS=N). The archive folder has its own .gitignore: message contents never go to git."},
     "com.jalal.aoife-library-reminder": {
         "title": "Aoife library holds — 4-week habit reminder",
         "what": "Every-3-days 07:05 Telegram nudge (launchd fires daily; the script only sends on day 1,4,7…28) to the 📡 alerts chat reminding Jalal the concierge can place/swap Warwick library holds for Aoife (project memory project-aoife-library-holds). Runs 2026-09-02 → 2026-09-29 then unloads itself",
