@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-18 05:02",
+ "updated": "2026-10-19 05:02",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -119,6 +119,16 @@
    "mechanism": "launchd com.jalal.claude-mem-guard → ~/.local/bin/claude-mem-guard.sh",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/claude-mem-guard.launchd.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.claude-mem-preflight",
+   "title": "com.jalal.claude-mem-preflight",
+   "when": "on demand",
+   "frequency": "Always on",
+   "mechanism": "launchd com.jalal.claude-mem-preflight → ~/.local/bin/claude-mem-preflight.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/claude-mem-preflight.launchd.log",
    "notes": ""
   },
   {
