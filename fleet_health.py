@@ -2508,9 +2508,12 @@ FLEET = [
      "expect_items": ["plan", "plan-input-stamp"]},
     # health-hub (2026-10-02): the morning digest card vs the newest sender item,
     # and the clean-streak chip recomputed each ET day. Rewrite -> /api/health?fresh=1.
+    # 2026-10-19: + inbox = age of the newest Telegram Inbox item (max 30 h). It is
+    # expected here (not a second row) so a dropped item is red without grading the
+    # other two twice. Row name kept so its history stays one line.
     {"name": "health-hub (digest card + streak served fresh)", "repo": "health-hub",
      "probe": "freshness", "url": "https://jalal-health.vercel.app/api/freshness",
-     "expect_items": ["digest-card", "clean-streak"]},
+     "expect_items": ["digest-card", "clean-streak", "inbox"]},
     # financial dashboard (2026-10-02): the Rubber Band card vs the newest NYSE close,
     # and the history sheet behind "What moved" / tap charts (2 runs/day).
     # 2026-10-09: + served:* — the 6 market routes can now serve a KV saved copy for days;
