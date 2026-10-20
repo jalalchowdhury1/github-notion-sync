@@ -77,7 +77,7 @@ def _read(path) -> str:
         return f.read()
 
 
-DATE_TOKENS = ("{today}", "{date}", "{weekday}", "{utctoday}")
+DATE_TOKENS = ("{today}", "{date}", "{weekday}", "{utctoday}", "{utcdate}")
 # Probes whose log_grep expands DATE_TOKENS. Any other probe would search for the
 # literal text "{date}" and could never match -- lint_roster refuses that.
 TOKEN_PROBES = {"gh_run", "log_marker", "cloudwatch_marker"}
@@ -89,12 +89,17 @@ def _expand_dates(pattern, today=None):
     expand its own subset, and {weekday} outside gh_run stayed literal).
     {utctoday} = the UTC date, for jobs that label their output by UTC date: the
     23:00 ET quiet run (3 Oct 2026) is already tomorrow in UTC, so {today} paged a
-    healthy financial-dashboard-history. A caller-supplied `today` stands in for it."""
+    healthy financial-dashboard-history. A caller-supplied `today` stands in for it.
+    {utcdate} = UTC today|UTC yesterday (JAL-18, 19 Oct 2026): from 00:00 UTC (20:00
+    EDT) until that UTC day's first run, the newest slot is still yesterday's, so
+    {utctoday} paged financial-dashboard-history red every evening."""
     utc = today or datetime.datetime.now(datetime.timezone.utc).date()
+    utc_yday = utc - datetime.timedelta(days=1)
     today = today or datetime.date.today()
     yday = today - datetime.timedelta(days=1)
     return (pattern.replace("{today}", today.isoformat())
             .replace("{utctoday}", utc.isoformat())
+            .replace("{utcdate}", f"(?:{utc.isoformat()}|{utc_yday.isoformat()})")
             .replace("{weekday}", f"(?:{'|'.join(_weekday_dates(today))})")
             .replace("{date}", f"(?:{today.isoformat()}|{yday.isoformat()})"))
 
@@ -1927,7 +1932,11 @@ FLEET = [
      # AM slot can exist yet, so a missed AM now goes red the same morning.
      # {utctoday} (4 Oct 2026): the job labels slots by UTC date, and the 23:00 ET
      # quiet run is past midnight UTC -- {today} paged the healthy 21:30 ET run.
-     "log_grep": [r"slot {utctoday}-(?:AM|PM)",
+     # {utcdate} (JAL-18, 19 Oct 2026): {utctoday} went red every evening from
+     # 00:00 UTC until the new UTC day's first run, when the newest run's slot is
+     # still yesterday's. Today|yesterday UTC only; max_age_h + no_rescue still
+     # make the newest run's OWN log prove its slot.
+     "log_grep": [r"slot {utcdate}-(?:AM|PM)",
                   # carried_forward capped under half of the 38 metrics (producer-side red
                   # team 2026-09-12): with every fetcher down, apply_fallbacks copies the
                   # last row forward and still prints "successfully appended". Normal is
@@ -1935,7 +1944,7 @@ FLEET = [
                   # 2026-09-27: the producer now caps each carry at 4 runs and prints
                   # stale=N (columns it had to leave blank); any stale column is red.
                   r"(?:Data successfully appended to Google Sheet\. \(\d+ metrics; carried_forward=(?:1[0-8]|[0-9]), na_remaining=\d+, stale=0\)"
-                  r"|dedupe guard: slot {utctoday}-(?:AM|PM) already has a successful run)"],
+                  r"|dedupe guard: slot {utcdate}-(?:AM|PM) already has a successful run)"],
      "expect_event": "workflow_dispatch"},
     # vix-fear-greed: RETIRED + ARCHIVED 2026-08-29, probe deliberately removed.
     # Its whole job was writing the FEAR/GREED tag into the VIX sheet's cell C2.

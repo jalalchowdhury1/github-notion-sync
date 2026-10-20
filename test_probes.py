@@ -316,6 +316,28 @@ class GhRun(_Patched):
             fh.datetime.date = real_date
         self.assertTrue(ok, d)
 
+    def _fdh_grade(self, log):
+        row = next(i for i in fh.FLEET if i["name"].startswith("financial-dashboard-history"))
+        self.runs = [self.run_(1, 1)]
+        self.logs = {1: log}
+        return fh.probe_gh_run("r", "w.yml", 36, log_grep=row["log_grep"], no_rescue=True)
+
+    def test_utcdate_greens_yesterdays_slot_before_the_first_utc_run(self):
+        # JAL-18, 19 Oct 2026 21:00 EDT (01:00 UTC on the 20th): the newest run
+        # (19:33Z) deduped slot 2026-10-19-PM, and {utctoday} asked for -20-.
+        yday = (datetime.datetime.now(datetime.timezone.utc).date()
+                - datetime.timedelta(days=1)).isoformat()
+        ok, d = self._fdh_grade(f"slot {yday}-PM\ndedupe guard: slot {yday}-PM already has a successful run\n")
+        self.assertTrue(ok, d)
+
+    def test_utcdate_still_red_when_the_slot_marker_is_missing_or_old(self):
+        # Tripwire: no slot line at all, or a slot two UTC days old, is still red.
+        old = (datetime.datetime.now(datetime.timezone.utc).date()
+               - datetime.timedelta(days=2)).isoformat()
+        self.assertFalse(self._fdh_grade("nothing useful here\n")[0])
+        self.assertFalse(self._fdh_grade(
+            f"slot {old}-PM\ndedupe guard: slot {old}-PM already has a successful run\n")[0])
+
     def test_failure_with_no_rescue_shows_log_tail(self):
         self.runs = [self.run_(1, 1, "failure")]
         ok, d = fh.probe_gh_run("r", "w.yml", 26)
@@ -1186,6 +1208,7 @@ class DateTokens(unittest.TestCase):
         self.assertEqual(fh._expand_dates("{weekday}", mon), "(?:2026-09-28|2026-09-25)")
         self.assertEqual(fh._expand_dates(r"\d{4}", mon), r"\d{4}")   # quantifiers untouched
         self.assertEqual(fh._expand_dates("slot {utctoday}", mon), "slot 2026-09-28")
+        self.assertEqual(fh._expand_dates("slot {utcdate}", mon), "slot (?:2026-09-28|2026-09-27)")
 
     def test_log_marker_now_understands_weekday(self):
         import re
