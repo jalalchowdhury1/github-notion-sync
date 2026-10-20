@@ -21,6 +21,7 @@ import json
 import os
 import sys
 import time
+import urllib.error
 import urllib.request
 
 NOTION_API = "https://api.notion.com/v1"
@@ -73,6 +74,28 @@ def _stamp_age_hours(checked: str) -> float:
     return (datetime.datetime.now() - when).total_seconds() / 3600
 
 
+# Telegram Inbox relay (health-hub, Vercel — not the Mac): the same request, turned into a doorbell + card.
+# Relay down / 5xx / 401 / 404 → the same request straight to Telegram. Rollback: TG_API_BASE=https://api.telegram.org.
+_TG_DIRECT = "https://api.telegram.org"
+_TG_RELAY = "https://jalal-health.vercel.app/api/tg/notionhealth"
+
+
+def _tg_open(token, body):
+    base = os.environ.get("TG_API_BASE") or _TG_RELAY
+    hdr = {"Content-Type": "application/json"}
+    if not base.startswith(_TG_DIRECT):
+        try:
+            return urllib.request.urlopen(urllib.request.Request(
+                f"{base}/bot{token}/sendMessage", data=body, headers=hdr), timeout=8)
+        except urllib.error.HTTPError as e:
+            if e.code < 500 and e.code not in (401, 404):
+                raise
+        except Exception:                 # noqa: BLE001 — relay unreachable → direct
+            pass
+    return urllib.request.urlopen(urllib.request.Request(
+        f"{_TG_DIRECT}/bot{token}/sendMessage", data=body, headers=hdr), timeout=15)
+
+
 def telegram_alert(text) -> bool:
     """Best-effort cloud-side alert — the ONLY channel that survives a dead Mac.
 
@@ -91,10 +114,7 @@ def telegram_alert(text) -> bool:
                        "disable_web_page_preview": True}).encode()
     for attempt in range(1, 4):
         try:
-            req = urllib.request.Request(
-                f"https://api.telegram.org/bot{token}/sendMessage",
-                data=body, headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=15) as r:
+            with _tg_open(token, body) as r:
                 print(f"Telegram alert sent: HTTP {r.status}")
                 return True
         except Exception as e:            # noqa: BLE001 — alerting must not crash
