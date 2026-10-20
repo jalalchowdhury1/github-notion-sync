@@ -82,7 +82,9 @@ zero rows.
 - `telegram`: "sent" means queued **or** sent, so the card check exists
 - `telegram_mode`: "digest", "direct" or null
 - `loud`: `{date, names}`
-- `results[]`: `{name, repo, probe, ok, detail, cfg, failing_since}`
+- `results[]`: `{name, repo, probe, ok, detail, cfg, failing_since}`. `detail` here is
+  only the first line plus any `run:` URL (`_public_detail`, 20 Oct 2026): log tails
+  from private repos stay in the private digest, never in this public file.
 
 **Digest contract.**
 - **12 Oct 2026:** all green is posted as a `quiet: true` heartbeat (no card row; still stamps delivered so the watchdog stays happy). Only reds/retired rows show.

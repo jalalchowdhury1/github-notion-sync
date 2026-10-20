@@ -3314,7 +3314,19 @@ def queue_night(results, now=None):
         return []
 
 
+def _public_detail(detail: str) -> str:
+    """The detail as committed to health.json (20 Oct 2026 audit). This repo is
+    PUBLIC, and failed-run log tails come from private repos (ynab-budget-brief,
+    sheets-backup). Keep the verdict line and the run URL; the full detail still
+    goes to the private digest."""
+    lines = str(detail).splitlines() or [""]
+    keep = [lines[0].split(" — tail: ")[0]]
+    keep += [l for l in lines[1:] if l.startswith("run: ")]
+    return "\n".join(keep)
+
+
 def publish(results, telegram_mode: str, loud=None) -> None:
+    results = [dict(r, detail=_public_detail(r.get("detail", ""))) for r in results]
     payload = {"checked": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
                # "sent"/"failed": unchanged contract — notion_health.py's Dead-Mac
                # watchdog dies on anything but "sent". telegram_mode is the new,

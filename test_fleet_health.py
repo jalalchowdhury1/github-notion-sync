@@ -417,6 +417,16 @@ class RetrySlotDigestModeTest(unittest.TestCase):
         fh.publish([], "")
         self.assertEqual(json.load(open(self.path))["telegram"], "failed")
 
+    def test_publish_drops_log_tails_from_the_public_file(self):
+        """20 Oct 2026 audit: log tails of private repos landed in this PUBLIC repo."""
+        r = {"name": "a", "ok": False,
+             "detail": "last run failure (2h ago)\nrun: https://x/runs/1\nlog tail:\nbudget $1234"}
+        fh.publish([r, {"name": "b", "ok": False, "detail": "marker missing — tail: secret line"}], "digest")
+        got = [x["detail"] for x in json.load(open(self.path))["results"]]
+        self.assertEqual(got, ["last run failure (2h ago)\nrun: https://x/runs/1",
+                               "marker missing"])
+        self.assertIn("budget $1234", r["detail"], "the in-memory digest copy keeps the tail")
+
     def test_publish_commits_only_health_json(self):
         """A bare `git commit` swept other staged files into the fleet commit."""
         fh.publish([], "digest")
