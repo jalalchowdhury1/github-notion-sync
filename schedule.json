@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-19 05:02",
+ "updated": "2026-10-20 05:05",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -270,6 +270,16 @@
    "what": "curls https://jalal-health.vercel.app/api/tick (secret from ~/.config/secrets.env), which sends Jalal's med nags with confirm buttons, eating-window open/warn/close alerts, and fridge prompts via @JalalHealthBot, all state in the shared Upstash KV (health:* keys)",
    "logs": "~/Library/Logs/health-tick.log",
    "notes": "PRIMARY trigger for the health-hub app (repo health-hub, built 2026-08-26); an hourly GH Actions tick.yml is the backstop, so a dead Mac degrades nags to hourly instead of killing them. Idempotent server-side — overlapping ticks can't double-send. Fleet-health grades the loop via last_tick on /api/health (max 3h)."
+  },
+  {
+   "key": "com.jalal.inbox-export",
+   "title": "Telegram Inbox — nightly archive copy to the Mac",
+   "when": "3:50 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.inbox-export → ~/.local/bin/inbox-export",
+   "what": "03:50 ~/.local/bin/inbox-export pulls the last 2 days of Telegram Inbox items (full cards, every version) from health-hub /api/inbox and appends new ones (dedup id+version) to ~/concierge/notes/inbox/YYYY-MM.jsonl, the archive the `inbox search` CLI reads for 'what did X say' questions",
+   "logs": "~/Library/Logs/inbox-export.log",
+   "notes": "Added 2026-10-19 (Telegram Inbox phase 2). Silent; exits 1 on any fetch failure. A missed night is harmless while the window is 2 days and KV keeps items 400 days — re-run by hand to catch up (INBOX_EXPORT_DAYS=N). The archive folder has its own .gitignore: message contents never go to git."
   },
   {
    "key": "com.jalal.jacquard-conf-reminder",
