@@ -948,6 +948,21 @@ class RunChecksRetry(_Patched):
         self.assertFalse(fh.run_checks()[0]["ok"])
         self.assertEqual(n["calls"], 1)
 
+    def test_a_crlf_token_in_an_exception_never_reaches_the_detail(self):
+        """20 Oct 2026 audit: http.client's InvalidURL quotes the whole
+        '/bot<TOKEN>\\r/...' path; health.json is pushed to a PUBLIC repo."""
+        token = "123456789:AAFakeTokenValueForTheRedactionTest"
+
+        def bad_url(**_):
+            raise ValueError(f"URL can't contain control characters. {('/bot' + token + chr(13) + '/x')!r}")
+        fh.PROBE_FNS["bad_url"] = bad_url
+        fh.FLEET = [{"name": "a", "probe": "bad_url", "token_env": "FAKE_TOK"}]
+        with mock.patch.dict(os.environ, {"FAKE_TOK": token + "\r"}):
+            r = fh.run_checks()
+        self.assertFalse(r[0]["ok"])
+        self.assertNotIn(token, r[0]["detail"])
+        self.assertIn("***", r[0]["detail"])
+
     def test_lint_failure_stops_the_run(self):
         fh.lint_roster = lambda fleet=None: [{"name": "weak row"}]
         with self.assertRaises(SystemExit):

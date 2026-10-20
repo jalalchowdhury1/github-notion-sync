@@ -2850,6 +2850,24 @@ def _paused(item):
 RUN_BUDGET_S = 20 * 60   # job-reaper stops com.jalal.fleet-health at 30 min
 
 
+_SECRET_ENV_KEYS = ("token_env", "secret_env", "bypass_env")
+
+
+def _redact_secrets(item, text: str) -> str:
+    """Mask the row's own secrets in a detail line (20 Oct 2026 audit).
+
+    A token with a trailing space or CRLF (run_health.sh's grep|cut keeps it)
+    makes http.client raise InvalidURL / ValueError quoting the whole URL or
+    header value. That is not an OSError, so it reaches run_checks unwrapped and
+    str(e) would carry the token into health.json — and this repo is PUBLIC."""
+    for key in _SECRET_ENV_KEYS:
+        raw = os.environ.get(item.get(key) or "") or ""
+        for v in (raw, raw.strip()):
+            if len(v) >= 4:
+                text = text.replace(v, "***")
+    return text
+
+
 def run_checks() -> list:
     # The lint runs HERE, not only in main(). A red team (2026-09-12) pointed out
     # that a programmatic caller doing `from fleet_health import run_checks` would
@@ -2882,7 +2900,7 @@ def run_checks() -> list:
                 ok, detail = fn(**item)
                 break
             except Exception as e:           # noqa: BLE001 — infra error: retry
-                err = f"probe error: {type(e).__name__}: {e}"[:300]
+                err = _redact_secrets(item, f"probe error: {type(e).__name__}: {e}")[:300]
                 if attempt < PROBE_ATTEMPTS:
                     print(f"  … {item['name']}: {err} (attempt {attempt}, retrying)")
                     time.sleep(PROBE_RETRY_PAUSE_S)
@@ -2890,6 +2908,7 @@ def run_checks() -> list:
             ok, detail = False, f"{err} (after {PROBE_ATTEMPTS} attempts)"
         if paused:
             ok, detail = True, paused
+        detail = _redact_secrets(item, detail)
         results.append({"name": item["name"], "repo": item.get("repo"),
                         "probe": item["probe"], "ok": ok, "detail": detail,
                         "cfg": _cfg_line(item)})
