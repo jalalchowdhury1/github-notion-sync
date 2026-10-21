@@ -3595,10 +3595,15 @@ def quiet_main(argv=()) -> int:
         json.dump({"checked": now.strftime("%Y-%m-%d %H:%M"), "quiet": True,
                    "results": results}, f, indent=1)
     red = [r for r in results if not r.get("ok")]
+    # Same split as loud_alert: "probe error" = the checker could not look (e.g. a
+    # Telegram connection reset on 21 Oct 08:19), not a red system.
+    blind = [r for r in red if str(r.get("detail", "")).startswith("probe error:")]
     print(f"=== QUIET fleet check {now:%Y-%m-%d %H:%M}: "
-          f"{len(results) - len(red)} of {len(results)} healthy — nothing sent ===")
+          f"{len(results) - len(red)} of {len(results)} healthy"
+          + (f", {len(blind)} could not be checked" if blind else "")
+          + " — nothing sent ===")
     for r in red:
-        print(f"  ❌ {r['name']} — {r.get('detail', '')}")
+        print(f"  {'⚠️' if r in blind else '❌'} {r['name']} — {r.get('detail', '')}")
     return 1 if red else 0
 
 
