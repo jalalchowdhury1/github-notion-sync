@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-20 05:05",
+ "updated": "2026-10-21 05:02",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -110,26 +110,6 @@
    "what": "Keeps a tmux session 'concierge' running `claude remote-control` so Jalal can reach/spawn Claude Code sessions on this Mac from the Claude phone app; knows the 'fresh start' session-cleanup trick (~/.local/bin/fresh-start.sh)",
    "logs": "~/Library/Logs/claude-concierge.log",
    "notes": "Always-on, KeepAlive + 60s self-heal loop; concierge briefing lives in ~/concierge/CLAUDE.md; added 2026-08-27"
-  },
-  {
-   "key": "com.jalal.claude-mem-guard",
-   "title": "com.jalal.claude-mem-guard",
-   "when": "4:15 AM",
-   "frequency": "Daily",
-   "mechanism": "launchd com.jalal.claude-mem-guard → ~/.local/bin/claude-mem-guard.sh",
-   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
-   "logs": "~/Library/Logs/claude-mem-guard.launchd.log",
-   "notes": ""
-  },
-  {
-   "key": "com.jalal.claude-mem-preflight",
-   "title": "com.jalal.claude-mem-preflight",
-   "when": "on demand",
-   "frequency": "Always on",
-   "mechanism": "launchd com.jalal.claude-mem-preflight → ~/.local/bin/claude-mem-preflight.sh",
-   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
-   "logs": "~/Library/Logs/claude-mem-preflight.launchd.log",
-   "notes": ""
   },
   {
    "key": "com.jalal.daily-reader-kick",
@@ -270,6 +250,26 @@
    "what": "curls https://jalal-health.vercel.app/api/tick (secret from ~/.config/secrets.env), which sends Jalal's med nags with confirm buttons, eating-window open/warn/close alerts, and fridge prompts via @JalalHealthBot, all state in the shared Upstash KV (health:* keys)",
    "logs": "~/Library/Logs/health-tick.log",
    "notes": "PRIMARY trigger for the health-hub app (repo health-hub, built 2026-08-26); an hourly GH Actions tick.yml is the backstop, so a dead Mac degrades nags to hourly instead of killing them. Idempotent server-side — overlapping ticks can't double-send. Fleet-health grades the loop via last_tick on /api/health (max 3h)."
+  },
+  {
+   "key": "com.jalal.hindsight-import-watch",
+   "title": "com.jalal.hindsight-import-watch",
+   "when": "every 10 min, 12:00 AM–12:50 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.hindsight-import-watch → ~/.local/bin/hindsight-import-watch.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "—",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.hindsight",
+   "title": "com.jalal.hindsight",
+   "when": "—",
+   "frequency": "Always on",
+   "mechanism": "launchd com.jalal.hindsight → ~/.local/bin/hindsight-server.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/hindsight.log",
+   "notes": ""
   },
   {
    "key": "com.jalal.inbox-export",
