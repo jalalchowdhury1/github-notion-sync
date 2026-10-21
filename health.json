@@ -1,15 +1,21 @@
 {
- "checked": "2026-10-21 05:02",
+ "checked": "2026-10-21 06:34",
  "telegram": "sent",
  "telegram_mode": "digest",
- "loud": {},
+ "loud": {
+  "date": "2026-10-21",
+  "names": [
+   "claude-mem-guard (04:15 memory index size)",
+   "daily-trackers (nightly Automa Data sheet update)"
+  ]
+ },
  "results": [
   {
    "name": "dhaka-flights (nightly trip tracker)",
    "repo": "dhaka-flights",
    "probe": "web_fresh",
    "ok": true,
-   "detail": "data 5h old",
+   "detail": "data 6h old",
    "cfg": "probe=web_fresh \u00b7 repo=dhaka-flights \u00b7 url=https://dhaka-flights.vercel.app/data.json \u00b7 json_key=updated \u00b7 max_age_h=36"
   },
   {
@@ -17,7 +23,7 @@
    "repo": null,
    "probe": "web_fresh",
    "ok": true,
-   "detail": "oldest of 19 rows 29h old",
+   "detail": "oldest of 19 rows 7h old",
    "cfg": "probe=web_fresh \u00b7 url=https://dhaka-flights.vercel.app/hotel_rates.json \u00b7 json_key=checked \u00b7 max_age_h=96"
   },
   {
@@ -41,7 +47,7 @@
    "repo": "leasehackr-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 5h ago, data confirmed",
+   "detail": "success 0h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=leasehackr-scraper \u00b7 workflow=daily_scraper.yml \u00b7 max_age_h=26 \u00b7 log_grep=Found [1-9]\\d* unique deal cards across [1-9]\\d* regions|dedupe guard: a successful run in the last 12 h, skipping + Scraped [1-9]\\d* deals total|dedupe guard: a successful run in the last 12 h, skipping"
   },
   {
@@ -49,7 +55,7 @@
    "repo": "leasehackr-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 5h ago, data confirmed",
+   "detail": "success 0h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=leasehackr-scraper \u00b7 workflow=weekly_scraper.yml \u00b7 max_age_h=26 \u00b7 log_grep=Found [1-9]\\d* unique deal cards across [1-9]\\d* regions + refreshed the dashboard with [1-9]\\d* sorted deals"
   },
   {
@@ -65,7 +71,7 @@
    "repo": "github-notion-sync",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 15h ago, data confirmed",
+   "detail": "success 17h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=github-notion-sync \u00b7 workflow=health.yml \u00b7 max_age_h=36 \u00b7 log_grep=Notion updated: [1-9]\\d* rows.*checked {date}"
   },
   {
@@ -73,7 +79,7 @@
    "repo": "financial-telegram-bot",
    "probe": "web_fresh",
    "ok": true,
-   "detail": "data 173h old",
+   "detail": "data 175h old",
    "cfg": "probe=web_fresh \u00b7 repo=financial-telegram-bot \u00b7 url=https://financial-telegram-bot-beryl.vercel.app/api/aaii \u00b7 json_key=as_of \u00b7 max_age_h=240"
   },
   {
@@ -89,7 +95,7 @@
    "repo": "ynab-budget-brief",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 16h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/ynab-budget-brief/actions/runs/39411873248",
+   "detail": "success 17h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/ynab-budget-brief/actions/runs/39411873248",
    "cfg": "probe=gh_run \u00b7 repo=ynab-budget-brief \u00b7 workflow=daily_brief.yml \u00b7 max_age_h=36 \u00b7 log_grep=Sent eating-out brief: + Sent family brief:"
   },
   {
@@ -97,7 +103,7 @@
    "repo": "financial-dashboard-history",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 2h ago, data confirmed",
+   "detail": "success 4h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=financial-dashboard-history \u00b7 workflow=scraper.yml \u00b7 max_age_h=36 \u00b7 log_grep=slot {utcdate}-(?:AM|PM) + (?:Data successfully appended to Google Sheet\\. \\(\\d+ metrics; carried_forward=(?:1[0-8]|[0-9]), na_remaining=\\d+, stale=0\\)|dedupe guard: slot {utcdate}-(?:AM|PM) already has a successful run)"
   },
   {
@@ -105,7 +111,7 @@
    "repo": "hedgelab",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 11h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/hedgelab/actions/runs/39455091901",
+   "detail": "success 13h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/hedgelab/actions/runs/39455091901",
    "cfg": "probe=gh_run \u00b7 repo=hedgelab \u00b7 workflow=daily.yml \u00b7 max_age_h=72 \u00b7 log_grep=results/daily/{weekday}\\.json"
   },
   {
@@ -113,7 +119,7 @@
    "repo": "trading-algorithm-",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 9h ago, data confirmed",
+   "detail": "success 10h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=trading-algorithm- \u00b7 workflow=trading_alert.yml \u00b7 max_age_h=72 \u00b7 log_grep=NUTS-SIGNAL (?:OK unchanged=|CHANGED ).*date={weekday}"
   },
   {
@@ -121,7 +127,7 @@
    "repo": "reddit-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 4h ago, data confirmed",
+   "detail": "success 6h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=reddit-scraper \u00b7 workflow=reddit_backup.yml \u00b7 max_age_h=12 \u00b7 log_grep=REDDIT BACKUP: refreshed \\d+ of \\d+ + GITHUB REDDIT CHECK: rss ok|REDDIT BACKUP: refreshed [1-9]"
   },
   {
@@ -129,7 +135,7 @@
    "repo": "reddit-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 1h ago, data confirmed",
+   "detail": "success 2h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=reddit-scraper \u00b7 workflow=daily_scrape.yml \u00b7 max_age_h=36 \u00b7 log_grep=last data/ commit: [^$\\n]+ \u2014 proceeding|data/ already updated today \\([^$\\n]+\\) \u2014 skipping + DATA PUSHED: [1-9]\\d* data files|data/ already updated today \\([^$\\n]+\\) \u2014 skipping + GOOGLE NEWS: saved [1-9]\\d* articles|data/ already updated today \\([^$\\n]+\\) \u2014 skipping"
   },
   {
@@ -137,7 +143,7 @@
    "repo": null,
    "probe": "log_block",
    "ok": true,
-   "detail": "clean run 0.4d ago",
+   "detail": "clean run 0.5d ago",
    "cfg": "probe=log_block \u00b7 max_age_h=26 \u00b7 log_grep=REDDIT PUSHED: [1-9]\\d* files in \\w+ \\(scraper exit 0\\)|NO REDDIT CHANGES \\(scraper exit 0\\) \u00b7 log_path=~/Library/Logs/reddit-browser.log"
   },
   {
@@ -145,7 +151,7 @@
    "repo": null,
    "probe": "web_fresh",
    "ok": true,
-   "detail": "oldest of 24 reddit_lists 9h old",
+   "detail": "oldest of 24 reddit_lists 11h old",
    "cfg": "probe=web_fresh \u00b7 url=https://reddit-scraper-lyart.vercel.app/api/status \u00b7 json_key=checked \u00b7 max_age_h=36"
   },
   {
@@ -153,7 +159,7 @@
    "repo": null,
    "probe": "log_block",
    "ok": true,
-   "detail": "clean run 0.4d ago",
+   "detail": "clean run 0.5d ago",
    "cfg": "probe=log_block \u00b7 max_age_h=26 \u00b7 log_grep=METHOD CHECK: page ok \u00b7 json (?:ok|FAILED) \u00b7 rss ok \u00b7 log_path=~/Library/Logs/reddit-browser.log"
   },
   {
@@ -169,7 +175,7 @@
    "repo": "financial-telegram-bot",
    "probe": "web_fresh",
    "ok": true,
-   "detail": "data 22h old",
+   "detail": "data 23h old",
    "cfg": "probe=web_fresh \u00b7 repo=financial-telegram-bot \u00b7 url=https://jalal-health.vercel.app/api/health \u00b7 json_key=digest_report_at \u00b7 max_age_h=30"
   },
   {
@@ -177,7 +183,7 @@
    "repo": "financial-telegram-bot",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 19h ago",
+   "detail": "success 20h ago",
    "cfg": "probe=gh_run \u00b7 repo=financial-telegram-bot \u00b7 workflow=daily_report.yml \u00b7 max_age_h=36"
   },
   {
@@ -185,7 +191,7 @@
    "repo": "financial-telegram-bot",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 15h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/financial-telegram-bot/actions/runs/39430973419",
+   "detail": "success 16h ago, data confirmed in earlier same-window run: https://github.com/jalalchowdhury1/financial-telegram-bot/actions/runs/39430973419",
    "cfg": "probe=gh_run \u00b7 repo=financial-telegram-bot \u00b7 workflow=health-check.yml \u00b7 max_age_h=36 \u00b7 log_grep=Overall: ok"
   },
   {
@@ -193,7 +199,7 @@
    "repo": null,
    "probe": "rsync_log",
    "ok": true,
-   "detail": "2026-10-21 04:00:13, 28,325 regular files seen (baseline 20,000), 102 transferred, 1h ago",
+   "detail": "2026-10-21 04:00:13, 28,325 regular files seen (baseline 20,000), 102 transferred, 3h ago",
    "cfg": "probe=rsync_log \u00b7 max_age_h=36 \u00b7 log_path=~/.local/state/t7-sync/sync.log"
   },
   {
@@ -330,7 +336,7 @@
    "repo": "sheets-backup",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 3h ago, data confirmed",
+   "detail": "success 4h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=sheets-backup \u00b7 workflow=backup.yml \u00b7 max_age_h=28 \u00b7 log_grep=\\dZ BACKUP OK: [1-9]\\d* owned tabs, [1-9]\\d* public sources"
   },
   {
@@ -362,7 +368,7 @@
    "repo": "NUTS",
    "probe": "nuts",
    "ok": true,
-   "detail": "VIXY via frontrunners \u00b7 unit_test pass \u00b7 prices 2026-10-20 (1.2d, 22 tickers) \u00b7 eval 0h old",
+   "detail": "VIXY via frontrunners \u00b7 unit_test pass \u00b7 prices 2026-10-20 (1.3d, 22 tickers) \u00b7 eval 0h old",
    "cfg": "probe=nuts \u00b7 repo=NUTS \u00b7 url=https://ju9t7h8903.execute-api.us-east-1.amazonaws.com/evaluate"
   },
   {
@@ -378,7 +384,7 @@
    "repo": "nuts-radar",
    "probe": "nuts_radar",
    "ok": true,
-   "detail": "tree shape matches NUTS \u00b7 book VIXY \u00b7 10 catalysts (1h old)",
+   "detail": "tree shape matches NUTS \u00b7 book VIXY \u00b7 10 catalysts (2h old)",
    "cfg": "probe=nuts_radar \u00b7 repo=nuts-radar \u00b7 url=https://nuts-radar.vercel.app"
   },
   {
@@ -394,7 +400,7 @@
    "repo": null,
    "probe": "web_fresh",
    "ok": true,
-   "detail": "data 9h old",
+   "detail": "data 11h old",
    "cfg": "probe=web_fresh \u00b7 url=https://jalal-health.vercel.app/api/health \u00b7 json_key=send_ok_at \u00b7 max_age_h=30"
   },
   {
@@ -426,7 +432,7 @@
    "repo": null,
    "probe": "log_block",
    "ok": true,
-   "detail": "clean run 3.0d ago",
+   "detail": "clean run 3.1d ago",
    "cfg": "probe=log_block \u00b7 max_age_h=192 \u00b7 log_grep=[1-9]\\d* passed, 0 failed \u00b7 log_path=~/Library/Logs/toolcheck.log"
   },
   {
@@ -458,7 +464,7 @@
    "repo": "aoife-typing",
    "probe": "log_tail",
    "ok": true,
-   "detail": "written 0h ago, ended '2026-10-21T08:50:07.570Z 2026-10-20: mis'",
+   "detail": "written 0h ago, ended '2026-10-21T10:20:12.451Z 2026-10-20: mis'",
    "cfg": "probe=log_tail \u00b7 repo=aoife-typing \u00b7 path=~/Library/Logs/aoife-typing-coach.log \u00b7 max_age_h=2"
   },
   {
@@ -466,7 +472,7 @@
    "repo": "aoife-typing",
    "probe": "freshness",
    "ok": true,
-   "detail": "screen fresh: coach mission 13.5h",
+   "detail": "screen fresh: coach mission 15.0h",
    "cfg": "probe=freshness \u00b7 repo=aoife-typing \u00b7 url=https://aoife-typing.vercel.app/api/freshness"
   },
   {
@@ -490,7 +496,7 @@
    "repo": "tesla-watch",
    "probe": "freshness",
    "ok": true,
-   "detail": "screen fresh: tesla-prices 9.8h, watch-run 9.8h",
+   "detail": "screen fresh: tesla-prices 11.4h, watch-run 11.4h",
    "cfg": "probe=freshness \u00b7 repo=tesla-watch \u00b7 url=https://tesla-watch-jalal.vercel.app/api/freshness"
   },
   {
@@ -498,7 +504,7 @@
    "repo": "aoife-cards",
    "probe": "freshness",
    "ok": true,
-   "detail": "screen fresh: events 12.8h, power nothing yet",
+   "detail": "screen fresh: events 14.3h, power nothing yet",
    "cfg": "probe=freshness \u00b7 repo=aoife-cards \u00b7 url=https://aoife-cards.vercel.app/api/freshness"
   },
   {
@@ -506,7 +512,7 @@
    "repo": "aoife-puzzles",
    "probe": "freshness",
    "ok": true,
-   "detail": "screen fresh: position 210.5h, rematches nothing yet, avoidList 185.5h, postcards 282.2h, guesses 132.4h",
+   "detail": "screen fresh: position 212.0h, rematches nothing yet, avoidList 187.0h, postcards 283.7h, guesses 133.9h",
    "cfg": "probe=freshness \u00b7 repo=aoife-puzzles \u00b7 url=https://aoife-puzzles.vercel.app/api/freshness"
   },
   {
@@ -514,7 +520,7 @@
    "repo": null,
    "probe": "freshness",
    "ok": true,
-   "detail": "screen fresh: plan 223.1h, plan-input-stamp 0.5h",
+   "detail": "screen fresh: plan 224.6h, plan-input-stamp 0.5h",
    "cfg": "probe=freshness \u00b7 url=https://moneymap-jalal.vercel.app/api/freshness"
   },
   {
@@ -522,24 +528,23 @@
    "repo": "health-hub",
    "probe": "freshness",
    "ok": true,
-   "detail": "screen fresh: digest-card 22.0h, clean-streak 5.0h, inbox 8.8h",
+   "detail": "screen fresh: digest-card 23.5h, clean-streak 6.6h, inbox 10.3h",
    "cfg": "probe=freshness \u00b7 repo=health-hub \u00b7 url=https://jalal-health.vercel.app/api/freshness"
   },
   {
    "name": "financial-dashboard (rubber band + history served fresh)",
    "repo": "financial-telegram-bot",
    "probe": "freshness",
-   "ok": false,
-   "detail": "served:fred: screen serves data (none) old, newest input 13h old (grace 6h)",
-   "cfg": "probe=freshness \u00b7 repo=financial-telegram-bot \u00b7 url=https://financial-telegram-bot-beryl.vercel.app/api/freshness",
-   "failing_since": "2026-10-21"
+   "ok": true,
+   "detail": "screen fresh: rubber-band 14.6h, history-sheet 8.6h, served:spy 14.6h, served:spy-daily-move 14.6h, served:market-extra 14.6h, served:fred 14.6h, served:sheets 14.6h, served:fear-greed 14.6h",
+   "cfg": "probe=freshness \u00b7 repo=financial-telegram-bot \u00b7 url=https://financial-telegram-bot-beryl.vercel.app/api/freshness"
   },
   {
    "name": "reddit-scraper (live site: every tab serves fresh data)",
    "repo": "reddit-scraper",
    "probe": "freshness",
    "ok": true,
-   "detail": "screen fresh: reddit-monthly 9.5h, reddit-yearly 9.5h, news 0.8h, am-reads 22.5h, am-reads-check 0.8h, satpost 55.6h, github-trending 3.8h",
+   "detail": "screen fresh: reddit-monthly 11.0h, reddit-yearly 11.0h, news 2.3h, am-reads 24.1h, am-reads-check 2.3h, satpost 57.2h, github-trending 5.3h",
    "cfg": "probe=freshness \u00b7 repo=reddit-scraper \u00b7 url=https://reddit-scraper-lyart.vercel.app/api/freshness"
   },
   {
@@ -547,7 +552,7 @@
    "repo": "voices-bot",
    "probe": "freshness",
    "ok": true,
-   "detail": "screen fresh: fleet-status 22.5h",
+   "detail": "screen fresh: fleet-status 1.5h",
    "cfg": "probe=freshness \u00b7 repo=voices-bot \u00b7 url=https://voices-bot.vercel.app/api/freshness"
   },
   {
@@ -555,7 +560,7 @@
    "repo": "aoife-milestones-bot",
    "probe": "freshness",
    "ok": true,
-   "detail": "screen fresh: doc-mirror 152.5h, notion-mirror 152.5h, monthly-recap 476.1h",
+   "detail": "screen fresh: doc-mirror 154.0h, notion-mirror 154.0h, monthly-recap 477.6h",
    "cfg": "probe=freshness \u00b7 repo=aoife-milestones-bot \u00b7 url=https://aoife-milestones-bot.vercel.app/api/freshness"
   },
   {
@@ -563,7 +568,7 @@
    "repo": null,
    "probe": "log_tail",
    "ok": true,
-   "detail": "written 0h ago, ended '2026-10-21T05:00:03-04:00 TRANCHE FRESH '",
+   "detail": "written 0h ago, ended '2026-10-21T06:30:04-04:00 TRANCHE FRESH '",
    "cfg": "probe=log_tail \u00b7 path=~/Library/Logs/tranche-fresh.log \u00b7 max_age_h=1.5"
   },
   {
@@ -579,7 +584,7 @@
    "repo": null,
    "probe": "freshness",
    "ok": true,
-   "detail": "screen fresh: calendar busy times 0.9h",
+   "detail": "screen fresh: calendar busy times 2.4h",
    "cfg": "probe=freshness \u00b7 url=https://aoifes-schedule.vercel.app/api/freshness"
   },
   {
@@ -596,7 +601,7 @@
    "repo": "financial-telegram-bot",
    "probe": "log_tail",
    "ok": true,
-   "detail": "written 111h ago, ended '2026-10-16T18:00:11.559Z OK macromicro 2'",
+   "detail": "written 113h ago, ended '2026-10-16T18:00:11.559Z OK macromicro 2'",
    "cfg": "probe=log_tail \u00b7 repo=financial-telegram-bot \u00b7 path=~/Library/Logs/aaii-macromicro.out.log \u00b7 max_age_h=170"
   },
   {
@@ -604,7 +609,7 @@
    "repo": null,
    "probe": "log_tail",
    "ok": true,
-   "detail": "written 0h ago, ended '2026-10-21T09:00:04Z PODCAST RUN: docs=0'",
+   "detail": "written 0h ago, ended '2026-10-21T10:30:05Z PODCAST RUN: docs=0'",
    "cfg": "probe=log_tail \u00b7 path=~/Library/Logs/podcast-requests.log \u00b7 max_age_h=1"
   },
   {
@@ -612,7 +617,7 @@
    "repo": null,
    "probe": "log_tail",
    "ok": true,
-   "detail": "written 0h ago, ended '2026-10-21 04:37:05 VERCEL DEPLOYS n=22 '",
+   "detail": "written 0h ago, ended '2026-10-21 06:07:05 VERCEL DEPLOYS n=23 '",
    "cfg": "probe=log_tail \u00b7 path=~/Library/Logs/vercel-deploy-watch.log \u00b7 max_age_h=2"
   },
   {
@@ -620,7 +625,7 @@
    "repo": null,
    "probe": "log_tail",
    "ok": true,
-   "detail": "written 1h ago, ended '2026-10-21 04:23:06 OPENROUTER SPEND tod'",
+   "detail": "written 0h ago, ended '2026-10-21 06:23:05 OPENROUTER SPEND tod'",
    "cfg": "probe=log_tail \u00b7 path=~/Library/Logs/openrouter-spend-watch.log \u00b7 max_age_h=2"
   },
   {
@@ -628,16 +633,17 @@
    "repo": "financial-telegram-bot",
    "probe": "log_tail",
    "ok": true,
-   "detail": "written 7h ago, ended '=== 60/60 passed ==='",
+   "detail": "written 9h ago, ended '=== 60/60 passed ==='",
    "cfg": "probe=log_tail \u00b7 repo=financial-telegram-bot \u00b7 path=~/Library/Logs/ftb-fault-matrix.log \u00b7 max_age_h=26"
   },
   {
    "name": "claude-mem-guard (04:15 memory index size)",
    "repo": null,
    "probe": "log_tail",
-   "ok": true,
-   "detail": "written 25h ago, ended '2026-10-20 04:15:01 done'",
-   "cfg": "probe=log_tail \u00b7 path=~/Library/Logs/claude-mem-guard.launchd.log \u00b7 max_age_h=26"
+   "ok": false,
+   "detail": "stale: last written 1.1d ago (limit 26h)",
+   "cfg": "probe=log_tail \u00b7 path=~/Library/Logs/claude-mem-guard.launchd.log \u00b7 max_age_h=26",
+   "failing_since": "2026-10-21"
   },
   {
    "name": "changedetection (local watch server :5055)",
@@ -652,7 +658,7 @@
    "repo": null,
    "probe": "log_tail",
    "ok": true,
-   "detail": "written 7h ago, ended 'nag outcome: sent=0 failed=0 pending=non'",
+   "detail": "written 8h ago, ended 'nag outcome: sent=0 failed=0 pending=non'",
    "cfg": "probe=log_tail \u00b7 path=~/Library/Logs/defensive-nag.log \u00b7 max_age_h=11"
   },
   {
@@ -660,7 +666,7 @@
    "repo": null,
    "probe": "log_block",
    "ok": true,
-   "detail": "clean run 0.4d ago",
+   "detail": "clean run 0.5d ago",
    "cfg": "probe=log_block \u00b7 max_age_h=28 \u00b7 log_grep=^\\s*published \u2192 https://gist\\.githubusercontent\\.com/ + ^=== exit 0 ===$ \u00b7 log_path=~/Library/Logs/rubber-band.log"
   },
   {
@@ -684,7 +690,7 @@
    "repo": null,
    "probe": "cloudwatch_marker",
    "ok": true,
-   "detail": "106 good outcomes in 14h, newest 5.1h ago, no failure since",
+   "detail": "88 good outcomes in 14h, newest 6.6h ago, no failure since",
    "cfg": "probe=cloudwatch_marker \u00b7 max_age_h=14 \u00b7 log_grep=\\[app-nag\\] (?:checked|before-first-slot|quiet|reminded|no-reminder|waiting|muted|sent-\\d+)\\s*$"
   },
   {
@@ -700,7 +706,7 @@
    "repo": null,
    "probe": "log_tail",
    "ok": true,
-   "detail": "written 4h ago, ended 'NIGHTLY OK plans=42 problems=0 pushed=29'",
+   "detail": "written 5h ago, ended 'NIGHTLY OK plans=42 problems=0 pushed=29'",
    "cfg": "probe=log_tail \u00b7 path=~/PycharmProjects/dhaka-yearly/data/run-{today_ymd}.log \u00b7 max_age_h=24"
   },
   {
@@ -708,7 +714,7 @@
    "repo": null,
    "probe": "web_fresh",
    "ok": true,
-   "detail": "data 4h old",
+   "detail": "data 5h old",
    "cfg": "probe=web_fresh \u00b7 url=https://dhaka-yearly.vercel.app/data.json \u00b7 json_key=updated_tz \u00b7 max_age_h=26"
   },
   {
@@ -716,7 +722,7 @@
    "repo": "reddit-scraper",
    "probe": "gh_run",
    "ok": true,
-   "detail": "success 14h ago, data confirmed",
+   "detail": "success 15h ago, data confirmed",
    "cfg": "probe=gh_run \u00b7 repo=reddit-scraper \u00b7 workflow=am_reads.yml \u00b7 max_age_h=30 \u00b7 log_grep=\\dZ\\s+Extracted [1-9]\\d* articles + \\dZ (?:Unchanged: data/ritholtz/articles\\.csv already holds this post|Saved data/ritholtz/articles\\.csv) \\([1-9]\\d* articles\\) + \\dZ (?:NO CHANGE: AM Reads already current|AM READS PUSHED: [0-9a-f]{7})"
   },
   {
@@ -732,7 +738,7 @@
    "repo": null,
    "probe": "log_tail",
    "ok": true,
-   "detail": "written 19h ago, ended '2026-10-20 10:00:32 MONEY OK posted=quie'",
+   "detail": "written 0h ago, ended '2026-10-21 06:20:10 MONEY OK posted=dige'",
    "cfg": "probe=log_tail \u00b7 path=~/Library/Logs/money-burn.log \u00b7 max_age_h=26"
   },
   {
@@ -740,7 +746,7 @@
    "repo": null,
    "probe": "log_tail",
    "ok": true,
-   "detail": "written 0h ago, ended '2026-10-21 05:00:04 DIAG OK diagnosed=0 '",
+   "detail": "written 0h ago, ended '2026-10-21 06:30:06 DIAG OK diagnosed=0 '",
    "cfg": "probe=log_tail \u00b7 path=~/Library/Logs/fleet-diagnose.log \u00b7 max_age_h=1"
   },
   {
