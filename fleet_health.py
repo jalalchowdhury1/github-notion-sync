@@ -1707,7 +1707,7 @@ def probe_unpushed_work(roots, max_age_h=24, ignore=None, **_):
                 continue
             age = (now - min(stamps)) / 3600
             if age > max_age_h:
-                old.append((age, f"{name} +{len(stamps)} ({age / 24:.0f}d)"))
+                old.append((age, f"{name} +{len(stamps)} ({age / 24:.0f}d) → git -C {repo.replace(os.path.expanduser('~'), '~', 1)} push"))
             else:
                 fresh += 1
     tail = f"; {fresh} newer than {max_age_h}h; {mac_only} Mac-only repos (no remote, Time Machine)"

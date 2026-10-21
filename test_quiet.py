@@ -122,6 +122,7 @@ class UnpushedWork(unittest.TestCase):
         ok, detail = fh.probe_unpushed_work([self.root])
         self.assertFalse(ok)
         self.assertIn("forgot +1", detail)
+        self.assertIn(f"→ git -C {d} push", detail)   # 21 Oct: the red row names the fix
 
     def test_fresh_unpushed_commit_is_green(self):
         d = self._repo("today")
