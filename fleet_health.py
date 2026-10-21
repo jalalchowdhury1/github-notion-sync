@@ -2638,10 +2638,6 @@ FLEET = [
     {"name": "ftb-fault-matrix (nightly backup-path drill)", "repo": "financial-telegram-bot",
      "probe": "log_tail", "path": "~/Library/Logs/ftb-fault-matrix.log",
      "last_line": r"^=== (\d+)/\1 passed ===$", "max_age_h": 26},
-    # claude-mem-guard: 04:15 daily index-size guard; ends every run with "done".
-    {"name": "claude-mem-guard (04:15 memory index size)", "repo": None,
-     "probe": "log_tail", "path": "~/Library/Logs/claude-mem-guard.launchd.log",
-     "last_line": r"^\d{4}-\d\d-\d\d [\d:]+ done$", "max_age_h": 26},
     # changedetection: KeepAlive server on :5055 (IRS page watches).
     {"name": "changedetection (local watch server :5055)", "repo": None,
      "probe": "web_200", "url": "http://127.0.0.1:5055/", "expect_text": "<title>Change Detection</title>",
