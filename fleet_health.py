@@ -2579,8 +2579,9 @@ FLEET = [
      "expect_items": ["calendar busy times"], "quiet_red": True},
     # Work that lives only on this Mac (2026-10-03): on 2-3 Oct six repos had
     # commits never pushed (later-jar 8 days). quiet_red: shows in the morning card
-    # but never buzzes -- a reminder, not an outage. Never pushes anything itself:
-    # a push to main DEPLOYS several of these repos, so pushing is Jalal's call.
+    # but never buzzes -- a reminder, not an outage. Never pushes anything itself; since
+    # 21 Oct a red row makes run_health.sh's ~/.local/bin/unpushed-autofix open one silent
+    # Fix session that pushes what is safe (deploy cap checked) and logs the rest to OPEN.md.
     {"name": "unpushed work (commits only on this Mac)", "repo": None,
      "probe": "unpushed_work", "quiet_red": True,
      # human_fix (10 Oct 2026): red clears when Jalal pushes, not with the clock, so a
