@@ -2588,7 +2588,8 @@ FLEET = [
      # skips it (9 Oct: carmax pushed 21:14 read as "only passes at certain hours").
      "human_fix": True,
      "roots": ["~/PycharmProjects", "~/.local/bin", "~/concierge"], "max_age_h": 24,
-     "ignore": {"nafis-mortgage": "retired one-off (3 Oct 2026); GitHub repo gone, kept on the Mac only"}},
+     "ignore": {"nafis-mortgage": "retired one-off (3 Oct 2026); GitHub repo gone, kept on the Mac only",
+                "filee-local": "private offline build; push URL DISABLED on purpose, never push (20 Oct 2026)"}},
 
     # 10 Oct 2026 robustness audit: five Mac jobs had NO row, so a crash or a job
     # that stopped firing was silent. Each row reads the job's own outcome line.
