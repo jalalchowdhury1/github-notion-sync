@@ -1611,7 +1611,8 @@ def probe_freshness(url, expect_items=None, bypass_env=None, **_):
         if not secret:
             return False, f"{bypass_env} not set (see run_health.sh)"
         req.add_header("x-vercel-protection-bypass", secret)
-    with urllib.request.urlopen(req, timeout=30) as r:
+    # 65 s: an app's /api/freshness may wait up to 60 s on its slowest served route (ftb, 21 Oct 2026)
+    with urllib.request.urlopen(req, timeout=65) as r:
         data = json.loads(r.read().decode())
     items = data.get("items")
     if data.get("v") != 1 or not isinstance(items, list) or not items:
