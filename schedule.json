@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-22 05:02",
+ "updated": "2026-10-22 06:32",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -219,6 +219,16 @@
    "mechanism": "launchd com.jalal.fleet-quiet → ~/PycharmProjects/github-notion-sync/run_health.sh",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/fleet-quiet.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.ftb-fault-matrix-catchup",
+   "title": "com.jalal.ftb-fault-matrix-catchup",
+   "when": "1:40 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.ftb-fault-matrix-catchup → ~/PycharmProjects/financial-telegram-bot/scripts/fault_matrix.py",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/ftb-fault-matrix.log",
    "notes": ""
   },
   {
