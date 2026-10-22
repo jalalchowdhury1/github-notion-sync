@@ -2803,6 +2803,11 @@ FLEET = [
     # an expired login turns this row red at the next 05:00/06:30 check. Also green:
     # a fix session's "notify <id>: sent", and "diagnosing N row(s)" (a diagnosis in
     # flight, ≤20 min; a run killed mid-way leaves it and goes stale → red after 1 h).
+    # Watch (22 Oct 2026): the 2-min Mac monitor in ~/concierge/watch. It saves its state
+    # every tick, so a state file older than 30 min means Watch itself stopped.
+    {"name": "watch-self (Mac monitor ticks every 2 min)", "repo": None,
+     "probe": "file_mtime", "path": "~/.local/state/watch/state.json", "max_age_h": 0.5,
+     "weak_ok": "the file is rewritten by every tick; age is exactly the liveness asked"},
     {"name": "fleet-diagnose (auto-diagnosis of red rows)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/fleet-diagnose.log",
      "last_line": r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d (?:DIAG OK |notify \S+: sent$|diagnosing \d+ row)", "max_age_h": 1},
