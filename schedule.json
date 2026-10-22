@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-21 05:02",
+ "updated": "2026-10-22 05:02",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -404,7 +404,7 @@
   {
    "key": "com.jalal.podcast-make-watch",
    "title": "com.jalal.podcast-make-watch",
-   "when": "every 5 min, 12:02 AM–12:57 AM",
+   "when": "every 10 min, 12:02 AM–12:52 AM",
    "frequency": "Daily",
    "mechanism": "launchd com.jalal.podcast-make-watch → /opt/homebrew/opt/python@3.14/bin/python3.14",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
@@ -509,6 +509,16 @@
    "mechanism": "launchd com.jalal.vercel-deploy-watch → -I",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/vercel-deploy-watch.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.watch",
+   "title": "com.jalal.watch",
+   "when": "every 2 min, 12:00 AM–12:58 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.watch → -m",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/watch.log",
    "notes": ""
   },
   {
