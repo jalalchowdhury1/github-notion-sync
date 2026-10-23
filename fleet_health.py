@@ -1696,6 +1696,11 @@ def probe_unpushed_work(roots, max_age_h=24, ignore=None, **_):
             if not _git(repo, "remote").stdout.strip():
                 mac_only += 1
                 continue
+            try:                                 # 23 Oct: a recipe that says "no git remote" never pushes
+                if "no git remote" in open(os.path.join(repo, "AGENTS.md")).read().lower():
+                    old.append((1e9, f"{name}: AGENTS.md says 'no git remote' but it has one → add a push step there"))
+            except OSError:
+                pass
             if not _git(repo, "branch", "--show-current").stdout.strip():
                 continue                         # detached HEAD: nothing to push
             up = _git(repo, "rev-parse", "--abbrev-ref", "@{u}")

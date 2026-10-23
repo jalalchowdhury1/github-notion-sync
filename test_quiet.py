@@ -131,6 +131,15 @@ class UnpushedWork(unittest.TestCase):
         self.assertTrue(ok, detail)
         self.assertIn("1 newer than 24h", detail)
 
+    def test_recipe_saying_no_git_remote_is_red(self):
+        # 23 Oct: pattern-quest's AGENTS.md said "no git remote" though it had one -> never pushed
+        d = self._repo("stale")
+        with open(os.path.join(d, "AGENTS.md"), "w") as f:
+            f.write("Deploy = vercel --prod (CLI only, no git remote).\n")
+        ok, detail = fh.probe_unpushed_work([self.root])
+        self.assertFalse(ok)
+        self.assertIn("stale: AGENTS.md says 'no git remote'", detail)
+
     def test_no_remote_repo_is_counted_not_red(self):
         self._repo("local", remote=False)
         ok, detail = fh.probe_unpushed_work([self.root])
