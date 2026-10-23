@@ -774,6 +774,33 @@ class RedTeam0927Part2(unittest.TestCase):
         self.assertEqual(len(died), 1)
         self.assertIn("x (daily)", died[0])
 
+    def test_rows_watch_is_on_do_not_buzz_twice(self):
+        # 23 Oct 2026: one message per problem — Watch red = Watch messages it; stale/off Watch = buzz as before.
+        with tempfile.TemporaryDirectory() as d:
+            orig = fh.WATCH_STATE_FILE
+            fh.WATCH_STATE_FILE = os.path.join(d, "state.json")
+            json.dump({"x": {"status": "red"}, "y": {"status": "green"}, "_w": {"last_tick": 1}},
+                      open(fh.WATCH_STATE_FILE, "w"))
+            try:
+                self.assertEqual(fh.watch_handling(), {"x"})
+                now = datetime.datetime(2026, 9, 28, 6, 31)
+                rec = fh.loud_alert(self._res("x"), now=now, prev={})
+                self.assertEqual((self.sent, rec), ([], {}))
+                fh.loud_alert(self._res("x", "y"), now=now, prev={})       # Watch says y is green: it buzzes
+                self.assertIn("• y", self.sent[0][0])
+                self.assertNotIn("• x", self.sent[0][0])
+                open(os.path.join(d, "off"), "w").close()                    # kill switch: everything buzzes
+                self.assertEqual(fh.watch_handling(), set())
+                os.remove(os.path.join(d, "off"))
+                os.utime(fh.WATCH_STATE_FILE, (1, 1))                         # Watch stopped ticking
+                self.assertEqual(fh.watch_handling(), set())
+            finally:
+                fh.WATCH_STATE_FILE = orig
+
+    def test_reds_are_not_handed_to_fleet_diagnose(self):
+        # 23 Oct 2026: Watch is the only fixer; the handoff stays in the code behind DIAG_HANDOFF.
+        self.assertFalse(fh.DIAG_HANDOFF)
+
     def test_all_green_never_buzzes(self):
         fh.loud_alert(self._res(), now=datetime.datetime(2026, 9, 28, 6, 31), prev={})
         self.assertEqual(self.sent, [])

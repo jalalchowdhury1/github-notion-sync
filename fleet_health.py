@@ -2796,21 +2796,21 @@ FLEET = [
      "outcomes": {"src": "~/.local/bin/money-burn", "verb_re": r"MONEY ([A-Z]+)",
                   "ok": {"OK": "2026-10-16 06:20:11 MONEY OK posted=digest openrouter=6.53 github=352 claude=ok aws=0.00 secs=6"},
                   "not_ok": ["DRY", "FAIL"]}},
-    # fleet-diagnose (10 Oct 2026): every 5 min it diagnoses queued red rows (read-only
-    # Claude → 🩺 card with ✅ Fix it / 🙈 Skip) and polls the taps. Each run ends with
-    # one DIAG line. DIAG FAIL is STICKY for 24 h (red team: a broken login used to log
-    # FAIL once and OK five minutes later) and covers the daily Claude login canary, so
-    # an expired login turns this row red at the next 05:00/06:30 check. Also green:
-    # a fix session's "notify <id>: sent", and "diagnosing N row(s)" (a diagnosis in
-    # flight, ≤20 min; a run killed mid-way leaves it and goes stale → red after 1 h).
     # Watch (22 Oct 2026): the 2-min Mac monitor in ~/concierge/watch. It saves its state
     # every tick, so a state file older than 30 min means Watch itself stopped.
     {"name": "watch-self (Mac monitor ticks every 2 min)", "repo": None,
      "probe": "file_mtime", "path": "~/.local/state/watch/state.json", "max_age_h": 0.5,
      "weak_ok": "the file is rewritten by every tick; age is exactly the liveness asked"},
-    {"name": "fleet-diagnose (auto-diagnosis of red rows)", "repo": None,
-     "probe": "log_tail", "path": "~/Library/Logs/fleet-diagnose.log",
-     "last_line": r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d (?:DIAG OK |notify \S+: sent$|diagnosing \d+ row)", "max_age_h": 1},
+    # Watch canary (23 Oct 2026; was fleet-diagnose's, retired the same day — Watch is the only
+    # fixer now): daily after 04:30 Watch proves the Claude login (`claude -p`), the alerts bot +
+    # its webhook and the tap store, and writes one CANARY OK|FAIL line. A failure re-checks
+    # every 10 min (network) or hourly, so this row stays red until it really works again.
+    {"name": "watch-canary (Claude login + alerts bot + tap store)", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/watch-canary.log",
+     "last_line": r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d CANARY OK ", "max_age_h": 26,
+     "outcomes": {"src": "~/concierge/watch/checks.py", "verb_re": r"CANARY ([A-Z]+)",
+                  "ok": {"OK": "2026-10-23 10:11:58 CANARY OK claude telegram webhook tapstore"},
+                  "not_ok": ["FAIL"]}},
     # checker drift (16 Oct 2026): reads each job's SOURCE for outcome words its
     # log_tail row never classified (see _outcome_drift). quiet_red: a stale checker
     # is a to-do for the checker, not an outage -- morning card only, never a buzz.
@@ -3197,8 +3197,8 @@ def loud_alert(results, now=None, prev=None):
         except Exception:                    # noqa: BLE001
             prev = {}
     already = set(prev.get("names", [])) if prev.get("date") == today else set()
-    # quiet_red rows (2026-10-03) show in the digest but never buzz.
-    quiet = {i["name"] for i in FLEET if i.get("quiet_red")}
+    # quiet_red rows (2026-10-03) show in the digest but never buzz; nor do rows Watch is on (23 Oct).
+    quiet = {i["name"] for i in FLEET if i.get("quiet_red")} | watch_handling()
     bad = [r for r in results if not r.get("ok") and r["name"] not in quiet]
     new = [r for r in bad if r["name"] not in already]
     if not new or now.time() < LOUD_FROM:
@@ -3233,6 +3233,27 @@ def loud_alert(results, now=None, prev=None):
         return dict(kept, undelivered=sorted(r["name"] for r in new))
     print(f"loud alert sent for {len(new)} new failing system(s)")
     return {"date": today, "names": sorted(already | {r["name"] for r in bad})}
+
+
+# 23 Oct 2026: Watch (~/concierge/watch, the 2-min Mac monitor) is the only fixer. False = the
+# handoff below to fleet-diagnose is off (its launchd job is retired). Undo: True + restore its plist.
+DIAG_HANDOFF = False
+# One message per problem (23 Oct 2026): rows Watch already graded red are its job — it sends at
+# most one message for each (an ASK card, a NEVER line, "not fixed twice"), so the buzz leaves
+# them out. Watch stale (> 30 min) or switched off → everything buzzes as before.
+WATCH_STATE_FILE = os.path.expanduser("~/.local/state/watch/state.json")
+
+
+def watch_handling():
+    """Row names Watch is handling right now (graded red, Watch alive and on); else empty."""
+    try:
+        if (time.time() - os.path.getmtime(WATCH_STATE_FILE) > 1800
+                or os.path.exists(os.path.join(os.path.dirname(WATCH_STATE_FILE), "off"))):
+            return set()
+        st = json.loads(_read(WATCH_STATE_FILE))
+    except (OSError, ValueError):
+        return set()
+    return {n for n, u in st.items() if isinstance(u, dict) and u.get("status") == "red"}
 
 
 DIAG_QUEUE = os.path.expanduser("~/.local/state/fleet-diagnose/queue")
@@ -3506,8 +3527,9 @@ def main(argv=()) -> None:
         loud = loud_alert(results, prev=prev_loud)
         # Before publish (red team 10 Oct): a git-push timeout in publish raises, and
         # health.json already marks the rows as buzzed, so nothing would queue later.
-        queue_diagnosis(results, prev_loud, loud)
-        queue_night(results, now)            # 18 Oct: the 05:00 run feeds the 05:45 Night fix (silent)
+        if DIAG_HANDOFF:                     # off since 23 Oct: Watch finds and fixes reds itself
+            queue_diagnosis(results, prev_loud, loud)
+            queue_night(results, now)        # 18 Oct: the 05:00 run feeds the 05:45 Night fix (silent)
         publish(results, mode, loud)
     finally:
         try:
