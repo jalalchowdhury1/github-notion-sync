@@ -1032,7 +1032,7 @@ class LoudAlertDenominator(unittest.TestCase):
             fh.loud_alert(res, now=datetime.datetime(2026, 9, 28, 6, 31), prev={})
         finally:
             fh._telegram_send = orig
-        self.assertIn("1 of 2 systems failing", sent[0])
+        self.assertEqual(sent[0], "🛠 Fleet health · 1 of 2 red\na")
 
 
 class LoudAlertCheckerTrouble(unittest.TestCase):
@@ -1053,17 +1053,17 @@ class LoudAlertCheckerTrouble(unittest.TestCase):
                 "detail": "probe error: RuntimeError: gh run list failed (after 3 attempts)"}
                for i in range(20)]
         msg = self._send(res)
-        self.assertNotIn("systems failing", msg)
-        self.assertIn("could not look at 20 of 20", msg)
+        self.assertNotIn(" red", msg)
+        self.assertIn("20 of 20 unchecked", msg)
 
     def test_mixed_counts_real_reds_only(self):
         res = [{"name": "a (x)", "ok": False, "detail": "last run failure"},
                {"name": "b (x)", "ok": False, "detail": "probe error: TimeoutError"},
                {"name": "c", "ok": True, "detail": "ok"}]
         msg = self._send(res)
-        self.assertIn("1 of 3 systems failing", msg)
-        self.assertIn("Also could not check 1", msg)
-        self.assertIn("b", msg.splitlines()[-2])
+        self.assertIn("1 of 3 red", msg)
+        self.assertIn("1 unchecked", msg)
+        self.assertEqual(len(msg.splitlines()), 2)
 
 
 class CardWindow(unittest.TestCase):

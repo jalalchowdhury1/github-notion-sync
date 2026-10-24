@@ -87,7 +87,8 @@ rc=$?
 if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then
   curl -s -m 20 -o /dev/null "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
     --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
-    --data-urlencode "text=🚨 fleet_health.py died with exit $rc before it could report — the checker is down, not the fleet. Tail of health.log has the traceback. Paste this to Claude." \
+    --data-urlencode "text=⚠️ Fleet health · checker died
+exit $rc · traceback in health.log" \
     || echo "WARN: wrapper alert failed too"
 fi
 # Snapshot the Mac's actual job schedule (launchd/cron/Time Machine) →

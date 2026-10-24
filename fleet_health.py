@@ -3216,19 +3216,13 @@ def loud_alert(results, now=None, prev=None):
     # the message most likely to teach him to ignore the buzz.
     real = [r for r in bad if not str(r.get("detail", "")).startswith("probe error:")]
     blind = [r for r in bad if r not in real]
-    lines = ([f"🚨 Fleet check: {len(real)} of {len(live)} systems failing"] if real else
-             [f"⚠️ Fleet check could not look at {len(blind)} of {len(live)} systems"])
-    for r in real[:12]:
-        since = r.get("failing_since")
-        lines.append(f"• {r['name']}" + (f" (since {since})" if since and since != today else ""))
-    if len(real) > 12:
-        lines.append(f"• …and {len(real) - 12} more")
-    if blind:
-        lines.append(f"{'Also c' if real else 'C'}ould not check {len(blind)} "
-                     f"(GitHub/AWS/network trouble, not the systems themselves): "
-                     + ", ".join(r["name"].split(" (")[0] for r in blind[:6])
-                     + (" …" if len(blind) > 6 else ""))
-    lines.append("Full detail: tap 🛠 Fleet health in the morning card, or paste this to Claude.")
+    # ALERT-STYLE (24 Oct 2026): one line + the names; the full detail is the 🛠 Fleet health card.
+    short = lambda rows: ", ".join(r["name"].split(" (")[0] for r in rows[:4]) + (f" +{len(rows) - 4} more" if len(rows) > 4 else "")
+    if real:
+        lines = [f"🛠 Fleet health · {len(real)} of {len(live)} red", short(real)
+                 + (f" · {len(blind)} unchecked" if blind else "")]
+    else:
+        lines = [f"🛠 Fleet health · {len(blind)} of {len(live)} unchecked", "GitHub/AWS trouble · " + short(blind)]
     if _telegram_send("\n".join(lines)) != "direct":
         print("WARN: loud alert not delivered")
         # 10 Oct 2026 audit: a dropped buzz used to leave no trace -- red rows then

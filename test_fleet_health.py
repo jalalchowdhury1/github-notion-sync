@@ -749,7 +749,7 @@ class RedTeam0927Part2(unittest.TestCase):
         now = datetime.datetime(2026, 9, 28, 6, 31)
         rec = fh.loud_alert(self._res("x (daily)"), now=now, prev={})
         self.assertEqual(len(self.sent), 1)
-        self.assertIn("1 of 2 systems failing", self.sent[0][0])
+        self.assertIn("1 of 2 red", self.sent[0][0])
         self.assertEqual(rec, {"date": "2026-09-28", "names": ["x (daily)"]})
         rec2 = fh.loud_alert(self._res("x (daily)"), now=now.replace(hour=15), prev=rec)
         self.assertEqual(len(self.sent), 1)                  # same name, same day: quiet
@@ -787,8 +787,7 @@ class RedTeam0927Part2(unittest.TestCase):
                 rec = fh.loud_alert(self._res("x"), now=now, prev={})
                 self.assertEqual((self.sent, rec), ([], {}))
                 fh.loud_alert(self._res("x", "y"), now=now, prev={})       # Watch says y is green: it buzzes
-                self.assertIn("• y", self.sent[0][0])
-                self.assertNotIn("• x", self.sent[0][0])
+                self.assertEqual(self.sent[0][0].splitlines()[1], "y")
                 open(os.path.join(d, "off"), "w").close()                    # kill switch: everything buzzes
                 self.assertEqual(fh.watch_handling(), set())
                 os.remove(os.path.join(d, "off"))
