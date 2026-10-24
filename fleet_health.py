@@ -2621,20 +2621,6 @@ FLEET = [
                   "verb_re": r"PODCAST (RUN|REQUESTS(?: FAILED)?)",
                   "ok": {"RUN": "2026-10-16T19:45:06Z PODCAST RUN: docs=0 writing=0 uploaded=0 stalled=0"},
                   "not_ok": ["REQUESTS", "REQUESTS FAILED"]}},
-    # vercel-deploy-watch (10 Oct 2026): every 30 min (:07/:37) counts the last 24 h of
-    # Vercel deploys (free plan: 100/day for ALL projects; the cap was hit that day) and
-    # pings the alerts thread at 70 and 90. Its only output is one line per run, so a
-    # dead job or an expired Vercel login would silently end the warnings.
-    {"name": "vercel-deploy-watch (100 deploys/day early warning)", "repo": None,
-     "probe": "log_tail", "path": "~/Library/Logs/vercel-deploy-watch.log",
-     "last_line": r"^\S+ \S+ VERCEL DEPLOYS n=\d+ level=(ok|warn|crit) sent=[01]$", "max_age_h": 2,
-     "outcomes": {"src": "~/.local/bin/vercel-deploy-watch", "verb_re": r"(VERCEL DEPLOYS(?: [A-Z]+\b)?)",
-                  "ok": {"VERCEL DEPLOYS": "2026-10-16 15:37:05 VERCEL DEPLOYS n=34 level=ok sent=0"},
-                  "not_ok": ["VERCEL DEPLOYS FAILED"]}},
-    # vercel-cpu-watch (24 Oct 2026): at 09:17/21:17 estimates Vercel's Fluid Active CPU
-    # (free plan: 4 h per rolling 30 days for ALL projects; over = every site paused; emails
-    # at 75% on 21 Oct and 90% on 24 Oct). level=crit means the 3-day rate passes 4 h within
-    # 30 days, so crit is RED here (not just "job ran"): trim the project it names.
     # openrouter-spend-watch (10 Oct 2026, Jalal: alert if OpenRouter spends > $1 in a day):
     # hourly at :23 it reads the account's total usage and pings the alerts thread once a
     # day over $1. One line per run is its only output, so a dead job = silent spend.
