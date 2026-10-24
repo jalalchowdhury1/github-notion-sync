@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-22 06:32",
+ "updated": "2026-10-24 05:02",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -189,16 +189,6 @@
    "mechanism": "launchd com.jalal.emerald-dragon-reminder → ~/.local/bin/emerald-dragon-reminder.sh",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "—",
-   "notes": ""
-  },
-  {
-   "key": "com.jalal.fleet-diagnose",
-   "title": "com.jalal.fleet-diagnose",
-   "when": "every 5 min, 12:00 AM–12:55 AM",
-   "frequency": "Daily",
-   "mechanism": "launchd com.jalal.fleet-diagnose → /opt/homebrew/opt/python@3.14/bin/python3.14",
-   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
-   "logs": "~/Library/Logs/fleet-diagnose.out.log",
    "notes": ""
   },
   {
