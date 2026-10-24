@@ -2631,6 +2631,19 @@ FLEET = [
      "outcomes": {"src": "~/.local/bin/vercel-deploy-watch", "verb_re": r"(VERCEL DEPLOYS(?: [A-Z]+\b)?)",
                   "ok": {"VERCEL DEPLOYS": "2026-10-16 15:37:05 VERCEL DEPLOYS n=34 level=ok sent=0"},
                   "not_ok": ["VERCEL DEPLOYS FAILED"]}},
+    # vercel-cpu-watch (24 Oct 2026): at 09:17/21:17 estimates Vercel's Fluid Active CPU
+    # (free plan: 4 h per rolling 30 days for ALL projects; over = every site paused; emails
+    # at 75% on 21 Oct and 90% on 24 Oct). level=crit means the 3-day rate passes 4 h within
+    # 30 days, so crit is RED here (not just "job ran"): trim the project it names.
+    {"name": "vercel-cpu-watch (4 h Active CPU / 30 days early warning)", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/vercel-cpu-watch.log",
+     "last_line": r"^\S+ \S+ VERCEL CPU est=\d+m rate=[\d.]+m/d level=(ok|warn) sent=[01] top=\S+$", "max_age_h": 14,
+     "outcomes": {"src": "~/.local/bin/vercel-cpu-watch", "verb_re": r"(VERCEL CPU(?: [A-Z]+\b)?)",
+                  "ok": {"VERCEL CPU": "2026-10-24 21:17:01 VERCEL CPU est=210m rate=3.9m/d level=ok sent=0 top=health-hub"},
+                  "not_ok": ["VERCEL CPU FAILED"]},
+     "note": ("Red = a pause is projected. Fix: trim the top project in the detail line, never upgrade or pause a "
+              "project (his call). A trim shows in the rate only after one full UTC day: if the newest CPU-trim "
+              "commit is < 36 h old, it is waiting, not broken. Read memory project-vercel-active-cpu-2026-10-21.")},
     # openrouter-spend-watch (10 Oct 2026, Jalal: alert if OpenRouter spends > $1 in a day):
     # hourly at :23 it reads the account's total usage and pings the alerts thread once a
     # day over $1. One line per run is its only output, so a dead job = silent spend.
