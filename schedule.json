@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-24 05:02",
+ "updated": "2026-10-25 05:01",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -192,6 +192,16 @@
    "notes": ""
   },
   {
+   "key": "com.jalal.errand-desk",
+   "title": "com.jalal.errand-desk",
+   "when": "—",
+   "frequency": "Always on",
+   "mechanism": "launchd com.jalal.errand-desk → /opt/homebrew/opt/python@3.14/bin/python3.14",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/errand-desk.log",
+   "notes": ""
+  },
+  {
    "key": "com.jalal.fleet-health",
    "title": "Fleet health check (all repos)",
    "when": "5:00 AM (retries 6:30 AM)",
@@ -272,6 +282,16 @@
    "notes": ""
   },
   {
+   "key": "com.jalal.hush-nightly",
+   "title": "com.jalal.hush-nightly",
+   "when": "1:50 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.hush-nightly → /opt/homebrew/opt/python@3.14/bin/python3.14",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/hush-nightly.log",
+   "notes": ""
+  },
+  {
    "key": "com.jalal.inbox-export",
    "title": "Telegram Inbox — nightly archive copy to the Mac",
    "when": "3:50 AM",
@@ -349,6 +369,16 @@
    "mechanism": "launchd com.jalal.mac-heartbeat → ~/PycharmProjects/one-clock/scripts/mac_heartbeat.py",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "—",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.midterms-odds",
+   "title": "com.jalal.midterms-odds",
+   "when": "6:40 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.midterms-odds → /opt/homebrew/opt/python@3.14/bin/python3.14",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/midterms-odds.log",
    "notes": ""
   },
   {
@@ -499,16 +529,6 @@
    "mechanism": "launchd com.jalal.trigger-board → ~/concierge/triggers/board/run.sh",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/trigger-board.err",
-   "notes": ""
-  },
-  {
-   "key": "com.jalal.vercel-deploy-watch",
-   "title": "com.jalal.vercel-deploy-watch",
-   "when": "12:07 AM (retries 12:37 AM)",
-   "frequency": "Daily",
-   "mechanism": "launchd com.jalal.vercel-deploy-watch → -I",
-   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
-   "logs": "~/Library/Logs/vercel-deploy-watch.log",
    "notes": ""
   },
   {
