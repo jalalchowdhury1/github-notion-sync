@@ -2509,10 +2509,19 @@ FLEET = [
     # helpers still see her newest session.
     # aoife-cards (2026-10-18): Aoife's 500-card collection. Every game's server POSTs events; her Card Path page
     # reads cards:state through /api/state. events = newest event vs the one the page serves; power = today's
-    # 9 AM power-game pick (null when he picks none). Ages only, no child data.
+    # 9 AM power-game pick (null when he picks none). feed (2026-10-25) = newest REFUSED event POST vs the last
+    # accepted event: a game whose events keep bouncing (bad key, bad body) goes red. Ages only, no child data.
     {"name": "aoife-cards (Card Path serves her newest cards)", "repo": "aoife-cards",
      "probe": "freshness", "url": "https://aoife-cards.vercel.app/api/freshness",
-     "expect_items": ["events", "power"]},
+     "expect_items": ["events", "power", "feed"]},
+    # cards-backup (2026-10-25): ~/.local/bin/cards-backup (launchd com.jalal.cards-backup, 03:45 daily) copies
+    # cards:state + cards:hist to ~/.local/state/cards-backup/ (her collection cannot be rebuilt). "saved …" is
+    # printed only after both reads passed the collection check and both files were written; a failure is one
+    # "cards-backup: <reason>" line and no file is touched. 24 h + 1 h DST + 1 h slack.
+    {"name": "cards-backup (Mac copy of her card collection)", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/cards-backup.log",
+     "last_line": r"^cards-backup: saved cards-\d\d\.json \+ latest\.json \(\d+ bytes, \d+ hist days\)$",
+     "max_age_h": 26},
     {"name": "aoife-puzzles (screen sees her newest session)", "repo": "aoife-puzzles",
      "probe": "freshness", "url": "https://aoife-puzzles.vercel.app/api/freshness",
      "expect_items": ["position", "rematches", "avoidList"]},

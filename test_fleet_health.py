@@ -136,6 +136,21 @@ class TestRosterGuards(unittest.TestCase):
         self.assertIsNone(re.search(r["last_line"],
                                     "2026-10-10 21:23:01 OPENROUTER SPEND FAILED: HTTPError: 401"))
 
+    def test_cards_backup_row_reads_the_saved_line(self):
+        # 2026-10-25: her card collection lived only in the shared KV; the Mac copy must not go stale unseen.
+        import re
+        r = self._row("cards-backup")
+        self.assertEqual(r["probe"], "log_tail")
+        self.assertLessEqual(r["max_age_h"], 26)
+        self.assertRegex("cards-backup: saved cards-25.json + latest.json (1940 bytes, 6 hist days)", r["last_line"])
+        for bad in ("cards-backup: GET cards:state: HTTP 401 unauthorized",
+                    "cards-backup: cards:state holds an empty collection"):
+            self.assertIsNone(re.search(r["last_line"], bad))
+
+    def test_cards_freshness_row_expects_the_feed_item(self):
+        # 2026-10-25: a game whose ✨ events keep bouncing must turn the row red.
+        self.assertIn("feed", self._row("aoife-cards (Card Path")["expect_items"])
+
     def test_aoife_typing_log_tail_has_a_retry_grace_window(self):
         # 2026-09-19: probed 4 min before the cycle's `wrote coach` line and paged.
         r = self._row("aoife-typing")
