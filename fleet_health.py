@@ -2791,15 +2791,16 @@ FLEET = [
      "outcomes": {"src": "~/.local/bin/money-burn", "verb_re": r"MONEY ([A-Z]+)",
                   "ok": {"OK": "2026-10-16 06:20:11 MONEY OK posted=digest openrouter=6.53 github=352 claude=ok aws=0.00 secs=6"},
                   "not_ok": ["DRY", "FAIL"]}},
-    # Watch (22 Oct 2026): the 2-min Mac monitor in ~/concierge/watch. It saves its state
-    # every tick, so a state file older than 30 min means Watch itself stopped.
+    # Watch (22 Oct 2026): the 2-min Mac monitor in ~/concierge/watch. Every tick whose live
+    # step (reaper, cards, sessions) finished touches step.ok, so one older than 30 min means
+    # Watch stopped or its live step crashes (25 Oct: state.json was saved even by a crashing tick).
     {"name": "watch-self (Mac monitor ticks every 2 min)", "repo": None,
-     "probe": "file_mtime", "path": "~/.local/state/watch/state.json", "max_age_h": 0.5,
-     "weak_ok": "the file is rewritten by every tick; age is exactly the liveness asked"},
+     "probe": "file_mtime", "path": "~/.local/state/watch/step.ok", "max_age_h": 0.5,
+     "weak_ok": "touched only after a tick's live step finished; age is exactly the liveness asked"},
     # Watch canary (23 Oct 2026; was fleet-diagnose's, retired the same day — Watch is the only
     # fixer now): daily after 04:30 Watch proves the Claude login (`claude -p`), the alerts bot +
     # its webhook and the tap store, and writes one CANARY OK|FAIL line. A failure re-checks
-    # every 10 min (network) or hourly, so this row stays red until it really works again.
+    # every 15 min (network) or hourly, so this row stays red until it really works again.
     {"name": "watch-canary (Claude login + alerts bot + tap store)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/watch-canary.log",
      "last_line": r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d CANARY OK ", "max_age_h": 26,
