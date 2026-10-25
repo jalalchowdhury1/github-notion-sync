@@ -2816,6 +2816,29 @@ FLEET = [
      "outcomes": {"src": "~/concierge/watch/checks.py", "verb_re": r"CANARY ([A-Z]+)",
                   "ok": {"OK": "2026-10-23 10:11:58 CANARY OK claude telegram webhook tapstore"},
                   "not_ok": ["FAIL"]}},
+    # Hindsight (25 Oct 2026): every session's memory. /health said fine while half a busy morning's
+    # prompts got no memory (recall past the hook's 10 s) and one session ran 5 days without its memory
+    # tools. hindsight-preflight.sh (keeper, every 30 min) makes a real recall, starts the plugin's MCP
+    # server, checks the cost guards and ends each run with ONE HINDSIGHT OK|FAIL line.
+    {"name": "hindsight (session memory: real recall + MCP tools)", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/hindsight-preflight.log",
+     "last_line": r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d HINDSIGHT OK ", "max_age_h": 1.5,
+     "outcomes": {"src": "~/.local/bin/hindsight-preflight.sh", "verb_re": r"HINDSIGHT ([A-Z]+)",
+                  "ok": {"OK": "2026-10-25 12:46:39 HINDSIGHT OK recall 7.9s \u00b7 MCP starts \u00b7 prompts cancelled 59 of 258 in 24 h"},
+                  "not_ok": ["FAIL"]}},
+    # Always-on Telegram pollers (launchd KeepAlive) had no row (25 Oct 2026): KeepAlive restarts a
+    # crash, not a loop stuck in a call. The errand desk stamps its heartbeat at the top of every
+    # poll pass (<= ~65 s apart).
+    {"name": "errand-desk (Telegram errands loop)", "repo": None,
+     "probe": "file_mtime", "path": "~/.local/state/errand-desk/heartbeat", "max_age_h": 0.25,
+     "weak_ok": "stamped at the top of every poll pass; proves the loop turns, not that a poll worked (it logs nothing per pass)"},
+    # The bookshelf bot logs a heartbeat line every hour with its failed polls in a row. Its own
+    # watchdog restarts a pass stuck 2 h, so 3.5 h without a heartbeat = the watchdog failed too.
+    {"name": "aoife-bookshelf-bot (hourly heartbeat, polls OK)", "repo": None,
+     "probe": "log_block", "log_path": "~/Library/Logs/aoife-bookshelf-bot.log",
+     "block_re": r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) heartbeat: alive, offset \d+, poll fails in a row \d+$",
+     "log_grep": r"poll fails in a row [0-4]$",
+     "max_age_h": 3.5},
     # checker drift (16 Oct 2026): reads each job's SOURCE for outcome words its
     # log_tail row never classified (see _outcome_drift). quiet_red: a stale checker
     # is a to-do for the checker, not an outage -- morning card only, never a buzz.

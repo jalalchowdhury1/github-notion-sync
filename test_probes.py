@@ -1532,3 +1532,40 @@ class OutcomeDrift(unittest.TestCase):
         for r in self.rows():
             with self.subTest(row=r["name"]):
                 self.assertEqual(fh._outcome_drift(r), [])
+
+
+class AlwaysOnServices(unittest.TestCase):
+    """25 Oct 2026: Hindsight, the errand desk and the bookshelf bot had no row. Each must go red on its failure shape."""
+
+    def row(self, prefix, **over):
+        return {**next(r for r in fh.FLEET if r["name"].startswith(prefix)), **over}
+
+    def write(self, text, age_s=0):
+        f = tempfile.NamedTemporaryFile("w", suffix=".log", delete=False)
+        f.write(text)
+        f.close()
+        self.addCleanup(os.unlink, f.name)
+        t = time.time() - age_s
+        os.utime(f.name, (t, t))
+        return f.name
+
+    def test_hindsight_fail_line_or_silence_is_red(self):
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ok = f"{now} HINDSIGHT OK recall 2.1s · MCP starts · prompts cancelled 3 of 80 in 24 h\n"
+        grade = lambda text, age_s=0: fh.probe_log_tail(**self.row("hindsight", path=self.write(text, age_s)))[0]
+        self.assertTrue(grade(ok))
+        self.assertFalse(grade(ok + f"{now} HINDSIGHT FAIL recall answered HTTP 500\n"))
+        self.assertFalse(grade(ok, age_s=2 * 3600))   # the keeper stopped running it
+
+    def test_errand_desk_stale_heartbeat_is_red(self):
+        grade = lambda age_s: fh.probe_file_mtime(**self.row("errand-desk", path=self.write("1", age_s)))[0]
+        self.assertTrue(grade(60))
+        self.assertFalse(grade(20 * 60))
+
+    def test_bookshelf_failing_polls_or_no_heartbeat_is_red(self):
+        stamp = lambda h: (datetime.datetime.now() - datetime.timedelta(hours=h)).strftime("%Y-%m-%d %H:%M:%S")
+        beat = lambda h, fails: f"{stamp(h)} heartbeat: alive, offset 486010172, poll fails in a row {fails}\n"
+        grade = lambda text: fh.probe_log_block(**self.row("aoife-bookshelf-bot", log_path=self.write(text)))[0]
+        self.assertTrue(grade(beat(1, 0) + "poll error: timed out\n"))
+        self.assertFalse(grade(beat(2, 0) + beat(1, 12)))   # polls failing for an hour
+        self.assertFalse(grade(beat(4, 0)))   # no heartbeat since: stuck past its own watchdog
