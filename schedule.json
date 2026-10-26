@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-25 05:01",
+ "updated": "2026-10-26 05:03",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -79,6 +79,16 @@
    "mechanism": "launchd com.jalal.aoife-typing-coach → ~/.nvm/versions/node/v24.15.0/bin/node",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/aoife-typing-coach.out.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.cards-backup",
+   "title": "com.jalal.cards-backup",
+   "when": "3:45 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.cards-backup → ~/.local/bin/cards-backup",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/cards-backup.log",
    "notes": ""
   },
   {
@@ -196,7 +206,7 @@
    "title": "com.jalal.errand-desk",
    "when": "—",
    "frequency": "Always on",
-   "mechanism": "launchd com.jalal.errand-desk → /opt/homebrew/opt/python@3.14/bin/python3.14",
+   "mechanism": "launchd com.jalal.errand-desk → ~/.local/bin/in-tmux",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/errand-desk.log",
    "notes": ""
@@ -286,7 +296,7 @@
    "title": "com.jalal.hush-nightly",
    "when": "1:50 AM",
    "frequency": "Daily",
-   "mechanism": "launchd com.jalal.hush-nightly → /opt/homebrew/opt/python@3.14/bin/python3.14",
+   "mechanism": "launchd com.jalal.hush-nightly → ~/.local/bin/in-tmux",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/hush-nightly.log",
    "notes": ""
@@ -434,7 +444,7 @@
   {
    "key": "com.jalal.podcast-make-watch",
    "title": "com.jalal.podcast-make-watch",
-   "when": "every 10 min, 12:02 AM–12:52 AM",
+   "when": "every 15 min, 12:02 AM–12:47 AM",
    "frequency": "Daily",
    "mechanism": "launchd com.jalal.podcast-make-watch → /opt/homebrew/opt/python@3.14/bin/python3.14",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
