@@ -1552,7 +1552,7 @@ def _headless_browser():
         "~/Library/Caches/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell")))
     if shells:
         return shells[-1], []
-    return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", ["--headless=new"]
+    return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", ["--headless=new", "--disable-features=MacAppCodeSignClone"]
 
 
 def probe_web_render(url, expect_text, **_):
