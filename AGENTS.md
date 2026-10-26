@@ -134,7 +134,7 @@ run):
 | `planner_backup` | today's dated JSON snapshots parse, and the OK marker is present | `dest_dir`, `names`, `log_path` |
 | `rsync_log` | the last rsync block finished with exit 0 and walked ≥ `min_files` regular files | `log_path`, `max_age_h`, `min_files` |
 | `cloudwatch_marker` | a Lambda log carries its success marker | `log_group`, `log_grep`, `today_only`; with `today_only=False`: `fail_grep`, `active_window` (UTC, may wrap), newest outcome wins |
-| `one_clock_lambda` | EventBridge → gh-dispatcher is alive: pings, dispatches, no unrecovered error | windows/minimums |
+| `one_clock_lambda` | EventBridge → gh-dispatcher is alive: pings, dispatches, no unrecovered error (a ping URL answering 5xx is the target's row, not this one; 26 Oct) | windows/minimums |
 | `nuts` | NUTS signal payload: unit test, downloads, price freshness, eval freshness, holding | `url` |
 | `nuts_radar` | radar site 200 + repo's `selfcheck.js` passes + catalysts fresh | `url`, `repo_dir`, `catalysts_url` |
 | `freshness` | what the SCREEN serves reflects the newest input: the app's `GET /api/freshness` (contract v1, ages in hours only); red when an item's input is past `graceH` and the served copy is older, or `servedAgeH` > `maxAgeH`. The app reports, the probe judges | `url`, `expect_items` |

@@ -1058,23 +1058,38 @@ def probe_one_clock_lambda(log_group="/aws/lambda/gh-dispatcher",
         # transient that Lambda already retried into a success doesn't page.
         events = sorted(_events(24 * 60), key=lambda e: e["t"])
         attempts = {}  # RequestId -> [had_error, had_error, ...] in order
-        cur_id, cur_error = None, False
+        target_5xx = set()  # RequestIds whose only errors were a ping URL answering 5xx
+        cur_id, cur_error, cur_ours = None, False, False
         for e in events:
             msg = e["m"]
             if msg.startswith("START RequestId:"):
                 m = req_id_re.search(msg)
-                cur_id, cur_error = (m.group(1) if m else None), False
+                cur_id, cur_error, cur_ours = (m.group(1) if m else None), False, False
             elif "[ERROR]" in msg or "Task timed out" in msg:
                 cur_error = True
+                # 26 Oct 2026: health-hub's tick answered 500 for 35 min (Telegram throttled
+                # its sends) and this row stayed red 24 h pointing at the PAT. A ping URL that
+                # ANSWERED 5xx = scheduler, Lambda and network all worked; the target's own
+                # rows grade it (health-hub: tick loop fresh + sends delivered), and the PING OK
+                # count below still goes red if pings keep failing. 4xx (wrong URL/secret in the
+                # Lambda env), timeouts and every dispatch error stay red here.
+                if not ("_ping_url" in msg and re.search(r"HTTP Error 5\d\d", msg)):
+                    cur_ours = True
             elif msg.startswith("REPORT RequestId:"):
                 m = req_id_re.search(msg)
                 rid = m.group(1) if m else cur_id
                 if rid:
                     attempts.setdefault(rid, []).append(cur_error)
+                    if cur_error and not cur_ours:
+                        target_5xx.add(rid)
+                    elif cur_error:
+                        target_5xx.discard(rid)
         # Red only for a RequestId where every attempt in the window errored
         # (retries exhausted or none happened yet) — a real, unresolved fault.
         unresolved = [rid for rid, tries in attempts.items()
-                      if tries and all(tries)]
+                      if tries and all(tries) and rid not in target_5xx]
+        target_down = sum(1 for rid, tries in attempts.items()
+                          if tries and all(tries) and rid in target_5xx)
         if unresolved:
             return False, (f"{len(errors)} Lambda error line(s) in 24h, "
                            f"{len(unresolved)} RequestId never recovered on "
@@ -1095,6 +1110,8 @@ def probe_one_clock_lambda(log_group="/aws/lambda/gh-dispatcher",
                        f"GH_DISPATCH_PAT has likely been revoked or lost repos")
     err_note = (f"{len(errors)} error line(s) self-healed on retry"
                 if errors else "0 errors")
+    if errors and target_down:
+        err_note += f"; {target_down} ping(s) got a 5xx from the target (graded by its own row)"
     return True, (f"{len(pings)} pings/{ping_window_min}m, "
                   f"{len(dispatches)} dispatches/{dispatch_window_h}h, {err_note}")
 

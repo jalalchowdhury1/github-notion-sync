@@ -769,6 +769,27 @@ class OneClockLambda(_Patched):
         self.assertFalse(ok)
         self.assertIn("never recovered", d)
 
+    PING500 = ("[ERROR] HTTPError: HTTP Error 500: Internal Server Error\nTraceback (most recent call last):\n"
+               '  File "/var/task/lambda_function.py", line 37, in _ping_url')
+
+    def test_ping_target_5xx_on_every_attempt_is_the_targets_row_not_red(self):
+        # 26 Oct 2026 replay: health-hub's tick 500'd x3, dispatcher fine all day.
+        self.errors = ["[ERROR] HTTPError: HTTP Error 500: Internal Server Error"]
+        self.events = self.ev(*[m for _ in range(3) for m in
+                                ("START RequestId: dd4", self.PING500, "REPORT RequestId: dd4")])
+        ok, d = fh.probe_one_clock_lambda()
+        self.assertTrue(ok, d)
+        self.assertIn("5xx from the target", d)
+
+    def test_ping_4xx_or_a_dispatch_5xx_is_still_red(self):
+        for msg in (self.PING500.replace("Error 500", "Error 401"),
+                    "[ERROR] HTTPError: HTTP Error 502\n  File \"x\", line 60, in _dispatch"):
+            self.errors = [msg.splitlines()[0]]
+            self.events = self.ev("START RequestId: ee5", msg, "REPORT RequestId: ee5")
+            ok, d = fh.probe_one_clock_lambda()
+            self.assertFalse(ok, msg)
+            self.assertIn("never recovered", d)
+
     def test_timeout_counts_as_an_error(self):
         self.errors = ["Task timed out after 30.00 seconds"]
         self.events = self.ev("START RequestId: cc3", "Task timed out after 30.00 seconds",
