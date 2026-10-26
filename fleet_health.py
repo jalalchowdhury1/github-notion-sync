@@ -2699,8 +2699,10 @@ FLEET = [
      # (fetch_all_curves never throws; each leg logs "curve X: FAILED") and when
      # a colour-change alert logs "NOT sent". The wrapper's `=== exit 0 ===` also
      # covers the defensive-trigger evaluate that runs after the publish.
+     # 26 Oct: the wrapper (financial-telegram-bot@92ebd00) prints both codes as
+     # `=== exit 0 / evaluate 0 ===`; match that exact line, both must be 0.
      "log_grep": [r"^\s*published → https://gist\.githubusercontent\.com/",
-                  r"^=== exit 0 ===$"],
+                  r"^=== exit 0 / evaluate 0 ===$"],
      "fail_grep": r"curve \S+: FAILED|alert \(\d+ changes\): NOT sent",
      "weekday_only": True, "max_age_h": 28},
 

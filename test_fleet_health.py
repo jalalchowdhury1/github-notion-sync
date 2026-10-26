@@ -126,6 +126,18 @@ class TestRosterGuards(unittest.TestCase):
         self.assertTrue(r["expect_url"].endswith("/api/defensive"))
         self.assertTrue(r.get("require_guard"))
 
+    def test_rubber_band_row_matches_the_wrapper_exit_line(self):
+        # 26 Oct: the wrapper changed its exit line and the row went red on a good run.
+        # Renders the wrapper's own echo with both codes 0; fails loudly if either side drifts.
+        import os, re
+        sh = os.path.expanduser("~/PycharmProjects/financial-telegram-bot/scripts/rubber_band_nightly.sh")
+        if not os.path.exists(sh):
+            self.skipTest("financial-telegram-bot not on this machine")
+        echo = re.search(r'^echo "(=== exit \$rc.*===)"$', open(sh).read(), re.M)
+        self.assertIsNotNone(echo, "rubber_band_nightly.sh no longer echoes '=== exit $rc ... ==='")
+        line = echo.group(1).replace("$rc", "0").replace("$erc", "0")
+        self.assertRegex(line, self._row("rubber-band (weekday")["log_grep"][-1])
+
     def test_openrouter_spend_watch_row_reads_the_outcome_line(self):
         # 2026-10-10: Jalal asked for a ping when OpenRouter spends more than $1 in a day.
         import re

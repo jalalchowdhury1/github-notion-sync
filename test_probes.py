@@ -1141,7 +1141,7 @@ class LogBlockFailGrep(_Patched):
     def _block(self, extra=""):
         t = _local(2, "%Y-%m-%dT%H:%M:%S")
         return (f"rubber-band run {t}\n  curve C3: 3266 days to x\n{extra}"
-                f"  published → https://gist.githubusercontent.com/u/raw/rb.json\n=== exit 0 ===\n")
+                f"  published → https://gist.githubusercontent.com/u/raw/rb.json\n=== exit 0 / evaluate 0 ===\n")
 
     def grade(self, text):
         row = next(r for r in fh.FLEET if r["name"].startswith("rubber-band"))
@@ -1160,6 +1160,11 @@ class LogBlockFailGrep(_Patched):
 
     def test_nonzero_exit_is_red(self):
         self.assertFalse(self.grade(self._block().replace("exit 0", "exit 1"))[0])
+
+    def test_failed_evaluate_or_old_line_is_red(self):
+        # 26 Oct: a failed GO DEFENSIVE check fails the job even when the radar published.
+        self.assertFalse(self.grade(self._block().replace("evaluate 0", "evaluate 1"))[0])
+        self.assertFalse(self.grade(self._block().replace(" / evaluate 0", ""))[0])
 
     def test_failure_in_an_older_block_does_not_count(self):
         old = self._block("  curve m1: FAILED (401)\n").replace(_local(2, "%Y-%m-%dT%H"), _local(30, "%Y-%m-%dT%H"))
