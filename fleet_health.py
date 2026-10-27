@@ -2631,7 +2631,7 @@ FLEET = [
     # the 15 Oct real push read red because only OK matched). DRY never counts.
     {"name": "aaii-macromicro (AAII backup feed, Mac)", "repo": "financial-telegram-bot",
      "probe": "log_tail", "path": "~/Library/Logs/aaii-macromicro.out.log",
-     "last_line": r"^\S+ (OK|PUSHED) macromicro ", "max_age_h": 170,
+     "last_line": r"^\S+ (OK|PUSHED) (macromicro|aaii\.com) ", "max_age_h": 170,  # aaii.com direct read first since 26 Oct
      "outcomes": {"src": "~/PycharmProjects/financial-telegram-bot/scripts/aaii-mac/aaii-macromicro.mjs",
                   "verb_re": r"log\(`([A-Z]+) ",
                   "ok": {"OK": "2026-10-09T18:00:11.855Z OK macromicro 2026-10-08 → week 2026-10-07: bull 40.3 | repo already has 2026-10-07 (macromicro) — no commit",
