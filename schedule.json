@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-26 05:03",
+ "updated": "2026-10-28 05:02",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -382,6 +382,16 @@
    "notes": ""
   },
   {
+   "key": "com.jalal.midterms-mi-flip",
+   "title": "com.jalal.midterms-mi-flip",
+   "when": "every 15 min, 12:00 AM–12:45 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.midterms-mi-flip → /opt/homebrew/opt/python@3.14/bin/python3.14",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/midterms-odds.log",
+   "notes": ""
+  },
+  {
    "key": "com.jalal.midterms-odds",
    "title": "com.jalal.midterms-odds",
    "when": "6:40 AM",
@@ -490,6 +500,16 @@
    "what": "Syncs files to the T7Files volume on the Samsung T7 drive",
    "logs": "/tmp/t7-drive-sync.log",
    "notes": "Fleet health probes its launchd exit code daily"
+  },
+  {
+   "key": "com.jalal.tangerine-call-reminder",
+   "title": "com.jalal.tangerine-call-reminder",
+   "when": "10:00 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.tangerine-call-reminder → ~/.local/bin/tangerine-call-reminder.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/tangerine-call-reminder.log",
+   "notes": ""
   },
   {
    "key": "com.jalal.tesla-watch",
