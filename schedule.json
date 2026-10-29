@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-28 05:02",
+ "updated": "2026-10-29 05:02",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -140,6 +140,16 @@
    "what": "Appends nightly rows (Zillow Zestimate, Redfin estimate, MND 30-yr mortgage rate, USD-CAD, USD-BDT) to the 'Automa Data' Google Sheet that feeds the Daily Trackers spreadsheet",
    "logs": "~/PycharmProjects/daily-trackers/cron.log",
    "notes": "3:30 AM + 4:30/5:30 AM retries (3-slot ladder like dhaka/carmax since 2026-08-24 evening); sheet-level dedupe (a tab already holding today's row is skipped, so retries only fill gaps); Zillow via local browse CLI in its own session (BROWSE_SESSION=trackers); refuses to start after 6:15 AM; replaced the Automa Chrome-extension workflows 2026-08-24"
+  },
+  {
+   "key": "com.jalal.deals-board",
+   "title": "com.jalal.deals-board",
+   "when": "12:05 AM (retries 12:35 AM)",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.deals-board → ~/PycharmProjects/deals-board/scripts/publish.py",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/deals-board.out.log",
+   "notes": ""
   },
   {
    "key": "com.jalal.defensive-nag",
@@ -579,6 +589,26 @@
    "mechanism": "launchd com.jalal.wordrain-open-reminder → ~/.local/bin/wordrain-open-reminder.sh",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/wordrain-open-reminder.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.x-deals-bryan",
+   "title": "com.jalal.x-deals-bryan",
+   "when": "10:00 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.x-deals-bryan → ~/concierge/deals/x_deals.py",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/x-deals.out.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.x-deals",
+   "title": "com.jalal.x-deals",
+   "when": "every 10 min, 12:00 AM–12:50 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.x-deals → ~/concierge/deals/x_deals.py",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/x-deals.out.log",
    "notes": ""
   },
   {
