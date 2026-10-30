@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-29 05:02",
+ "updated": "2026-10-30 05:03",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -502,6 +502,16 @@
    "notes": ""
   },
   {
+   "key": "com.jalal.ruhama-pick-reminder",
+   "title": "com.jalal.ruhama-pick-reminder",
+   "when": "10:00 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.ruhama-pick-reminder → ~/.local/bin/ruhama-pick-reminder.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/ruhama-pick-reminder.log",
+   "notes": ""
+  },
+  {
    "key": "com.jalal.t7-drive-sync",
    "title": "T7 drive sync",
    "when": "4:00 AM",
@@ -597,6 +607,16 @@
    "when": "10:00 AM",
    "frequency": "Daily",
    "mechanism": "launchd com.jalal.x-deals-bryan → ~/concierge/deals/x_deals.py",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/x-deals.out.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.x-deals-taste",
+   "title": "com.jalal.x-deals-taste",
+   "when": "Sunday 11:00 AM",
+   "frequency": "Weekly",
+   "mechanism": "launchd com.jalal.x-deals-taste → ~/concierge/deals/x_deals.py",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/x-deals.out.log",
    "notes": ""
