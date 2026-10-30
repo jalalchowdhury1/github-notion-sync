@@ -2547,6 +2547,11 @@ FLEET = [
     {"name": "moneymap-jalal (served plan = newest plan files)", "repo": None, "screen_repo": "moneymap-jalal",
      "probe": "freshness", "url": "https://moneymap-jalal.vercel.app/api/freshness",
      "expect_items": ["plan", "plan-input-stamp"]},
+    # nightshift-site (2026-10-30): the Composer night shift (composer-auto-research/nightshift, launchd 01:30)
+    # pushes one payload per night to KV ns:latest; the site serves it. Red when it is > 28 h old.
+    {"name": "nightshift-site (served night = last night's run)", "repo": None, "screen_repo": "nightshift-site",
+     "probe": "freshness", "url": "https://nightshift-jalal.vercel.app/api/freshness",
+     "expect_items": ["night shift run"]},
     # health-hub (2026-10-02): the morning digest card vs the newest sender item,
     # and the clean-streak chip recomputed each ET day. Rewrite -> /api/health?fresh=1.
     # 2026-10-19: + inbox = age of the newest Telegram Inbox item (max 30 h). It is
