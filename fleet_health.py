@@ -2666,6 +2666,13 @@ FLEET = [
     {"name": "ftb-fault-matrix (nightly backup-path drill)", "repo": "financial-telegram-bot",
      "probe": "log_tail", "path": "~/Library/Logs/ftb-fault-matrix.log",
      "last_line": r"^=== (\d+)/\1 passed ===$", "max_age_h": 26},
+    # signal-ping (2026-10-31): ~/.local/bin/signal-ping, launchd 08:30 daily. Rings once when a /v2 signal
+    # (AAII, VIX/3M, Lead combos) fires; quiet on every other day, so a dead job looked the same as calm
+    # markets. The last line counts the signals it read from the live site; a fetch failure or traceback
+    # ends the log on another line. The served data's own age is the dashboard freshness row's job.
+    {"name": "signal-ping (dashboard signal fires -> one ping)", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/signal-ping.log",
+     "last_line": r"^ok \d{4}-\d\d-\d\d · [1-9]\d* signals$", "max_age_h": 26},
     # changedetection: KeepAlive server on :5055 (IRS page watches).
     {"name": "changedetection (local watch server :5055)", "repo": None,
      "probe": "web_200", "url": "http://127.0.0.1:5055/", "expect_text": "<title>Change Detection</title>",
