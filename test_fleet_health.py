@@ -203,6 +203,8 @@ class TestRosterGuards(unittest.TestCase):
             for line in bad:
                 self.assertIsNone(re.search(r["last_line"], line), line)
         self.assertEqual(self._row("midterms-mi-flip")["label"], "com.jalal.midterms-mi-flip")
+        screen = self._row("deals-board (screen")  # login-only site: without the bypass every read is Vercel's login page
+        self.assertEqual((screen["probe"], screen["bypass_env"], screen["expect_items"]), ("freshness", "DEALS_VERCEL_BYPASS", ["deals-feed"]))
 
     def test_cards_freshness_row_expects_the_feed_item(self):
         # 2026-10-25: a game whose ✨ events keep bouncing must turn the row red.

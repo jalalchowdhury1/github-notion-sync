@@ -2697,11 +2697,14 @@ FLEET = [
                   "not_ok": ["Claude failed"]}},
     # deals-board (2026-10-31): ~/PycharmProjects/deals-board/scripts/publish.py at :05/:35 all day pushes the
     # private deals site's latest.json. A traceback goes to deals-board.out.log, so here it shows as a stale log.
-    # The site's /api/freshness has no row yet: it needs a Vercel bypass secret, which is Jalal's call.
+    # Screen row: /api/freshness reads the same latest.json (login-only site: bypass secret, his OK 31 Oct).
     {"name": "deals-board (publish deals to the private site)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/deals-board.log",
      "last_line": r"^deals-board publish \d{4}-\d\d-\d\dT\d\d:\d\d:\d\d deals=[1-9]\d* taps=\d+ site_taps=ok git=(pushed|nothing to commit)$",
-     "max_age_h": 2},
+     "max_age_h": 2, "feeds_screen": True, "screen_repo": "deals-board"},
+    {"name": "deals-board (screen serves fresh deals)", "repo": None, "screen_repo": "deals-board",
+     "probe": "freshness", "url": "https://deals-board-jalal.vercel.app/api/freshness",
+     "expect_items": ["deals-feed"], "bypass_env": "DEALS_VERCEL_BYPASS"},
     # midterms (2026-10-31): ~/.local/bin/midterms-odds. Daily 06:40 posts the brief line; after the race is
     # settled it prints "done | …". "polymarket read failed" still ends on "posted | ⚠️ couldn't read Polymarket":
     # he sees that on the brief, so it is not a silent failure.
