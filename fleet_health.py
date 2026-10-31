@@ -2668,11 +2668,14 @@ FLEET = [
      "last_line": r"^=== (\d+)/\1 passed ===$", "max_age_h": 26},
     # signal-ping (2026-10-31): ~/.local/bin/signal-ping, launchd 08:30 daily. Rings once when a /v2 signal
     # (AAII, VIX/3M, Lead combos) fires; quiet on every other day, so a dead job looked the same as calm
-    # markets. The last line counts the signals it read from the live site; a fetch failure or traceback
-    # ends the log on another line. The served data's own age is the dashboard freshness row's job.
+    # markets. The last line counts the signals it read from the live site; a fetch failure, a traceback or
+    # "stale: <id> …" (a signal whose newest reading is 5+ days old can never fire) ends the log on another line.
     {"name": "signal-ping (dashboard signal fires -> one ping)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/signal-ping.log",
-     "last_line": r"^ok \d{4}-\d\d-\d\d · [1-9]\d* signals$", "max_age_h": 26},
+     "last_line": r"^ok \d{4}-\d\d-\d\d · [1-9]\d* signals$", "max_age_h": 26,
+     "outcomes": {"src": "~/.local/bin/signal-ping", "verb_re": r'(?:print|sys\.exit)\(f?"([a-z][a-z -]*[a-z])(?::| \{)',
+                  "ok": {"ok": "ok 2026-10-31 · 6 signals"},
+                  "not_ok": ["stale", "signal-states failed", "would ring"]}},  # would ring = --dry, never the last line
     # changedetection: KeepAlive server on :5055 (IRS page watches).
     {"name": "changedetection (local watch server :5055)", "repo": None,
      "probe": "web_200", "url": "http://127.0.0.1:5055/", "expect_text": "<title>Change Detection</title>",

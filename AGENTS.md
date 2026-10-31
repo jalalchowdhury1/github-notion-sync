@@ -221,7 +221,7 @@ trigger.
 ### 1.5 Testing and dry runs
 
 ```sh
-python3 -m unittest test_fleet_health test_probes test_sync      # ~170 tests, stdlib, ~20 s
+python3 -m unittest test_fleet_health test_probes test_sync      # ~240 tests, stdlib, ~25 s
 # coverage (optional)
 uv run --no-project --with coverage -q python -m coverage run --include=fleet_health.py \
   -m unittest test_fleet_health test_probes && uv run --no-project --with coverage -q python -m coverage report

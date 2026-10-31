@@ -159,6 +159,20 @@ class TestRosterGuards(unittest.TestCase):
                     "cards-backup: cards:state holds an empty collection"):
             self.assertIsNone(re.search(r["last_line"], bad))
 
+    def test_signal_ping_row_reads_the_ok_line(self):
+        # 2026-10-31: the /v2 signal ping is silent on calm days, so a dead or blind job looked like calm markets.
+        import re
+        r = self._row("signal-ping")
+        self.assertEqual(r["probe"], "log_tail")
+        self.assertLessEqual(r["max_age_h"], 26)
+        self.assertRegex("ok 2026-10-31 · 6 signals", r["last_line"])
+        for bad in ("ok 2026-10-31",                                   # the pre-31-Oct line: counted nothing
+                    "ok 2026-10-31 · 0 signals",                       # the site handed back no signals
+                    "stale: hv data to 2026-10-20, pt no data",       # a frozen signal can't fire
+                    "signal-states failed: Error: /api/history → 500",
+                    "doorbell: 📈 <b>AAII fear 20+ · fired</b>"):     # died between the ring and the ok line
+            self.assertIsNone(re.search(r["last_line"], bad), bad)
+
     def test_cards_freshness_row_expects_the_feed_item(self):
         # 2026-10-25: a game whose ✨ events keep bouncing must turn the row red.
         self.assertIn("feed", self._row("aoife-cards (Card Path")["expect_items"])
