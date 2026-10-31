@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-30 05:03",
+ "updated": "2026-10-31 05:02",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -432,6 +432,16 @@
    "notes": ""
   },
   {
+   "key": "com.jalal.nightshift",
+   "title": "com.jalal.nightshift",
+   "when": "1:30 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.nightshift → ~/PycharmProjects/composer-auto-research/nightshift/run.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/nightshift.log",
+   "notes": ""
+  },
+  {
    "key": "com.jalal.nuts-radar",
    "title": "NUTS Catalyst Radar — daily catalysts",
    "when": "4:30 AM",
@@ -479,6 +489,16 @@
    "mechanism": "launchd com.jalal.podcast-requests → ~/PycharmProjects/podcast-factory/favorites-queue/pull_requests.py",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/podcast-requests.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.reader-love",
+   "title": "com.jalal.reader-love",
+   "when": "12:00 AM (retries 12:30 AM)",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.reader-love → ~/concierge/reader/love.py",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "—",
    "notes": ""
   },
   {
