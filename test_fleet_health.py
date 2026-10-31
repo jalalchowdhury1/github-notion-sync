@@ -173,6 +173,37 @@ class TestRosterGuards(unittest.TestCase):
                     "doorbell: 📈 <b>AAII fear 20+ · fired</b>"):     # died between the ring and the ok line
             self.assertIsNone(re.search(r["last_line"], bad), bad)
 
+    def test_deal_and_midterms_rows_read_their_jobs_end_lines(self):
+        # 2026-10-31: x-deals crashed every unblocked run for hours (a regex named WATCH replaced the 👀 path)
+        # and no row noticed; deals-board and the midterms jobs had no row either.
+        import re
+        shapes = {
+            "x-deals (": (["10-31 11:40 ok · 12 posts", "10-31 20:50 ok · 0 posts"],
+                          ["AttributeError: 're.Pattern' object has no attribute 'exists'",
+                           "10-31 11:25 @dealsbybryan not-you(no) B0H1193GTB · 'Promo Code Ekouaer'"]),
+            "x-deals-bryan": (["10-31 10:00 bryan: queued 100 deals"],
+                              ["10-31 10:00 bryan: queued 0 deals",                      # the page never loaded
+                               "subprocess.TimeoutExpired: Command '['/Applications/Google Chrome.app'] timed out"]),
+            "x-deals-taste": (["10-29 10:18 taste-week: proposed 7 line changes", "11-01 11:00 taste-week: no taps this week"],
+                              ["11-01 11:05 taste-week: Claude failed ('gw: timeout')"]),
+            "deals-board (": (["deals-board publish 2026-10-31T11:05:09 deals=654 taps=24 site_taps=ok git=pushed",
+                               "deals-board publish 2026-10-31T10:35:08 deals=621 taps=24 site_taps=ok git=nothing to commit"],
+                              ["deals-board publish 2026-10-31T11:05:09 deals=654 taps=24 site_taps=ok git=push FAILED",
+                               "deals-board publish 2026-10-31T11:05:09 deals=654 taps=24 site_taps=FAILED curl: (6) git=pushed",
+                               "deals-board publish 2026-10-31T11:05:09 deals=0 taps=24 site_taps=ok git=pushed"]),
+            "midterms-odds": (["posted | D sweep 66% ▼1 · R Senate + D House 26% · Midterms", "done | D sweep 70% · Midterms"],
+                              ["post failed | D sweep 66% · Midterms", "polymarket read failed: HTTP Error 503",
+                               "state El-Sayed → Rogers"]),
+        }
+        for prefix, (good, bad) in shapes.items():
+            r = self._row(prefix)
+            self.assertEqual(r["probe"], "log_tail", prefix)
+            for line in good:
+                self.assertRegex(line, r["last_line"])
+            for line in bad:
+                self.assertIsNone(re.search(r["last_line"], line), line)
+        self.assertEqual(self._row("midterms-mi-flip")["label"], "com.jalal.midterms-mi-flip")
+
     def test_cards_freshness_row_expects_the_feed_item(self):
         # 2026-10-25: a game whose ✨ events keep bouncing must turn the row red.
         self.assertIn("feed", self._row("aoife-cards (Card Path")["expect_items"])

@@ -2676,6 +2676,46 @@ FLEET = [
      "outcomes": {"src": "~/.local/bin/signal-ping", "verb_re": r'(?:print|sys\.exit)\(f?"([a-z][a-z -]*[a-z])(?::| \{)',
                   "ok": {"ok": "ok 2026-10-31 · 6 signals"},
                   "not_ok": ["stale", "signal-states failed", "would ring"]}},  # would ring = --dry, never the last line
+    # x-deals (2026-10-31): ~/concierge/deals/x_deals.py, three launchd jobs, each with its own log. On 31 Oct a
+    # regex named WATCH replaced the 👀 path and every unblocked run crashed before saving state, with no alert.
+    # Main job: every 10 min, silent 9 PM-11 AM, so at 05:00/06:30 the last line is the 20:50 run's (~10 h).
+    {"name": "x-deals (deal pings, every 10 min 11 AM-9 PM)", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/x-deals.out.log",
+     "last_line": r"^\d\d-\d\d \d\d:\d\d ok · \d+ posts$", "max_age_h": 16,
+     "grace_min": 10, "grace_lines": 400},  # a daytime check mid-run: one run logs 100+ deal lines
+    {"name": "x-deals-bryan (10 AM DealsByBryan queue)", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/x-deals-bryan.out.log",
+     "last_line": r"^\d\d-\d\d \d\d:\d\d bryan: queued [1-9]\d* deals$", "max_age_h": 26},  # 0 = the page never loaded
+    {"name": "x-deals-taste (Sunday 11 AM taste-profile update)", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/x-deals-taste.out.log",
+     "last_line": r"^\d\d-\d\d \d\d:\d\d taste-week: (no taps this week|\d+ taps already in the profile|proposed \d+ line changes)$",
+     "max_age_h": 170,  # weekly: Sunday 05:00 sees last Sunday's run, ~163 h + the DST night
+     "outcomes": {"src": "~/concierge/deals/x_deals.py", "verb_re": r'log\(f?"taste-week: (?:\{[^}]*\} )?([A-Za-z][a-z ]*[a-z])',
+                  "ok": {"no taps this week": "11-01 11:00 taste-week: no taps this week",
+                         "taps already in the profile": "11-01 11:01 taste-week: 4 taps already in the profile",
+                         "proposed": "10-29 10:18 taste-week: proposed 7 line changes"},
+                  "not_ok": ["Claude failed"]}},
+    # deals-board (2026-10-31): ~/PycharmProjects/deals-board/scripts/publish.py at :05/:35 all day pushes the
+    # private deals site's latest.json. A traceback goes to deals-board.out.log, so here it shows as a stale log.
+    # The site's /api/freshness has no row yet: it needs a Vercel bypass secret, which is Jalal's call.
+    {"name": "deals-board (publish deals to the private site)", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/deals-board.log",
+     "last_line": r"^deals-board publish \d{4}-\d\d-\d\dT\d\d:\d\d:\d\d deals=[1-9]\d* taps=\d+ site_taps=ok git=(pushed|nothing to commit)$",
+     "max_age_h": 2},
+    # midterms (2026-10-31): ~/.local/bin/midterms-odds. Daily 06:40 posts the brief line; after the race is
+    # settled it prints "done | …". "polymarket read failed" still ends on "posted | ⚠️ couldn't read Polymarket":
+    # he sees that on the brief, so it is not a silent failure.
+    {"name": "midterms-odds (06:40 brief line)", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/midterms-odds.log",
+     "last_line": r"^(posted|done) \| \S", "max_age_h": 26,
+     "outcomes": {"src": "~/.local/bin/midterms-odds", "verb_re": r'(?:print\(|else )"([a-z][a-z ]*[a-z])',
+                  "ok": {"posted": "posted | D sweep 70% ▲1 · R Senate + D House 24% · MI El-Sayed 80% ▲3 · Midterms",
+                         "done": "done | D sweep 70% · R Senate + D House 24% · Midterms"},
+                  "not_ok": ["post failed", "polymarket read failed",
+                             "state"]}},  # state = the --flip job's line, which has its own log
+    {"name": "midterms-mi-flip (Michigan Senate leader flip, every 15 min)", "repo": None,
+     "probe": "launchd_exit", "label": "com.jalal.midterms-mi-flip",
+     "weak_ok": "prints only when the leader flips, so there is no success line; a crash leaves exit 1 until a clean run 15 min later"},
     # changedetection: KeepAlive server on :5055 (IRS page watches).
     {"name": "changedetection (local watch server :5055)", "repo": None,
      "probe": "web_200", "url": "http://127.0.0.1:5055/", "expect_text": "<title>Change Detection</title>",
