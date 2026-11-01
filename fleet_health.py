@@ -2684,7 +2684,10 @@ FLEET = [
     {"name": "x-deals (deal pings, every 10 min 11 AM-9 PM)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/x-deals.out.log",
      "last_line": r"^\d\d-\d\d \d\d:\d\d ok · \d+ posts$", "max_age_h": 16,
-     "grace_min": 10, "grace_lines": 400},  # a daytime check mid-run: one run logs 100+ deal lines
+     "grace_min": 10, "grace_lines": 400,  # a daytime check mid-run: one run logs 100+ deal lines
+     # 1 Nov: a finished run whose source (X list, Slickdeals, taste check, Amazon pages) failed 30+ min ends
+     # "FAILED · …"; the runs every 10 min keep the log young, so without this grace hid it behind an old ok
+     "grace_unless": r"^\d\d-\d\d \d\d:\d\d FAILED · "},
     {"name": "x-deals-bryan (10 AM DealsByBryan queue)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/x-deals-bryan.out.log",
      "last_line": r"^\d\d-\d\d \d\d:\d\d bryan: queued [1-9]\d* deals$", "max_age_h": 26},  # 0 = the page never loaded
