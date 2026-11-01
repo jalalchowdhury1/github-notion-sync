@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-31 05:02",
+ "updated": "2026-11-01 05:02",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -398,7 +398,7 @@
    "frequency": "Daily",
    "mechanism": "launchd com.jalal.midterms-mi-flip → /opt/homebrew/opt/python@3.14/bin/python3.14",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
-   "logs": "~/Library/Logs/midterms-odds.log",
+   "logs": "~/Library/Logs/midterms-mi-flip.log",
    "notes": ""
   },
   {
@@ -532,6 +532,26 @@
    "notes": ""
   },
   {
+   "key": "com.jalal.signal-ping",
+   "title": "com.jalal.signal-ping",
+   "when": "8:30 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.signal-ping → ~/.local/bin/signal-ping",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/signal-ping.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.story-detective-reminder",
+   "title": "com.jalal.story-detective-reminder",
+   "when": "10:00 AM (retries 10:15 AM)",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.story-detective-reminder → ~/.local/bin/story-detective-reminder.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "—",
+   "notes": ""
+  },
+  {
    "key": "com.jalal.t7-drive-sync",
    "title": "T7 drive sync",
    "when": "4:00 AM",
@@ -612,6 +632,16 @@
    "notes": ""
   },
   {
+   "key": "com.jalal.wayback-lane",
+   "title": "com.jalal.wayback-lane",
+   "when": "9:00 PM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.wayback-lane → ~/PycharmProjects/wayback-lane/run.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/wayback-lane.log",
+   "notes": ""
+  },
+  {
    "key": "com.jalal.wordrain-open-reminder",
    "title": "com.jalal.wordrain-open-reminder",
    "when": "9:00 AM",
@@ -628,7 +658,7 @@
    "frequency": "Daily",
    "mechanism": "launchd com.jalal.x-deals-bryan → ~/concierge/deals/x_deals.py",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
-   "logs": "~/Library/Logs/x-deals.out.log",
+   "logs": "~/Library/Logs/x-deals-bryan.out.log",
    "notes": ""
   },
   {
@@ -638,7 +668,7 @@
    "frequency": "Weekly",
    "mechanism": "launchd com.jalal.x-deals-taste → ~/concierge/deals/x_deals.py",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
-   "logs": "~/Library/Logs/x-deals.out.log",
+   "logs": "~/Library/Logs/x-deals-taste.out.log",
    "notes": ""
   },
   {
