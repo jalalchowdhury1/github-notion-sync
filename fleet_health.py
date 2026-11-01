@@ -2566,10 +2566,15 @@ FLEET = [
     # red when the copy predates the newest NYSE close by > 6 h, or nothing is served.
     # 2026-11-01: + fwd-pe — the SPY chart's forward P/E lens (FactSet weekly report): red when a
     # new report sits unread past 6 h, or the newest served report is over 30 days old.
+    # 2026-11-01: + served:vol / served:breadth / served:polymarket (graded by the app since the robustness
+    # audit; polymarket leaves the reply when nothing is served, so only expect_items sees it die) and pe —
+    # the Market Valuation tile's trailing P/E: red when it lags the newest close past 6 h, or CAPE / nothing
+    # stands in (served:fred grades only the FRED series and stays green then).
     {"name": "financial-dashboard (rubber band + history served fresh)", "repo": "financial-telegram-bot",
      "probe": "freshness", "url": "https://financial-telegram-bot-beryl.vercel.app/api/freshness",
      "expect_items": ["rubber-band", "history-sheet", "served:spy", "served:spy-daily-move",
-                      "served:market-extra", "served:fred", "served:sheets", "served:fear-greed", "fwd-pe"]},
+                      "served:market-extra", "served:fred", "served:sheets", "served:fear-greed", "fwd-pe",
+                      "served:vol", "served:breadth", "served:polymarket", "pe"]},
     # Daily Reader (2026-10-02): every tab graded through get_data(), the page's own
     # path. The reddit-browser web_fresh row reads the Mac's `checked` stamp, which
     # stays fresh even when list_problem() rejects the new list and the old one shows.
