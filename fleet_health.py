@@ -2729,6 +2729,10 @@ FLEET = [
     {"name": "midterms-mi-flip (Michigan Senate leader flip, every 15 min)", "repo": None,
      "probe": "launchd_exit", "label": "com.jalal.midterms-mi-flip",
      "weak_ok": "prints only when the leader flips, so there is no success line; a crash leaves exit 1 until a clean run 15 min later"},
+    # chess-review (2026-11-02): ~/.local/bin/chess-review, every 15 min; opens a coach review session after a play.
+    {"name": "chess-review (coach review after each play, every 15 min)", "repo": None,
+     "probe": "launchd_exit", "label": "com.jalal.chess-review",
+     "weak_ok": "logs started/quiet/playing/opened lines; a failed read or session open exits 1 until a clean run"},
     # changedetection: KeepAlive server on :5055 (IRS page watches).
     {"name": "changedetection (local watch server :5055)", "repo": None,
      "probe": "web_200", "url": "http://127.0.0.1:5055/", "expect_text": "<title>Change Detection</title>",
