@@ -1595,3 +1595,19 @@ class AlwaysOnServices(unittest.TestCase):
         self.assertTrue(grade(beat(1, 0) + "poll error: timed out\n"))
         self.assertFalse(grade(beat(2, 0) + beat(1, 12)))   # polls failing for an hour
         self.assertFalse(grade(beat(4, 0)))   # no heartbeat since: stuck past its own watchdog
+
+
+class TestWeekdayRowSpansClockChangeWeekend(unittest.TestCase):
+    """Watch 467d9cd2 (2 Nov 2026): hedgelab went red at 16:12Z on the Monday after
+    fall-back. Real runs: last Friday dispatch 2026-10-30T16:10:31Z, Monday's noon
+    dispatch due 2026-11-02T17:10Z (12:10 EST)."""
+
+    def test_hedgelab_window_covers_friday_to_monday_after_fall_back(self):
+        row = next(r for r in fh.FLEET if r["name"] == "hedgelab (noon hedge check)")
+        fri = datetime.datetime(2026, 10, 30, 16, 10, 31, tzinfo=datetime.timezone.utc)
+        mon = datetime.datetime(2026, 11, 2, 17, 10, tzinfo=datetime.timezone.utc)
+        gap_h = (mon - fri).total_seconds() / 3600
+        # The probe at 16:12Z that went red was 72.03h after Friday's run.
+        self.assertGreaterEqual(row["max_age_h"], gap_h + 2, "Monday dispatch needs slack to land")
+        # Never loosen: a skipped Monday run must still go red the same day.
+        self.assertLess(row["max_age_h"], 96 - 12)

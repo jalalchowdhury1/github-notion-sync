@@ -1993,7 +1993,10 @@ FLEET = [
     # all. The fallback re-checks earlier runs inside max_age_h and finds the one
     # that did the work. Grading the latest run alone would page on a healthy day.
     {"name": "hedgelab (noon hedge check)", "repo": "hedgelab",
-     "probe": "gh_run", "workflow": "daily.yml", "max_age_h": 72,
+     # 76, not 72 (2 Nov 2026): Fri 12:10 ET -> Mon 12:10 ET is exactly 72h, and
+     # 73h on a clock-change weekend (Fri 16:10Z -> Mon 17:10Z), so 72 went red
+     # every Monday morning. A missed Monday run is still red by 16:10 ET.
+     "probe": "gh_run", "workflow": "daily.yml", "max_age_h": 76,
      "log_grep": r"results/daily/{weekday}\.json",  # weekday-only: Sun/Mon see Friday's
      # AWS one-clock-hedgelab-daily (12:10 ET) is the primary since 27 Sep 2026.
      "expect_event": "workflow_dispatch"},
