@@ -160,6 +160,8 @@ run):
   `lint_roster` refuses it (weak_ok does not excuse it). Regex quantifiers like `\d{4}`
   are fine.
 
+**Weekday-only `max_age_h`:** size it from Friday's run to Monday's run + 1 h for the fall-back weekend + slack for the dispatch to land (hedgelab noon = 72 h + 1 h → 76; red at 72 every post-fall-back Monday, Watch 467d9cd2, 2 Nov).
+
 **Traps that have bitten, every one of them real:**
 - **The Actions echo trap.** Actions prints each step's source into the log (colour
   `\x1b[36;1m`), so `echo "DONE"` matches `DONE` on every run. Anchor markers on the log's
