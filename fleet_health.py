@@ -92,14 +92,19 @@ def _expand_dates(pattern, today=None):
     healthy financial-dashboard-history. A caller-supplied `today` stands in for it.
     {utcdate} = UTC today|UTC yesterday (JAL-18, 19 Oct 2026): from 00:00 UTC (20:00
     EDT) until that UTC day's first run, the newest slot is still yesterday's, so
-    {utctoday} paged financial-dashboard-history red every evening."""
+    {utctoday} paged financial-dashboard-history red every evening. It also takes
+    UTC tomorrow (Watch a8e002bb, 2 Nov 2026): that job labels any run after 20:00 UTC
+    as the NEXT UTC day's AM slot, so a cron GitHub ran 8.5 h late (22:30Z) printed
+    "slot 2026-11-03-AM" on the 2nd and paged red until midnight UTC. No real run can
+    print a tomorrow label before 20:00 UTC, so this adds no false green."""
     utc = today or datetime.datetime.now(datetime.timezone.utc).date()
     utc_yday = utc - datetime.timedelta(days=1)
+    utc_tmrw = utc + datetime.timedelta(days=1)
     today = today or datetime.date.today()
     yday = today - datetime.timedelta(days=1)
     return (pattern.replace("{today}", today.isoformat())
             .replace("{utctoday}", utc.isoformat())
-            .replace("{utcdate}", f"(?:{utc.isoformat()}|{utc_yday.isoformat()})")
+            .replace("{utcdate}", f"(?:{utc.isoformat()}|{utc_yday.isoformat()}|{utc_tmrw.isoformat()})")
             .replace("{weekday}", f"(?:{'|'.join(_weekday_dates(today))})")
             .replace("{date}", f"(?:{today.isoformat()}|{yday.isoformat()})"))
 

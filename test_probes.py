@@ -330,6 +330,18 @@ class GhRun(_Patched):
         ok, d = self._fdh_grade(f"slot {yday}-PM\ndedupe guard: slot {yday}-PM already has a successful run\n")
         self.assertTrue(ok, d)
 
+    def test_utcdate_greens_a_late_run_labelled_tomorrow_am(self):
+        # Watch a8e002bb, 2 Nov 2026 17:34 ET: GitHub ran the 14:00Z cron at 22:30Z;
+        # the job labels runs after 20:00 UTC as the next UTC day's AM slot. Real lines:
+        tmrw = (datetime.datetime.now(datetime.timezone.utc).date()
+                + datetime.timedelta(days=1)).isoformat()
+        log = (f"2026-11-02T22:31:16Z INFO: dedupe guard: no prior successful run found in slot {tmrw}-AM; proceeding.\n"
+               "2026-11-02T22:31:16Z Data successfully appended to Google Sheet. (70 metrics; carried_forward=0, na_remaining=0, stale=0)\n")
+        ok, d = self._fdh_grade(log)
+        self.assertTrue(ok, d)
+        # Tripwire: the same late run with a stale column is still red.
+        self.assertFalse(self._fdh_grade(log.replace("stale=0", "stale=2"))[0])
+
     def test_utcdate_still_red_when_the_slot_marker_is_missing_or_old(self):
         # Tripwire: no slot line at all, or a slot two UTC days old, is still red.
         old = (datetime.datetime.now(datetime.timezone.utc).date()
@@ -1249,7 +1261,7 @@ class DateTokens(unittest.TestCase):
         self.assertEqual(fh._expand_dates("{weekday}", mon), "(?:2026-09-28|2026-09-25)")
         self.assertEqual(fh._expand_dates(r"\d{4}", mon), r"\d{4}")   # quantifiers untouched
         self.assertEqual(fh._expand_dates("slot {utctoday}", mon), "slot 2026-09-28")
-        self.assertEqual(fh._expand_dates("slot {utcdate}", mon), "slot (?:2026-09-28|2026-09-27)")
+        self.assertEqual(fh._expand_dates("slot {utcdate}", mon), "slot (?:2026-09-28|2026-09-27|2026-09-29)")
 
     def test_log_marker_now_understands_weekday(self):
         import re
