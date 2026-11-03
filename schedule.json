@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-01 05:02",
+ "updated": "2026-11-03 05:04",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -109,6 +109,16 @@
    "mechanism": "launchd com.jalal.changedetection → ~/.local/share/changedetection/.venv/bin/changedetection.io",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/changedetection.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.chess-review",
+   "title": "com.jalal.chess-review",
+   "when": "every 15 min, 12:00 AM–12:45 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.chess-review → /opt/homebrew/opt/python@3.14/bin/python3.14",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/chess-review.log",
    "notes": ""
   },
   {
