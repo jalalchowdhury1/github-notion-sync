@@ -2871,13 +2871,13 @@ FLEET = [
     # workflow source also contains "NO CHANGE: AM Reads already current" (the
     # Actions echo trap), but there it follows `echo "`, never the stamp.
     {"name": "reddit-scraper (AM Reads morning list)", "feeds_screen": True, "repo": "reddit-scraper",
-     "probe": "gh_run", "workflow": "am_reads.yml", "max_age_h": 30,
-     # Round 8: "Fetching AM Reads post" prints BEFORE the fetch, so a fetch that
-     # failed (returns []) still matched it, and the empty run then said NO CHANGE.
-     # Both new markers print only after a real parse / a real CSV check.
-     "log_grep": [r"\dZ\s+Extracted [1-9]\d* articles",
-                  r"\dZ (?:Unchanged: data/ritholtz/articles\.csv already holds this post|Saved data/ritholtz/articles\.csv) \([1-9]\d* articles\)",
-                  r"\dZ (?:NO CHANGE: AM Reads already current|AM READS PUSHED: [0-9a-f]{7})"]},
+     # 4 Nov 2026: Cloudflare walls ritholtz.com for GitHub's runners, so the Mac
+     # (mac/am-reads-mac.sh, in the 07:00/08:30/10:00 daily-reader-kick) is the producer
+     # and am_reads.yml only a backup that never parses. One line per run, printed only
+     # after the scraper exited 0 AND parsed articles: the parse proof rides on it.
+     # {date}: runs after the 05:00 check. Never grade the GH backup's "NOT NEEDED" line.
+     "probe": "log_marker", "log_path": "~/Library/Logs/daily-reader-kick.log",
+     "log_grep": r"{date} \d\d:\d\d:\d\d AM READS MAC (?:PUSHED [0-9a-f]{7,}|NO CHANGE) \(Extracted [1-9]\d* articles\)"},
     # llm-balance-check (launchd 08:10) is the only warning before the paid
     # OpenRouter lane runs dry. A blank balance (API/key broken) prints
     # "openrouter=" with no number and fails the row. Runs after the 05:00

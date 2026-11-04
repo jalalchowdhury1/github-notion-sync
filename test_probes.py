@@ -495,6 +495,20 @@ class PlannerAndLogMarker(_Patched):
         log = self.write("m.log", f"OK {old}\n")
         self.assertFalse(fh.probe_log_marker(log, r"OK {date}")[0])
 
+    def test_am_reads_row_grades_the_mac_parse_not_the_github_backup(self):
+        """4 Nov 2026: ritholtz.com walls GitHub, the Mac produces AM Reads. Known-bad
+        shapes stay red: a failed Mac run, the GH backup's no-op line, a stale day."""
+        row = next(r for r in fh.FLEET if r["name"].startswith("reddit-scraper (AM Reads"))
+        t = datetime.date.today().isoformat()
+        old = (datetime.date.today() - datetime.timedelta(days=2)).isoformat()
+        grade = lambda text: fh.probe_log_marker(self.write("k.log", text), row["log_grep"])[0]
+        self.assertTrue(grade(f"{t} 09:01:04 AM READS MAC PUSHED d6788983 (Extracted 11 articles)\n"))
+        self.assertTrue(grade(f"{t} 08:30:09 AM READS MAC NO CHANGE (Extracted 11 articles)\n"))
+        self.assertFalse(grade(f"{t} 07:00:05 AM READS MAC FAILED: scraper exit 1 (its own FAILED line is above)\n"))
+        self.assertFalse(grade("AM READS BACKUP NOT NEEDED: the Mac read ritholtz.com at x\nNO CHANGE: AM Reads already current\n"))
+        self.assertFalse(grade(f"{t} 07:00:05 AM READS MAC NO CHANGE (Extracted 0 articles)\n"))
+        self.assertFalse(grade(f"{old} 10:00:04 AM READS MAC PUSHED d6788983 (Extracted 11 articles)\n"))
+
     def test_log_marker_missing_file_and_grace(self):
         self.assertFalse(fh.probe_log_marker(str(self.dir / "x"), "OK")[0])
         self.assertTrue(fh.probe_log_marker(str(self.dir / "x"), "OK",
@@ -1213,19 +1227,6 @@ class TightenedMarkers(unittest.TestCase):
 
     def row(self, prefix):
         return next(r for r in fh.FLEET if r["name"].startswith(prefix))
-
-    def test_am_reads_needs_a_real_parse(self):
-        pats = self.row("reddit-scraper (AM Reads")["log_grep"]
-        real = ("a\tb\t2026-09-26T18:40:07.9294951Z   Fetching AM Reads post: https://ritholtz.com/2026/09/x/...\n"
-                "a\tb\t2026-09-26T18:40:07.9295917Z     Extracted 11 articles (after in-post dedup)\n"
-                "a\tb\t2026-09-26T18:40:07.9297891Z Unchanged: data/ritholtz/articles.csv already holds this post (10 articles)\n"
-                "a\tb\t2026-09-26T18:40:09.3574046Z NO CHANGE: AM Reads already current\n")
-        fake = ("a\tb\t2026-09-26T18:40:07.9294951Z   Fetching AM Reads post: https://ritholtz.com/2026/09/x/...\n"
-                "a\tb\t2026-09-26T18:40:07.9295917Z No articles to save\n"
-                "a\tb\t2026-09-26T18:40:09.3574046Z NO CHANGE: AM Reads already current\n")
-        import re
-        self.assertTrue(all(re.search(p, real) for p in pats))
-        self.assertFalse(all(re.search(p, fake) for p in pats))
 
     def test_reddit_browser_failed_scrape_push_is_red(self):
         import re
