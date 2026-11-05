@@ -1651,7 +1651,8 @@ def probe_freshness(url, expect_items=None, bypass_env=None, **_):
             bad.append(f"{name}: stamp in the FUTURE (input {inp}h, served {srv}h) — clock/field bug")
         elif inp is not None and float(inp) > grace and (srv is None or float(srv) > float(inp) + 0.25):
             bad.append(f"{name}: screen serves data {'(none)' if srv is None else f'{float(srv):.0f}h'} old, "
-                       f"newest input {float(inp):.0f}h old (grace {grace:g}h)")
+                       f"newest input {float(inp):.0f}h old (grace {grace:g}h)"
+                       + (f" — why: {str(i['why'])[:240]}" if i.get("why") else ""))
         elif cap is not None and srv is None:
             # moneymap 2026-10-02: a capped feed serving NOTHING (stamp key gone) is not fresh
             bad.append(f"{name}: nothing served (limit {float(cap):g}h)")

@@ -1415,6 +1415,13 @@ class ServedFreshness(unittest.TestCase):
         self.assertFalse(self.grade([{"name": "stamp", "inputAgeH": None, "servedAgeH": None,
                                       "graceH": 0, "maxAgeH": 3}])[0])
 
+    def test_red_line_carries_the_apps_why(self):
+        # 5 Nov 2026: "served:sheets: screen serves data (none)" hid which part was flagged
+        ok, d = self.grade([{"name": "served:sheets", "inputAgeH": 19, "servedAgeH": None, "graceH": 6,
+                             "why": "sheet VIX 25.87 is 56% off CBOE close 16.61: flagged stale"}])
+        self.assertFalse(ok)
+        self.assertIn("why: sheet VIX 25.87 is 56% off CBOE", d)
+
     def test_missing_item_or_bad_shape_red(self):
         self.assertFalse(self.grade([{"name": "other", "inputAgeH": 1, "servedAgeH": 1, "graceH": 3}],
                                     expect_items=["coach mission"])[0])
