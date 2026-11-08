@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-03 05:04",
+ "updated": "2026-11-08 05:01",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -399,6 +399,16 @@
    "mechanism": "launchd com.jalal.mac-heartbeat → ~/PycharmProjects/one-clock/scripts/mac_heartbeat.py",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "—",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.macos-autodl-reminder",
+   "title": "com.jalal.macos-autodl-reminder",
+   "when": "6:00 PM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.macos-autodl-reminder → ~/.local/bin/macos-autodl-reminder.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/macos-autodl-reminder.log",
    "notes": ""
   },
   {
