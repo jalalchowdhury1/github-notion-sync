@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-08 05:01",
+ "updated": "2026-11-10 05:02",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -589,6 +589,16 @@
    "mechanism": "launchd com.jalal.tangerine-call-reminder → ~/.local/bin/tangerine-call-reminder.sh",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/tangerine-call-reminder.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.tesla-watch-catchup",
+   "title": "com.jalal.tesla-watch-catchup",
+   "when": "10:40 PM (retries 1:40 AM)",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.tesla-watch-catchup → ~/PycharmProjects/tesla-watch/scripts/run.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/tesla-watch.log",
    "notes": ""
   },
   {
