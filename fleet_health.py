@@ -958,6 +958,10 @@ def probe_nuts_radar(url, repo_dir, catalysts_url=None, max_cat_age_h=27, **_):
         raise RuntimeError("node not on PATH for fleet-health")
     if p.returncode != 0:
         fails = [ln.strip() for ln in p.stdout.splitlines() if "FAIL" in ln]
+        if fails and all("drifted from the market" in f for f in fails):
+            return False, ("NUTS PRICE DATA WRONG — its stored history disagrees with "
+                           "Yahoo (split/dividend/bad print), so the book may be wrong. "
+                           "Fix in NUTS/backend (update_prices reload). " + " · ".join(fails))
         return False, ("TREE SHAPE DRIFTED from NUTS — consequences on the "
                        "radar are hidden until assets/tree.js is re-derived "
                        "from NUTS/backend/trees/. " + (" · ".join(fails)
