@@ -2718,12 +2718,12 @@ FLEET = [
                          "taps already in the profile": "11-01 11:01 taste-week: 4 taps already in the profile",
                          "proposed": "10-29 10:18 taste-week: proposed 7 line changes"},
                   "not_ok": ["Claude failed"]}},
-    # deals-board (2026-10-31): ~/PycharmProjects/deals-board/scripts/publish.py at :05/:35 all day pushes the
-    # private deals site's latest.json. A traceback goes to deals-board.out.log, so here it shows as a stale log.
-    # Screen row: /api/freshness reads the same latest.json (login-only site: bypass secret, his OK 31 Oct).
+    # deals-board (2026-10-31): ~/PycharmProjects/deals-board/scripts/publish.py at :05/:35 all day uploads the
+    # private deals site's latest.json to Blob (git push until 12 Nov: each one rebuilt the site). A traceback goes to deals-board.out.log, so here it shows as a stale log.
+    # Screen row: /api/freshness reads the same blob (login-only site: bypass secret, his OK 31 Oct).
     {"name": "deals-board (publish deals to the private site)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/deals-board.log",
-     "last_line": r"^deals-board publish \d{4}-\d\d-\d\dT\d\d:\d\d:\d\d deals=[1-9]\d* taps=\d+ site_taps=ok git=(pushed|nothing to commit)$",
+     "last_line": r"^deals-board publish \d{4}-\d\d-\d\dT\d\d:\d\d:\d\d deals=[1-9]\d* taps=\d+ site_taps=ok blob=(uploaded|unchanged)$",
      "max_age_h": 2, "feeds_screen": True, "screen_repo": "deals-board"},
     {"name": "deals-board (screen serves fresh deals)", "repo": None, "screen_repo": "deals-board",
      "probe": "freshness", "url": "https://deals-board-jalal.vercel.app/api/freshness",
