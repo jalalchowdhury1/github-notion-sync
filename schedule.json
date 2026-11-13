@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-10 05:02",
+ "updated": "2026-11-13 05:02",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -150,6 +150,16 @@
    "what": "Appends nightly rows (Zillow Zestimate, Redfin estimate, MND 30-yr mortgage rate, USD-CAD, USD-BDT) to the 'Automa Data' Google Sheet that feeds the Daily Trackers spreadsheet",
    "logs": "~/PycharmProjects/daily-trackers/cron.log",
    "notes": "3:30 AM + 4:30/5:30 AM retries (3-slot ladder like dhaka/carmax since 2026-08-24 evening); sheet-level dedupe (a tab already holding today's row is skipped, so retries only fill gaps); Zillow via local browse CLI in its own session (BROWSE_SESSION=trackers); refuses to start after 6:15 AM; replaced the Automa Chrome-extension workflows 2026-08-24"
+  },
+  {
+   "key": "com.jalal.davidson-ys-watch",
+   "title": "com.jalal.davidson-ys-watch",
+   "when": "every 6 h, 1:17 AM–7:17 PM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.davidson-ys-watch → ~/.local/bin/davidson-ys-watch.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/davidson-ys-watch.log",
+   "notes": ""
   },
   {
    "key": "com.jalal.deals-board",
