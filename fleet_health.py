@@ -2197,10 +2197,8 @@ FLEET = [
     # accident of when each was built, not by risk. aoife-puzzles matters most:
     # it is the WISC-V prep game, and a broken level reads to Jalal as a real
     # weakness in Aoife rather than a bug (see feedback-puzzle-validity-sacred).
-    {"name": "aoife-puzzles (site)", "repo": "aoife-puzzles",
-     "probe": "web_render", "url": "https://aoife-puzzles.vercel.app",
-     "expect_text": "Aoife Puzzles",
-     "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
+    # aoife-puzzles (site) — ROW RETIRED 2026-11-14: Aoife stopped using the app;
+    # repo archived on GitHub, Vercel project removed (his "get rid of").
     # aoife-columns / frameworks / order / algebra — ROWS RETIRED 2026-09-27: Aoife
     # stopped using them; repos archived on GitHub, Vercel projects removed.
     # backbench — ROW RETIRED 2026-09-12. It read `web_200` on backbench.vercel.app
@@ -2552,9 +2550,8 @@ FLEET = [
      "probe": "log_tail", "path": "~/Library/Logs/cards-backup.log",
      "last_line": r"^cards-backup: saved cards-\d\d\.json \+ latest\.json \(\d+ bytes, \d+ hist days\)$",
      "max_age_h": 26},
-    {"name": "aoife-puzzles (screen sees her newest session)", "repo": "aoife-puzzles",
-     "probe": "freshness", "url": "https://aoife-puzzles.vercel.app/api/freshness",
-     "expect_items": ["position", "rematches", "avoidList"]},
+    # aoife-puzzles (screen sees her newest session) — ROW RETIRED 2026-11-14: Aoife stopped using the app;
+    # repo archived on GitHub, Vercel project removed (his "get rid of").
     # moneymap-jalal (2026-10-02): the plan the site serves vs the plan files on the
     # Mac (stamped to KV every 30 min by com.jalal.moneymap-input-stamp).
     {"name": "moneymap-jalal (served plan = newest plan files)", "repo": None, "screen_repo": "moneymap-jalal",
@@ -2807,10 +2804,8 @@ FLEET = [
 
     # aoife-reads was the one Aoife site with no uptime probe while its eight
     # siblings all had one.
-    {"name": "aoife-reads (site)", "repo": "aoife-reads",
-     "probe": "web_render", "url": "https://aoife-reads.vercel.app",
-     "expect_text": "Find Your Reading Powers",
-     "weak_ok": "static game: proves its own app shell is served, not that the game runs"},
+    # aoife-reads (site) — ROW RETIRED 2026-11-14: Aoife stopped using the app;
+    # repo archived on GitHub, Vercel project removed (his "get rid of").
     # money-moves is deliberately NOT rostered: it has no reachable public URL.
     # money-moves.vercel.app 404s (no production alias assigned) and the
     # deployment URL 302s into Vercel SSO. There is nothing a probe could
