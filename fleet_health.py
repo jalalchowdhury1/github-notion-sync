@@ -2582,7 +2582,7 @@ FLEET = [
     # stands in (served:fred grades only the FRED series and stays green then).
     {"name": "financial-dashboard (rubber band + history served fresh)", "repo": "financial-telegram-bot",
      "probe": "freshness", "url": "https://financial-telegram-bot-beryl.vercel.app/api/freshness",
-     "expect_items": ["rubber-band", "history-sheet", "served:spy", "served:spy-daily-move",
+     "expect_items": ["rubber-band", "split", "history-sheet", "served:spy", "served:spy-daily-move",
                       "served:market-extra", "served:fred", "served:sheets", "served:fear-greed", "fwd-pe",
                       "served:vol", "served:breadth", "served:polymarket", "pe"]},
     # Daily Reader (2026-10-02): every tab graded through get_data(), the page's own
