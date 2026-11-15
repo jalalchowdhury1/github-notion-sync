@@ -2733,6 +2733,15 @@ FLEET = [
     {"name": "deals-board (screen serves fresh deals)", "repo": None, "screen_repo": "deals-board",
      "probe": "freshness", "url": "https://deals-board-jalal.vercel.app/api/freshness",
      "expect_items": ["deals-feed"], "bypass_env": "DEALS_VERCEL_BYPASS"},
+    # puzzle-flags (2026-11-15): ~/concierge/puzzle-flags/flags.py at :07/:37, 07:07-21:37, reads the tutor's 🚩 "Puzzle
+    # wrong?" flags from Think Lab, Story & Number Lab and Math Camp; 18:00-22:00 it runs one Claude fix session per flag
+    # (credit lane), whose lines land in the same log before the tick's own end line. An app it cannot read ends
+    # "FAILED n app(s) unreachable". At 05:00/06:30 the last line is the 21:37 tick's (~9 h, + the DST night).
+    {"name": "puzzle-flags (tutor's 🚩 puzzle flags picked up)", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/puzzle-flags.log",
+     "last_line": r"^\d\d-\d\d \d\d:\d\d (ok · \d+ open|off)$", "max_age_h": 11,  # off = his switch (state/off)
+     "grace_min": 65, "grace_lines": 300,  # a check during an evening fix session: its report sits after the last ok
+     "grace_unless": r"^\d\d-\d\d \d\d:\d\d FAILED "},
     # midterms (2026-10-31): ~/.local/bin/midterms-odds. Daily 06:40 posts the brief line; after the race is
     # settled it prints "done | …". "polymarket read failed" still ends on "posted | ⚠️ couldn't read Polymarket":
     # he sees that on the brief, so it is not a silent failure.

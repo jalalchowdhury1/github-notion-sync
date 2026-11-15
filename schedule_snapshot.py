@@ -34,6 +34,11 @@ WEEKDAYS = {0: "Sunday", 1: "Monday", 2: "Tuesday", 3: "Wednesday",
 
 # ── human-facing text for known jobs (key = launchd label / special id) ──────
 CATALOG = {
+    "com.jalal.puzzle-flags": {
+        "title": "Puzzle flags — the tutor's 🚩 Puzzle wrong? button, fixed on the Mac",
+        "what": "Every 30 min 07:07–21:37 ~/concierge/puzzle-flags/flags.py tick reads the open 🚩 flags from Think Lab, Story & Number Lab and Math Camp (GET /api/flags), saves a note per flag in ~/concierge/notes/puzzle-flags/, and 18:00–22:00 runs one headless Claude fix session per flag on the API credit lane (FIXER.md: reproduce, fix, gate, deploy, resolve the flag). One silent Telegram line per outcome; loud only when it needs Jalal",
+        "logs": "~/Library/Logs/puzzle-flags.log",
+        "notes": "Added 2026-11-15. Off switch: touch ~/.local/state/puzzle-flags/off. By hand: flags.py status | fix <app> <id>. Never starts in a repo with uncommitted work. Fleet row: puzzle-flags (log ends 'ok · N open')."},
     "com.jalal.inbox-export": {
         "title": "Telegram Inbox — nightly archive copy to the Mac",
         "what": "03:50 ~/.local/bin/inbox-export pulls the last 2 days of Telegram Inbox items (full cards, every version) from health-hub /api/inbox and appends new ones (dedup id+version) to ~/concierge/notes/inbox/YYYY-MM.jsonl, the archive the `inbox search` CLI reads for 'what did X say' questions",

@@ -191,6 +191,9 @@ class TestRosterGuards(unittest.TestCase):
                               ["deals-board publish 2026-10-31T11:05:09 deals=654 taps=24 site_taps=ok blob=FAILED BlobError: store suspended",
                                "deals-board publish 2026-10-31T11:05:09 deals=654 taps=24 site_taps=FAILED curl: (6) blob=uploaded",
                                "deals-board publish 2026-10-31T11:05:09 deals=0 taps=24 site_taps=ok blob=uploaded"]),
+            "puzzle-flags (": (["11-15 10:20 ok · 1 open", "11-15 21:37 ok · 0 open", "11-16 07:07 off"],       # 15 Nov
+                               ["11-15 10:20 FAILED 2 app(s) unreachable · 0 open", "11-15 18:07 thinklab mwhyqam3-1: fix session 1 starts",
+                                "11-15 18:37 busy", "Traceback (most recent call last):"]),
             "midterms-odds": (["posted | D sweep 66% ▼1 · R Senate + D House 26% · Midterms", "done | D sweep 70% · Midterms"],
                               ["post failed | D sweep 66% · Midterms", "polymarket read failed: HTTP Error 503",
                                "state El-Sayed → Rogers"]),
