@@ -1314,6 +1314,42 @@ class WebFreshFailKey(unittest.TestCase):
         self.assertFalse(self.grade({"send_error_at": _local(1, "%Y-%m-%d %H:%M")})[0])
 
 
+class PackRefreshRows(unittest.TestCase):
+    """14 Nov 2026: the weekly Wayback pack. Screen row = last day of the live cal.json array."""
+
+    def row(self, prefix):
+        return next(r for r in fh.FLEET if r["name"].startswith(prefix))
+
+    def screen(self, days_ago):
+        cal = [(datetime.date.today() - datetime.timedelta(days=d)).isoformat() for d in (30, days_ago)]
+        srv = _Server({"/data/cal.json": (200, json.dumps(cal), {})})
+        try:
+            return fh.probe_web_fresh(**dict(self.row("wayback-backtester ("), url=srv.base + "/data/cal.json"))
+        finally:
+            srv.close()
+
+    def test_screen_fresh_pack_green(self):
+        self.assertTrue(self.screen(9)[0])        # a holiday-Friday week, graded Sunday before the run
+
+    def test_screen_stale_pack_red(self):
+        ok, d = self.screen(12)
+        self.assertFalse(ok)
+        self.assertIn("limit 264h", d)
+
+    def tail(self, text):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "pack-refresh.log")
+            Path(p).write_text(text)
+            return fh.probe_log_tail(**dict(self.row("pack-refresh ("), path=p))
+
+    def test_writer_not_now_and_failed_red_even_after_an_ok(self):
+        ok_line = self.row("pack-refresh (")["outcomes"]["ok"]["OK"]
+        self.assertTrue(self.tail(ok_line + "\n")[0])
+        for last in ("[2026-11-22 09:40:00] not now: a lane / night-shift job is running",
+                     "[2026-11-22 10:50:00] pack refresh FAILED: git push"):
+            self.assertFalse(self.tail(f"{ok_line}\n{last}\n")[0], last)
+
+
 class DatedLogTail(_Patched):
     """Round 8: dhaka-yearly's per-day run log, graded by its last line."""
 

@@ -159,6 +159,11 @@ CATALOG = {
         "logs": "~/Library/Logs/job-reaper.log (stderr: job-reaper.err)",
         "notes": "Added 2026-09-15 after mental-models hung inside an OpenRouter call. launchd never starts a second copy of a job that is still running, so one hung run silently blocks every later slot. It is a central reaper rather than a wrapper in each plist because TCC grants follow the spawned binary: t7sync is a signed Mach-O and would lose Full Disk Access behind a bash wrapper. KeepAlive daemons and tranche-deepredteam are deliberately uncapped. When adding a scheduled job, add its cap to CAPS_MIN. `--dry-run` reports without killing. Silent on normal passes; fleet-health wants a clean pass within the last hour.",
     },
+    "com.jalal.pack-refresh": {
+        "title": "Wayback price pack refresh — weekly",
+        "what": "Sundays 09:40: ~/PycharmProjects/wayback-backtester/build/refresh.sh adds new Yahoo closes to the research price pack, rebuilds the curves (~70 min), gates the staged pack, swaps it in, commits + pushes (= the Vercel deploy) and waits for the live site to serve the new stamp.",
+        "logs": "~/Library/Logs/pack-refresh.log",
+        "notes": "Added 2026-11-14. Never runs 19:00–07:00 or while a lane / night-shift job runs (logs 'not now', no retry that week). A failure puts the old pack back and pings Watch. Fleet rows: 'pack-refresh' (last log line) + 'wayback-backtester (live price pack fresh)' (live cal.json ends within 11 days)."},
 }
 
 # Cron lines matched by substring → catalog entry (+ forced Frequency label).

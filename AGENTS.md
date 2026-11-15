@@ -120,7 +120,7 @@ run):
 
 | Probe | Proves | Key params / trap |
 |---|---|---|
-| `web_fresh` | a live JSON's own stamp is fresh, optionally row counts | `url`, `json_key` (dotted), `max_age_h`, `rows_key`, `min_rows` ({key: floor}). Future stamp = red |
+| `web_fresh` | a live JSON's own stamp is fresh, optionally row counts | `url`, `json_key` (dotted; `"[-1]"` = last element of a bare JSON array, wayback cal.json 14 Nov), `max_age_h`, `rows_key`, `min_rows` ({key: floor}). Future stamp = red |
 | `web_render` | headless Chrome ran the page's JS; no uncaught error; text visible in `<body>` | `url`, `expect_text` |
 | `bot_selftest` | a synthetic message through the bot's real handler produced a reply | `url`, `secret_env` (header only). 5xx = retry |
 | `telegram_webhook` | webhook points at the right function; guard rejects unauth POST; no error < 24 h | `token_env`, `expect_url` (no query!), `require_guard` |

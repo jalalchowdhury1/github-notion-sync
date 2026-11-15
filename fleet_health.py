@@ -199,6 +199,8 @@ def probe_web_fresh(url, json_key, max_age_h, rows_key=None, min_rows=None,
         req.add_header("x-vercel-protection-bypass", secret)
     with urllib.request.urlopen(req, timeout=30) as r:
         data = json.loads(r.read().decode())
+    if isinstance(data, list):          # a bare JSON array (wayback cal.json): json_key "[-1]" = its last element
+        data = {"[-1]": data[-1] if data else None}
     # min_rows {list_key: floor} (red team 2026-09-27): a fresh top-level stamp on
     # a half-empty scrape is still a false green -- dhaka-flights published
     # flights=0 on 2026-08-23 with a brand-new `updated`. Floors sit far below
@@ -2938,6 +2940,30 @@ FLEET = [
      "block_re": r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) heartbeat: alive, offset \d+, poll fails in a row \d+$",
      "log_grep": r"poll fails in a row [0-4]$",
      "max_age_h": 3.5},
+    # pack-refresh (14 Nov 2026): wayback-backtester/build/refresh.sh, launchd Sundays 09:40, rebuilds the
+    # research price pack from Yahoo, gates it, commits + pushes (= the Vercel deploy). It never retries
+    # in the week, so a trailing "not now" (hours / lane job / lock) or FAILED is red. OK lands ~11:00;
+    # Sun 09:40 -> next Sun 06:30 = 165 h (+1 h DST) -> 170; a missed Sunday is red Monday 05:00 (187 h).
+    # grace: a Sunday 12:00 off-hours check may land mid-build (~80 min), not a red.
+    {"name": "pack-refresh (weekly Wayback price pack, Mac)", "feeds_screen": True,
+     "screen_repo": "wayback-backtester", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/pack-refresh.log",
+     "last_line": r"^\[[\d-]+ [\d:]+\] pack refresh(?: OK: .* live stamp \S+|: no new day, nothing to do"
+                  r"|: the pack is unchanged \(\w+\), nothing to do)$",
+     "max_age_h": 170, "grace_min": 180, "grace_unless": r"FAILED|not now",
+     "outcomes": {"src": "~/PycharmProjects/wayback-backtester/build/refresh.sh",
+                  "verb_re": r'say "(?:pack refresh:? )?(\w[\w ]*?) ?[:,(]',
+                  "ok": {"OK": "[2026-11-14 19:20:25] pack refresh OK: 2089ac \u2192 3b06cc, prices to 2026-11-13, live stamp 2026-11-14-a82c2206",
+                         "no new day": "[2026-11-15 09:41:02] pack refresh: no new day, nothing to do",
+                         "the pack is unchanged": "[2026-11-15 09:41:30] pack refresh: the pack is unchanged (3b06cc), nothing to do"},
+                  "not_ok": ["FAILED", "not now", "start", "store", "site audit", "dry run", "put back"]}},
+    # The SCREEN side: the live site's pack (the same cal.json the page loads) ends on a recent trading
+    # day. Date-only = midnight. Worst healthy gap: a market-holiday Friday, so the pack ends Thursday,
+    # graded Sunday 06:30 before the run = 246.5 h (+1 h DST); 10 days (240 h) would false-red ~2-3x a
+    # year, so 11 days (264 h). A missed Sunday: the writer row is red Monday, this one Tuesday.
+    {"name": "wayback-backtester (live price pack fresh)", "screen_side": True, "repo": "wayback-backtester",
+     "probe": "web_fresh", "url": "https://wayback-backtester.vercel.app/data/cal.json",
+     "json_key": "[-1]", "max_age_h": 264},
     # checker drift (16 Oct 2026): reads each job's SOURCE for outcome words its
     # log_tail row never classified (see _outcome_drift). quiet_red: a stale checker
     # is a to-do for the checker, not an outage -- morning card only, never a buzz.
