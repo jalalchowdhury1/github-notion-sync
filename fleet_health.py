@@ -2518,6 +2518,11 @@ FLEET = [
     {"name": "aoife-typing (screen serves the newest coach mission)", "repo": "aoife-typing",
      "probe": "freshness", "url": "https://aoife-typing.vercel.app/api/freshness",
      "expect_items": ["coach mission"]},
+    # aoife-mathcamp (2026-11-14): her next lesson must be planned from her newest sitting (Mac brain,
+    # every 20 min 07-22, grace 3 h). Seed lessons cover an empty queue, so a stale plan never blocks her.
+    {"name": "aoife-mathcamp (next lesson planned from her newest sitting)", "repo": "aoife-mathcamp",
+     "probe": "freshness", "url": "https://aoife-mathcamp.vercel.app/api/freshness",
+     "expect_items": ["next lesson plan"]},
     # later-jar (2026-10-02): every tab reads the cached YNAB copy (jar:ynab:cache,
     # 5-min refresh). Red when the screen is stuck on a copy > 1 h old (YNAB down).
     {"name": "later-jar (screen serves a fresh YNAB copy)", "repo": "later-jar",
