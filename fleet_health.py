@@ -2587,11 +2587,12 @@ FLEET = [
     # audit; polymarket leaves the reply when nothing is served, so only expect_items sees it die) and pe —
     # the Market Valuation tile's trailing P/E: red when it lags the newest close past 6 h, or CAPE / nothing
     # stands in (served:fred grades only the FRED series and stays green then).
+    # 2026-11-15: + centred — the Centred tile (/api/centred, the lane's nightly public feed, 30 h).
     {"name": "financial-dashboard (rubber band + history served fresh)", "repo": "financial-telegram-bot",
      "probe": "freshness", "url": "https://financial-telegram-bot-beryl.vercel.app/api/freshness",
      "expect_items": ["rubber-band", "split", "history-sheet", "served:spy", "served:spy-daily-move",
                       "served:market-extra", "served:fred", "served:sheets", "served:fear-greed", "fwd-pe",
-                      "served:vol", "served:breadth", "served:polymarket", "pe"]},
+                      "served:vol", "served:breadth", "served:polymarket", "pe", "centred"]},
     # Daily Reader (2026-10-02): every tab graded through get_data(), the page's own
     # path. The reddit-browser web_fresh row reads the Mac's `checked` stamp, which
     # stays fresh even when list_problem() rejects the new list and the old one shows.
@@ -2962,6 +2963,20 @@ FLEET = [
                          "no new day": "[2026-11-15 09:41:02] pack refresh: no new day, nothing to do",
                          "the pack is unchanged": "[2026-11-15 09:41:30] pack refresh: the pack is unchanged (3b06cc), nothing to do"},
                   "not_ok": ["FAILED", "not now", "start", "store", "site audit", "dry run", "put back"]}},
+    # centred-publish (15 Nov 2026): ~/.local/bin/centred-publish.py, run by wayback-lane/run.sh at the end of
+    # the nightly 21:00 lane, publishes the Centred feeds (the dashboard's /api/centred = its screen side, the
+    # financial-dashboard row's `centred` item). One line per run: OK (an alert NOT delivered is retried next
+    # run, still OK) or FAILED = red. The lane ends ~00:35 but ran to 04:28 on 15 Nov: 00:35 -> next night's
+    # 04:30 = 28 h, so 26 h would false-red a late night; 30 h, the same as the dashboard's `centred` item.
+    {"name": "centred-publish (nightly Centred feed, Mac)", "feeds_screen": True,
+     "screen_repo": "financial-telegram-bot", "repo": None,
+     "probe": "log_tail", "path": "~/Library/Logs/centred-publish.log",
+     "last_line": r"^\[[\d-]+T[\d:]+[-+]\d\d:\d\d\] centred publish OK: state \w+, \d+ of \d+ off"
+                  r"(?: \u00b7 alert (?:sent|NOT delivered, retried next run))?$",
+     "max_age_h": 30,
+     "outcomes": {"src": "~/.local/bin/centred-publish.py", "verb_re": r"centred publish ([A-Z]+)",
+                  "ok": {"OK": "[2026-11-15T04:28:52-05:00] centred publish OK: state off, 2 of 31 off"},
+                  "not_ok": ["FAILED"]}},
     # The SCREEN side: the live site's pack (the same cal.json the page loads) ends on a recent trading
     # day. Date-only = midnight. Worst healthy gap: a market-holiday Friday, so the pack ends Thursday,
     # graded Sunday 06:30 before the run = 246.5 h (+1 h DST); 10 days (240 h) would false-red ~2-3x a

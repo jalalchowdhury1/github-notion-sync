@@ -1349,6 +1349,17 @@ class PackRefreshRows(unittest.TestCase):
                      "[2026-11-22 10:50:00] pack refresh FAILED: git push"):
             self.assertFalse(self.tail(f"{ok_line}\n{last}\n")[0], last)
 
+    def test_centred_publish_ok_green_failed_red(self):
+        row = self.row("centred-publish (")
+        ok_line = row["outcomes"]["ok"]["OK"]
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "centred-publish.log")
+            for last, want in ((ok_line, True), (ok_line + " \u00b7 alert sent", True),
+                               (ok_line + " \u00b7 alert NOT delivered, retried next run", True),
+                               ("[2026-11-16 00:35:00] centred publish FAILED: CalledProcessError gh", False)):
+                Path(p).write_text(f"{ok_line}\n{last}\n")
+                self.assertEqual(fh.probe_log_tail(**dict(row, path=p))[0], want, last)
+
 
 class DatedLogTail(_Patched):
     """Round 8: dhaka-yearly's per-day run log, graded by its last line."""
