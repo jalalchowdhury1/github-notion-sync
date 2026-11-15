@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-13 05:02",
+ "updated": "2026-11-15 05:03",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -422,6 +422,16 @@
    "notes": ""
   },
   {
+   "key": "com.jalal.mathcamp-brain",
+   "title": "com.jalal.mathcamp-brain",
+   "when": "every 20 min, 7:00 AM–10:00 PM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.mathcamp-brain → ~/.local/bin/in-tmux",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/mathcamp-brain.log",
+   "notes": ""
+  },
+  {
    "key": "com.jalal.midterms-mi-flip",
    "title": "com.jalal.midterms-mi-flip",
    "when": "every 15 min, 12:00 AM–12:45 AM",
@@ -502,6 +512,16 @@
    "notes": "Added 2026-09-11 after macOS logged the user out at 23:57 to install 15.7.9, the install failed with a boot-policy error, the Mac restarted, and FileVault held it at the login screen until 09:01 — every overnight job is a *user* LaunchAgent and needs a logged-in session, so none of them ran. The non-obvious trap: launchd only replays a missed StartCalendarInterval when the agent was already loaded and the machine merely slept; with no session at midnight the agents did not exist at all, so when they finally loaded at 09:01 they just scheduled their next run for tonight — the whole night vanished with no error anywhere, and fleet-health, the thing that would normally have caught it, was itself a user agent and died with everything else. EVENT-DRIVEN, not scheduled — it has no calendar slot to grade, and it is SILENT on every normal day (session loads, all jobs already ran, nothing sent), so like the temporary reminder jobs above, do NOT add a fleet-health probe: a probe here would false-alarm on every quiet day. The self-heal split is deliberate: light jobs are plain API calls that finish in a couple of minutes and disturb nothing, so there is no reason to make Jalal ask for them; the heavy Chrome-driving scrapers take 10-35 min and would seize the machine mid-morning — standing rule is no daytime scheduling, so those always wait for Jalal. Companion manual command: `catchup-overnight` (~/.local/bin/catchup-overnight.sh, aliased in ~/.zshrc), which Jalal runs himself to replay whatever is still outstanding"
   },
   {
+   "key": "com.jalal.pack-refresh",
+   "title": "Wayback price pack refresh — weekly",
+   "when": "Sunday 9:40 AM",
+   "frequency": "Weekly",
+   "mechanism": "launchd com.jalal.pack-refresh → ~/PycharmProjects/wayback-backtester/build/refresh.sh",
+   "what": "Sundays 09:40: ~/PycharmProjects/wayback-backtester/build/refresh.sh adds new Yahoo closes to the research price pack, rebuilds the curves (~70 min), gates the staged pack, swaps it in, commits + pushes (= the Vercel deploy) and waits for the live site to serve the new stamp.",
+   "logs": "~/Library/Logs/pack-refresh.log",
+   "notes": "Added 2026-11-14. Never runs 19:00–07:00 or while a lane / night-shift job runs (logs 'not now', no retry that week). A failure puts the old pack back and pings Watch. Fleet rows: 'pack-refresh' (last log line) + 'wayback-backtester (live price pack fresh)' (live cal.json ends within 11 days)."
+  },
+  {
    "key": "com.jalal.podcast-make-watch",
    "title": "com.jalal.podcast-make-watch",
    "when": "every 15 min, 12:02 AM–12:47 AM",
@@ -572,13 +592,13 @@
    "notes": ""
   },
   {
-   "key": "com.jalal.story-detective-reminder",
-   "title": "com.jalal.story-detective-reminder",
-   "when": "10:00 AM (retries 10:15 AM)",
+   "key": "com.jalal.split",
+   "title": "com.jalal.split",
+   "when": "4:00 AM (retries 9:00 AM)",
    "frequency": "Daily",
-   "mechanism": "launchd com.jalal.story-detective-reminder → ~/.local/bin/story-detective-reminder.sh",
+   "mechanism": "launchd com.jalal.split → ~/PycharmProjects/financial-telegram-bot/scripts/split.py",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
-   "logs": "—",
+   "logs": "~/Library/Logs/split.log",
    "notes": ""
   },
   {
@@ -679,16 +699,6 @@
    "mechanism": "launchd com.jalal.wayback-lane → ~/PycharmProjects/wayback-lane/run.sh",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/wayback-lane.log",
-   "notes": ""
-  },
-  {
-   "key": "com.jalal.wordrain-open-reminder",
-   "title": "com.jalal.wordrain-open-reminder",
-   "when": "9:00 AM",
-   "frequency": "Daily",
-   "mechanism": "launchd com.jalal.wordrain-open-reminder → ~/.local/bin/wordrain-open-reminder.sh",
-   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
-   "logs": "~/Library/Logs/wordrain-open-reminder.log",
    "notes": ""
   },
   {
