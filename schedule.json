@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-15 05:03",
+ "updated": "2026-11-16 05:02",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -130,6 +130,16 @@
    "what": "Keeps a tmux session 'concierge' running `claude remote-control` so Jalal can reach/spawn Claude Code sessions on this Mac from the Claude phone app; knows the 'fresh start' session-cleanup trick (~/.local/bin/fresh-start.sh)",
    "logs": "~/Library/Logs/claude-concierge.log",
    "notes": "Always-on, KeepAlive + 60s self-heal loop; concierge briefing lives in ~/concierge/CLAUDE.md; added 2026-08-27"
+  },
+  {
+   "key": "com.jalal.coach-email-reminder",
+   "title": "com.jalal.coach-email-reminder",
+   "when": "3:30 PM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.coach-email-reminder → ~/.local/bin/coach-email-reminder.sh",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/coach-email-reminder.log",
+   "notes": ""
   },
   {
    "key": "com.jalal.daily-reader-kick",
@@ -540,6 +550,16 @@
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/podcast-requests.log",
    "notes": ""
+  },
+  {
+   "key": "com.jalal.puzzle-flags",
+   "title": "Puzzle flags — the tutor's 🚩 Puzzle wrong? button, fixed on the Mac",
+   "when": "every 30 min, 7:07 AM–9:37 PM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.puzzle-flags → ~/.local/bin/in-tmux",
+   "what": "Every 30 min 07:07–21:37 ~/concierge/puzzle-flags/flags.py tick reads the open 🚩 flags from Think Lab, Story & Number Lab and Math Camp (GET /api/flags), saves a note per flag in ~/concierge/notes/puzzle-flags/, and 18:00–22:00 runs one headless Claude fix session per flag on the API credit lane (FIXER.md: reproduce, fix, gate, deploy, resolve the flag). One silent Telegram line per outcome; loud only when it needs Jalal",
+   "logs": "~/Library/Logs/puzzle-flags.log",
+   "notes": "Added 2026-11-15. Off switch: touch ~/.local/state/puzzle-flags/off. By hand: flags.py status | fix <app> <id>. Never starts in a repo with uncommitted work. Fleet row: puzzle-flags (log ends 'ok · N open')."
   },
   {
    "key": "com.jalal.reader-love",
