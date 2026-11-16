@@ -2706,7 +2706,7 @@ FLEET = [
     # Main job: every 10 min, silent 9 PM-11 AM, so at 05:00/06:30 the last line is the 20:50 run's (~10 h).
     {"name": "x-deals (deal pings, every 10 min 11 AM-9 PM)", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/x-deals.out.log",
-     "last_line": r"^\d\d-\d\d \d\d:\d\d ok · \d+ posts$", "max_age_h": 16,
+     "last_line": r"^\d\d-\d\d \d\d:\d\d ok · \d+ new of (\d+|\?) posts$", "max_age_h": 16,  # 16 Nov: new of read
      "grace_min": 10, "grace_lines": 400,  # a daytime check mid-run: one run logs 100+ deal lines
      # 1 Nov: a finished run whose source (X list, Slickdeals, taste check, Amazon pages) failed 30+ min ends
      # "FAILED · …"; the runs every 10 min keep the log young, so without this grace hid it behind an old ok
