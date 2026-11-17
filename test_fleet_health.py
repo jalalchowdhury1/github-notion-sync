@@ -178,7 +178,7 @@ class TestRosterGuards(unittest.TestCase):
         # and no row noticed; deals-board and the midterms jobs had no row either.
         import re
         shapes = {
-            "x-deals (": (["10-31 11:40 ok · 12 posts", "10-31 20:50 ok · 0 posts"],
+            "x-deals (": (["11-16 20:50 ok · 2 new of 200 posts", "10-31 20:50 ok · 0 new of ? posts"],   # 16 Nov cc696c4 shape
                           ["AttributeError: 're.Pattern' object has no attribute 'exists'",
                            "10-31 11:25 @dealsbybryan not-you(no) B0H1193GTB · 'Promo Code Ekouaer'"]),
             "x-deals-bryan": (["10-31 10:00 bryan: queued 100 deals"],
@@ -191,8 +191,11 @@ class TestRosterGuards(unittest.TestCase):
                               ["deals-board publish 2026-10-31T11:05:09 deals=654 taps=24 site_taps=ok blob=FAILED BlobError: store suspended",
                                "deals-board publish 2026-10-31T11:05:09 deals=654 taps=24 site_taps=FAILED curl: (6) blob=uploaded",
                                "deals-board publish 2026-10-31T11:05:09 deals=0 taps=24 site_taps=ok blob=uploaded"]),
-            "puzzle-flags (": (["11-15 10:20 ok · 1 open", "11-15 21:37 ok · 0 open", "11-16 07:07 off"],       # 15 Nov
-                               ["11-15 10:20 FAILED 2 app(s) unreachable · 0 open", "11-15 18:07 thinklab mwhyqam3-1: fix session 1 starts",
+            "puzzle-flags (": (["11-17 09:07 ok · 0 open of 0 flags · 3 apps checked", "11-17 10:20 ok · 1 open of 2 flags · 3 apps checked",
+                                "11-16 07:07 off"],       # 15 Nov; 17 Nov the line says what it checked
+                               ["11-17 08:37 ok · 0 open",   # bare count: Jev read it as an empty fetch (Watch 12a0b6d2)
+                                "11-17 09:07 ok · 0 open of 0 flags · 0 apps checked",
+                                "11-15 10:20 FAILED 2 app(s) unreachable · 0 open of 0 flags · 1 apps checked", "11-15 18:07 thinklab mwhyqam3-1: fix session 1 starts",
                                 "11-15 18:37 busy", "Traceback (most recent call last):"]),
             "midterms-odds": (["posted | D sweep 66% ▼1 · R Senate + D House 26% · Midterms", "done | D sweep 70% · Midterms"],
                               ["post failed | D sweep 66% · Midterms", "polymarket read failed: HTTP Error 503",
