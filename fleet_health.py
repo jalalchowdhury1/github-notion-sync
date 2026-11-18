@@ -2053,11 +2053,9 @@ FLEET = [
     # LAST result per repo, and Telegram carries both.
     # max_age_h 12 (was 8, 9 Oct): GitHub fires the 3-h cron only every 6-9.5 h
     # (6-day sample, longest gap 9.5 h), so 8 h went red on GitHub's lag alone.
-    {"name": "reddit-backup (GitHub RSS every 3 h)", "feeds_screen": True, "repo": "reddit-scraper",
-     "probe": "gh_run", "workflow": "reddit_backup.yml", "max_age_h": 12,
-     "rescue_max_failures": 1,
-     "log_grep": [r"REDDIT BACKUP: refreshed \d+ of \d+",
-                  r"GITHUB REDDIT CHECK: rss ok|REDDIT BACKUP: refreshed [1-9]"]},
+    # reddit-backup (GitHub RSS) ROW RETIRED 2026-11-17: Reddit ended RSS (every .rss
+    # url 404s, from GitHub too: run 44211265798), and RSS was GitHub's only way in.
+    # Jalal OK'd dropping RSS as a backup; reddit_backup.yml is disabled (gh workflow).
     {"name": "reddit-scraper (daily data)", "feeds_screen": True, "repo": "reddit-scraper",
      "probe": "gh_run", "workflow": "daily_scrape.yml", "max_age_h": 36,
      "log_grep": [r"last data/ commit: [^$\n]+ — proceeding"
@@ -2098,7 +2096,7 @@ FLEET = [
     {"name": "reddit-browser (live site: every Reddit list fresh)", "repo": None,
      "probe": "web_fresh", "url": "https://reddit-scraper-lyart.vercel.app/api/status",
      "rows_key": "reddit_lists", "json_key": "checked", "max_age_h": 36},
-    #   3. the backups (added 2026-09-26): each Mac run ends with
+    #   3. the backups (added 2026-09-26; rss dropped 17 Nov 2026, see below): each Mac run ends with
     #      "METHOD CHECK: page ok · json ok · rss ok" only if the page method saved
     #      at least half the lists AND both backups (Reddit's JSON and RSS through
     #      the same browser) just fetched a real list. Rows 1-2 stay green while the
@@ -2110,7 +2108,14 @@ FLEET = [
      # 2026-10-14: json is a dead backup (Reddit 403s every .json url from the
      # Mac since 12 Oct, fresh profile too), so the row grades page + rss only.
      # The line still says "json ok"/"json FAILED" honestly; it just isn't graded.
-     "log_grep": r"METHOD CHECK: page ok · json (?:ok|FAILED) · rss ok",
+     # 2026-11-17: Reddit ended RSS (every .rss url 404s from the Mac, a fresh
+     # profile AND GitHub); Jalal OK'd dropping it. The run no longer checks rss, so
+     # the line ends "json …  (" and the row grades the page. Name kept: Watch keys on it.
+     "log_grep": r"METHOD CHECK: page ok · json (?:ok|FAILED)  \(",
+     # Top comments read each post's page since 17 Nov (were RSS: 33 of 33 failed that
+     # night and the row stayed green on them). A run that read none and failed some,
+     # 3 pushbacks in a row, or a crashed step = red, naming the line.
+     "fail_grep": r"TOP COMMENTS: (?:0 new, \d+ none yet, [1-9]\d* failed|FAILED)|TOP COMMENTS: .*STOPPED: 3 failures",
      "max_age_h": 26},
     # financial-telegram-bot is the owner's most important repo and was entirely
     # unrostered. Its own health-check Telegrams on warn/critical, but nothing

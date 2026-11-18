@@ -240,32 +240,30 @@ class TestRosterGuards(unittest.TestCase):
         self.assertIsNone(site["repo"])
 
     def test_reddit_backup_rows_catch_a_dead_backup_before_it_is_needed(self):
-        # 2026-09-26: the Mac got JSON + RSS fallbacks, GitHub's RSS moved to every 3 h.
+        # 2026-09-26: the Mac got JSON + RSS fallbacks. 2026-11-17: Reddit ended RSS, the run
+        # stopped checking it, and the GitHub RSS backup row was retired.
         import re
         mac = self._row("reddit-browser (backup methods")
         self.assertEqual((mac["probe"], mac["repo"]), ("log_block", None))
-        self.assertRegex("METHOD CHECK: page ok · json ok · rss ok  (page saved 26 of 26 lists)", mac["log_grep"])
-        # 2026-10-14: json is retired (403 from the Mac since 12 Oct): a dead json alone stays green...
-        self.assertRegex("METHOD CHECK: page ok · json FAILED · rss ok  (page saved 26 of 26 lists; json: HTTP 403)",
+        self.assertRegex("METHOD CHECK: page ok · json ok  (page saved 26 of 26 lists)", mac["log_grep"])
+        # json is retired (403 from the Mac since 12 Oct): a dead json alone stays green...
+        self.assertRegex("METHOD CHECK: page ok · json FAILED  (page saved 24 of 24 lists; json: RuntimeError: HTTP 403)",
                          mac["log_grep"])
-        # ...but rss dying (with or without json) is still red.
-        self.assertNotRegex("METHOD CHECK: page ok · json ok · rss FAILED  (page saved 26 of 26 lists; rss: HTTP 403)",
-                            mac["log_grep"])
-        self.assertNotRegex("METHOD CHECK: page ok · json FAILED · rss FAILED  (page saved 26 of 26 lists)",
-                            mac["log_grep"])
-        self.assertNotRegex("METHOD CHECK: page FAILING · json ok · rss ok  (page saved 3 of 26 lists)", mac["log_grep"])
-        gh = self._row("reddit-backup (GitHub")
-        self.assertEqual((gh["probe"], gh["workflow"]), ("gh_run", "reddit_backup.yml"))
-        quiet = "REDDIT BACKUP: refreshed 0 of 0 lists that needed it (tried 0)\nGITHUB REDDIT CHECK: rss ok (r/bestof: 50 posts)"
-        busy = "REDDIT BACKUP: refreshed 4 of 26 lists that needed it (tried 6)"
-        dead = "REDDIT BACKUP: refreshed 0 of 0 lists that needed it (tried 0)\nGITHUB REDDIT CHECK: rss FAILED (r/bestof: 0 posts)"
-        failing = "REDDIT BACKUP: refreshed 0 of 26 lists that needed it (tried 6)"
-        for log, ok in ((quiet, True), (busy, True), (dead, False), (failing, False)):
-            self.assertEqual(all(re.search(g, log) for g in gh["log_grep"]), ok, log)
-        # gh feeds the Daily Reader screen (2026-10-02): its screen row must ride along
-        screen = self._row("reddit-scraper (live site: every tab")
-        self.assertEqual(fh.lint_roster([mac, gh, screen]), [])
-        self.assertEqual([r["name"] for r in fh.lint_roster([mac, gh])], [gh["name"]])
+        # ...the page failing is red.
+        self.assertNotRegex("METHOD CHECK: page FAILING · json ok  (page saved 3 of 26 lists)", mac["log_grep"])
+        # Top comments tripwire, replaying the 17 Nov night (RSS 404s: 33 of 33 failed, row stayed green).
+        bad = ("TOP COMMENTS: 0 new, 0 none yet, 33 failed (1021 cached, 0 left)",
+               "TOP COMMENTS: 2 new, 0 none yet, 3 failed (1021 cached, 9 left) STOPPED: 3 failures in a row (RuntimeError: HTTP 403)",
+               "TOP COMMENTS: FAILED RuntimeError: boom")
+        good = ("TOP COMMENTS: 19 new, 0 none yet, 0 failed (1048 cached, 0 left)",
+                "TOP COMMENTS: 0 new, 0 none yet, 0 failed (1048 cached, 0 left)",
+                "TOP COMMENTS: 38 new, 1 none yet, 1 failed (1048 cached, 0 left)",
+                "TOP COMMENTS: skipped (out of time)")
+        for line in bad:
+            self.assertRegex(line, mac["fail_grep"])
+        for line in good:
+            self.assertNotRegex(line, mac["fail_grep"])
+        self.assertFalse([r for r in fh.FLEET if r["name"].startswith("reddit-backup (GitHub")])
 
     def test_every_telegram_webhook_row_names_a_token_and_a_path(self):
         for r in fh.FLEET:
