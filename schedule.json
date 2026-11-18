@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-16 05:02",
+ "updated": "2026-11-18 05:03",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -249,6 +249,16 @@
    "mechanism": "launchd com.jalal.errand-desk → ~/.local/bin/in-tmux",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/errand-desk.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.facts-sync",
+   "title": "com.jalal.facts-sync",
+   "when": "8:30 PM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.facts-sync → -lc",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/facts-sync.log",
    "notes": ""
   },
   {
@@ -559,7 +569,7 @@
    "mechanism": "launchd com.jalal.puzzle-flags → ~/.local/bin/in-tmux",
    "what": "Every 30 min 07:07–21:37 ~/concierge/puzzle-flags/flags.py tick reads the open 🚩 flags from Think Lab, Story & Number Lab and Math Camp (GET /api/flags), saves a note per flag in ~/concierge/notes/puzzle-flags/, and 18:00–22:00 runs one headless Claude fix session per flag on the API credit lane (FIXER.md: reproduce, fix, gate, deploy, resolve the flag). One silent Telegram line per outcome; loud only when it needs Jalal",
    "logs": "~/Library/Logs/puzzle-flags.log",
-   "notes": "Added 2026-11-15. Off switch: touch ~/.local/state/puzzle-flags/off. By hand: flags.py status | fix <app> <id>. Never starts in a repo with uncommitted work. Fleet row: puzzle-flags (log ends 'ok · N open')."
+   "notes": "Added 2026-11-15. Off switch: touch ~/.local/state/puzzle-flags/off. By hand: flags.py status | fix <app> <id>. Never starts in a repo with uncommitted work. Fleet row: puzzle-flags (log ends 'ok · N open of M flags · K apps checked')."
   },
   {
    "key": "com.jalal.reader-love",
