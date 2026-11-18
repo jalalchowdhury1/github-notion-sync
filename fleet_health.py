@@ -2114,8 +2114,9 @@ FLEET = [
      "log_grep": r"METHOD CHECK: page ok · json (?:ok|FAILED)  \(",
      # Top comments read each post's page since 17 Nov (were RSS: 33 of 33 failed that
      # night and the row stayed green on them). A run that read none and failed some,
-     # 3 pushbacks in a row, or a crashed step = red, naming the line.
-     "fail_grep": r"TOP COMMENTS: (?:0 new, \d+ none yet, [1-9]\d* failed|FAILED)|TOP COMMENTS: .*STOPPED: 3 failures",
+     # or a crashed step = red, naming the line. Not "STOPPED: 3 failures" alone: a
+     # 429 burst after some reads is by design (next run asks them), 5 times by 17 Nov.
+     "fail_grep": r"TOP COMMENTS: (?:0 new, \d+ none yet, [1-9]\d* failed|FAILED)",
      "max_age_h": 26},
     # financial-telegram-bot is the owner's most important repo and was entirely
     # unrostered. Its own health-check Telegrams on warn/critical, but nothing

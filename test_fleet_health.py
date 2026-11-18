@@ -253,12 +253,13 @@ class TestRosterGuards(unittest.TestCase):
         self.assertNotRegex("METHOD CHECK: page FAILING · json ok  (page saved 3 of 26 lists)", mac["log_grep"])
         # Top comments tripwire, replaying the 17 Nov night (RSS 404s: 33 of 33 failed, row stayed green).
         bad = ("TOP COMMENTS: 0 new, 0 none yet, 33 failed (1021 cached, 0 left)",
-               "TOP COMMENTS: 2 new, 0 none yet, 3 failed (1021 cached, 9 left) STOPPED: 3 failures in a row (RuntimeError: HTTP 403)",
+               "TOP COMMENTS: 0 new, 0 none yet, 3 failed (1021 cached, 40 left) STOPPED: 3 failures in a row (RuntimeError: HTTP 403)",
                "TOP COMMENTS: FAILED RuntimeError: boom")
         good = ("TOP COMMENTS: 19 new, 0 none yet, 0 failed (1048 cached, 0 left)",
                 "TOP COMMENTS: 0 new, 0 none yet, 0 failed (1048 cached, 0 left)",
                 "TOP COMMENTS: 38 new, 1 none yet, 1 failed (1048 cached, 0 left)",
-                "TOP COMMENTS: skipped (out of time)")
+                "TOP COMMENTS: skipped (out of time)",
+                "TOP COMMENTS: 21 new, 0 none yet, 3 failed (1019 cached, 10 left) STOPPED: 3 failures in a row (RuntimeError: HTTP 429)")
         for line in bad:
             self.assertRegex(line, mac["fail_grep"])
         for line in good:
