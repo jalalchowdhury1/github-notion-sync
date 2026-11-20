@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-19 05:03",
+ "updated": "2026-11-20 05:03",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -509,6 +509,16 @@
    "mechanism": "launchd com.jalal.nightshift → ~/PycharmProjects/composer-auto-research/nightshift/run.sh",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/nightshift.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.nuts-compute-344",
+   "title": "com.jalal.nuts-compute-344",
+   "when": "Monday, Tuesday, Wednesday, Thursday, Friday 3:44 PM",
+   "frequency": "Weekly",
+   "mechanism": "launchd com.jalal.nuts-compute-344 → /opt/homebrew/bin/aws",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/nuts-compute-344.log",
    "notes": ""
   },
   {
