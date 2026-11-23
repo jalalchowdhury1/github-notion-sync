@@ -159,6 +159,19 @@ class TestRosterGuards(unittest.TestCase):
                     "cards-backup: cards:state holds an empty collection"):
             self.assertIsNone(re.search(r["last_line"], bad))
 
+    def test_facts_sync_row_reads_the_drill_ok_line(self):
+        # 2026-11-23: a bare file_mtime row tripped the roster lint and froze health.json for 30 h.
+        import re
+        r = self._row("facts-sync")
+        self.assertEqual(r["probe"], "log_tail")
+        self.assertLessEqual(r["max_age_h"], 26)
+        self.assertRegex("2026-11-23T01:30:37Z backup: saved 32 docs \u00b7 Drive has 3 files \u00b7 DRILL OK vault 65 lines, "
+                         "snapshot 32 docs (desk.20261122-203037.json.gpg)", r["last_line"])
+        for bad in ("2026-11-22T19:46:11Z FAILED backup: unchanged (31 docs)",
+                    "2026-11-22T19:40:00Z FAILED: no done file (window died or 15 min passed)",
+                    "2026-11-23T01:30:34Z added 0: none (only rv_d_cit newer, skipped by rule)"):
+            self.assertIsNone(re.search(r["last_line"], bad))
+
     def test_signal_ping_row_reads_the_ok_line(self):
         # 2026-10-31: the /v2 signal ping is silent on calm days, so a dead or blind job looked like calm markets.
         import re

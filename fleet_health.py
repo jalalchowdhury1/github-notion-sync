@@ -2958,9 +2958,13 @@ FLEET = [
     # Family facts (22 Nov 2026, his ask: "make sure you don't lose any information"). The 20:30 job
     # ~/.local/bin/facts-sync touches facts-sync.ok only after ALL of: Form Filler answers copied into
     # the vault, a locked full snapshot saved, vault + snapshot copied to Google Drive, and the Drive
-    # copies unlocked and matched (family-facts drill). Failed or skipped night = no touch = red.
+    # copies unlocked and matched (family-facts drill). It then logs "<ts> backup: ... DRILL OK ..." (23 Nov:
+    # read that line, not the .ok mtime -- the roster lint refused a bare file_mtime row and health.json froze).
+    # Failed or skipped night = "FAILED ..." last line or a stale log = red.
     {"name": "facts-sync (family facts: sync, snapshot, Drive copy, restore test)", "repo": None,
-     "probe": "file_mtime", "path": "~/.local/state/facts-sync.ok", "max_age_h": 26},
+     "probe": "log_tail", "path": "~/Library/Logs/facts-sync.log",
+     "last_line": r"^\d{4}-\d\d-\d\dT[\d:]+Z backup: .*DRILL OK vault \d+ lines, snapshot \d+ docs",
+     "max_age_h": 26},
     # The bookshelf bot logs a heartbeat line every hour with its failed polls in a row. Its own
     # watchdog restarts a pass stuck 2 h, so 3.5 h without a heartbeat = the watchdog failed too.
     {"name": "aoife-bookshelf-bot (hourly heartbeat, polls OK)", "repo": None,
