@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-22 05:01",
+ "updated": "2026-11-23 05:00",
  "jobs": [
   {
    "key": "com.jalal.aaii-macromicro",
@@ -629,6 +629,16 @@
    "mechanism": "launchd com.jalal.signal-ping → ~/.local/bin/signal-ping",
    "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
    "logs": "~/Library/Logs/signal-ping.log",
+   "notes": ""
+  },
+  {
+   "key": "com.jalal.soxl-watch",
+   "title": "com.jalal.soxl-watch",
+   "when": "6:10 AM",
+   "frequency": "Daily",
+   "mechanism": "launchd com.jalal.soxl-watch → ~/concierge/notes/engine-2026-11-22/lab/watch_hot.py",
+   "what": "🆕 New job — needs description (add to CATALOG in schedule_snapshot.py)",
+   "logs": "~/Library/Logs/soxl-watch.log",
    "notes": ""
   },
   {
