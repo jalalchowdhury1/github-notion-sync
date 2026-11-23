@@ -229,6 +229,10 @@ uv run --no-project --with coverage -q python -m coverage run --include=fleet_he
   -m unittest test_fleet_health test_probes && uv run --no-project --with coverage -q python -m coverage report
 ```
 
+A new FLEET row must pass `lint_roster()` (test `test_real_roster_passes_the_lint`): a bare `file_mtime` row
+with no real success line or `weak_ok` makes every health run refuse to start (23 Nov: health.json froze 30 h).
+Prefer `log_tail` on the job's own success line over a stamp file. Run the tests before pushing a row.
+
 **A side-effect-free live grade** sends nothing and commits nothing (3 Oct 2026):
 
 ```sh

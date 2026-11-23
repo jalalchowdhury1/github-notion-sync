@@ -707,6 +707,11 @@ class RedTeam0927(unittest.TestCase):
         self.assertEqual(fh.lint_roster([{"name": "y", "probe": "gh_run",
                                           "log_grep": r"Scraped \d+ deals {date}"}]), [])
 
+    def test_real_roster_passes_the_lint(self):
+        # 2026-11-23: a new file_mtime row with no weak_ok made every health run refuse to start (30 h frozen).
+        # Catch it here, at commit time, not in the 05:00 run.
+        self.assertEqual([i["name"] for i in fh.lint_roster()], [])
+
     def test_log_marker_today_ignores_yesterdays_success(self):
         today = datetime.date.today()
         yday = today - datetime.timedelta(days=1)
