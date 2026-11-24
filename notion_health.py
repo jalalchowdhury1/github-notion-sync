@@ -283,6 +283,15 @@ def check_card_delivered(checked):
         print(f"today's card not out yet (last {at} ET); window open till "
               f"{CARD_WINDOW_END_ET[0]:02d}:{CARD_WINDOW_END_ET[1]:02d} ET -- not judged")
         return
+    card = body.get("digest_report_at") or ""
+    if age > CARD_STALE_HOURS and card > at and checked > card \
+            and _stamp_age_hours(card) <= CARD_STALE_HOURS:
+        # 23 Nov: a re-run queued this item AFTER today's card went out. Cards are
+        # flowing; it rides the next one. The scheduled check after that card still
+        # dies if the item is dropped (then checked < card and the fleet stamp is old).
+        print(f"fleet item queued {checked}, after today's {card} ET card -- "
+              f"rides the next card, not judged")
+        return
     if age > CARD_STALE_HOURS:
         die(f"the fleet digest was QUEUED ({checked}) but the last morning card "
             f"that carried it went out at {at} ET ({age:.0f}h by this clock, limit "

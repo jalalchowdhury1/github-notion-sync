@@ -1153,6 +1153,28 @@ class CardWindow(unittest.TestCase):
     def test_two_day_old_card_dies_even_inside_window(self):
         self.assertFalse(self._check(50, window_open=True))
 
+    def _check_late_queue(self, card_hours_ago, queued_hours_ago):
+        """23 Nov: a frozen morning skipped the fleet item; it was re-queued at 12:49,
+        after the 07:05 card, and a 19:43 re-run called the working card 'not delivered'."""
+        fmt = lambda h: (datetime.datetime.now() - datetime.timedelta(hours=h)).strftime("%Y-%m-%d %H:%M")
+        body = {"digest_fleet_at": fmt(36), "digest_report_at": fmt(card_hours_ago)}
+        self.nh.urllib.request.urlopen = lambda *a, **k: _Resp(json.dumps(body))
+        self.nh._card_window_open = lambda now_utc=None: False
+        try:
+            self.nh.check_card_delivered(fmt(queued_hours_ago))
+        except SystemExit:
+            pass
+        return not self.died
+
+    def test_item_queued_after_todays_card_waits_for_next_card(self):
+        self.assertTrue(self._check_late_queue(card_hours_ago=12, queued_hours_ago=7))
+
+    def test_item_queued_before_todays_card_but_not_carried_dies(self):
+        self.assertFalse(self._check_late_queue(card_hours_ago=12, queued_hours_ago=14))
+
+    def test_no_card_at_all_lately_still_dies(self):
+        self.assertFalse(self._check_late_queue(card_hours_ago=30, queued_hours_ago=7))
+
     def test_window_clock_is_eastern(self):
         utc = datetime.timezone.utc
         self.assertTrue(self.nh._card_window_open(datetime.datetime(2026, 9, 28, 12, 37, tzinfo=utc)))   # 08:37 EDT
