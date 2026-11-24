@@ -49,6 +49,7 @@ zero rows.
               · mode "digest" and digest_fleet_at is > 20 h old (the card is not
                 going out). A card that is only LATE (10:00 ET window still open,
                 stamp exactly one day old) is not judged until the next check.
+                Nor is an item queued AFTER today's card (re-run, 23 Nov): it rides the next.
             Then stamps Health / Health checked / Health note on each repo's Notion row.
 ```
 
