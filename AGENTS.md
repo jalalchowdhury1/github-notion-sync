@@ -219,7 +219,9 @@ trigger.
    and flags any word nobody sorted. Why: aaii-macromicro learned `PUSHED` but its row knew
    only `OK`, so its first real push read as a false 06:30 buzz. When the job grows a new
    word: sort it here (and widen `last_line` if it is a success). Never sort a real failure
-   into `ok` to quiet the drift row.
+   into `ok` to quiet the drift row. Varying tail after the word (`OK … · alert sent|cleared`)?
+   Add `"tail_line_re"` (the source line that builds it) + `"tails": {quoted word: REAL line}`;
+   25 Nov: centred-publish learned `cleared` and only the verb was watched, so a healthy run read red.
 
 ### 1.5 Testing and dry runs
 

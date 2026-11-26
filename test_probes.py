@@ -1378,6 +1378,7 @@ class PackRefreshRows(unittest.TestCase):
             p = os.path.join(d, "centred-publish.log")
             for last, want in ((ok_line, True), (ok_line + " \u00b7 alert sent", True),
                                (ok_line + " \u00b7 alert NOT delivered, retried next run", True),
+                               ("[2026-11-25T21:36:46-05:00] centred publish OK: state centred, 0 of 31 off \u00b7 alert cleared", True),
                                ("[2026-11-16 00:35:00] centred publish FAILED: CalledProcessError gh", False)):
                 Path(p).write_text(f"{ok_line}\n{last}\n")
                 self.assertEqual(fh.probe_log_tail(**dict(row, path=p))[0], want, last)
@@ -1609,6 +1610,23 @@ class OutcomeDrift(unittest.TestCase):
             for word, sample in r["outcomes"]["ok"].items():
                 with self.subTest(row=r["name"], word=word):
                     self.assertRegex(sample, r["last_line"])
+
+    def test_every_tail_sample_is_green_for_its_row(self):
+        for r in self.rows():
+            for word, sample in r["outcomes"].get("tails", {}).items():
+                with self.subTest(row=r["name"], tail=word):
+                    self.assertTrue(sample.endswith(word))
+                    self.assertRegex(sample, r["last_line"])
+
+    def test_catches_the_25_nov_tail_bug(self):
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "job.py")
+            Path(src).write_text("told = f' alert {(\"sent\" if off else \"cleared\")}'\nprint(f'job OK{told}')\n")
+            item = {"name": "job (x)", "outcomes": {"src": src, "verb_re": r"job ([A-Z]+)", "ok": {"OK": "x"},
+                                                    "tail_line_re": r"told = .*", "tails": {"sent": "x"}}}
+            self.assertEqual(fh._outcome_drift(item), ["logs tail 'cleared', no green sample"])
+            item["outcomes"]["tails"]["cleared"] = "x"
+            self.assertEqual(fh._outcome_drift(item), [])
 
     def test_ok_and_not_ok_never_overlap(self):
         for r in self.rows():

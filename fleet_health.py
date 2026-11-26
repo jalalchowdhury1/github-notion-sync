@@ -1799,7 +1799,9 @@ def _outcome_drift(item):
     found = set(re.findall(o["verb_re"], _read(src)))
     if not found:
         return [f"no outcome words match {o['verb_re']!r} in {o['src']} (pattern stale?)"]
-    return [f"logs {w!r}, not classified" for w in sorted(found - known)]
+    tails = {w for line in re.findall(o.get("tail_line_re", r"(?!)"), _read(src)) for w in re.findall(r'"([^"]+)"', line)}
+    return [f"logs {w!r}, not classified" for w in sorted(found - known)] + \
+           [f"logs tail {w!r}, no green sample" for w in sorted(tails - set(o.get("tails", ())))]
 
 
 def probe_outcome_drift(**_):
@@ -2998,11 +3000,17 @@ FLEET = [
      "screen_repo": "financial-telegram-bot", "repo": None,
      "probe": "log_tail", "path": "~/Library/Logs/centred-publish.log",
      "last_line": r"^\[[\d-]+T[\d:]+[-+]\d\d:\d\d\] centred publish OK: state \w+, \d+ of \d+ off"
-                  r"(?: \u00b7 alert (?:sent|NOT delivered, retried next run))?$",
+                  r"(?: \u00b7 alert (?:sent|cleared|NOT delivered, retried next run))?$",
      "max_age_h": 30,
      "outcomes": {"src": "~/.local/bin/centred-publish.py", "verb_re": r"centred publish ([A-Z]+)",
                   "ok": {"OK": "[2026-11-15T04:28:52-05:00] centred publish OK: state off, 2 of 31 off"},
-                  "not_ok": ["FAILED"]}},
+                  "not_ok": ["FAILED"],
+                  # 25 Nov: the job learned "alert cleared" (64dedff) and the verb check missed it, so the
+                  # quoted words on its `told =` line are outcome words too, each with a real green sample.
+                  "tail_line_re": r"told = .*", "tails": {
+                      "sent": "[2026-11-15T04:28:52-05:00] centred publish OK: state off, 2 of 31 off \u00b7 alert sent",
+                      "cleared": "[2026-11-25T21:36:46-05:00] centred publish OK: state centred, 0 of 31 off \u00b7 alert cleared",
+                      "NOT delivered, retried next run": "[2026-11-15T04:28:52-05:00] centred publish OK: state off, 2 of 31 off \u00b7 alert NOT delivered, retried next run"}}},
     # The SCREEN side: the live site's pack (the same cal.json the page loads) ends on a recent trading
     # day. Date-only = midnight. Worst healthy gap: a market-holiday Friday, so the pack ends Thursday,
     # graded Sunday 06:30 before the run = 246.5 h (+1 h DST); 10 days (240 h) would false-red ~2-3x a
