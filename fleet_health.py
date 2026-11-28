@@ -1818,15 +1818,10 @@ def probe_outcome_drift(**_):
 PROBE_FNS["outcome_drift"] = probe_outcome_drift
 
 FLEET = [
-    {"name": "dhaka-flights (nightly trip tracker)", "feeds_screen": True, "screen_side": True, "repo": "dhaka-flights",
-     "probe": "web_fresh", "url": "https://dhaka-flights.vercel.app/data.json", "bypass_env": "DHAKA_VERCEL_BYPASS",
-     "json_key": "updated", "max_age_h": 36,
-     # booked = hidden since 17 Oct (site/booked.json ticket1 "booked"): Ticket ①
-     # is bought, so ticket1_options and sg_tickets are published EMPTY on purpose;
-     # Ticket ② = 9 one-way reads. 18 Oct: ticket2 10, flights 124. Old layout
-     # (22 Aug-27 Sep) had flights 196-254. flights=0 on 08-23 was the broken
-     # scrape this catches; 60 sits far below both layouts.
-     "min_rows": {"ticket2_options": 5, "flights": 60}},
+    # dhaka-flights (nightly trip tracker) ROW RETIRED 2026-11-27: Ticket ① and Ticket ②
+    # are both bought (site/booked.json), so run_daily prints "ALL BOOKED" and publishes
+    # nothing: data.json is frozen on purpose and would read stale forever. The page
+    # still gets a row below (dhaka-hotels: hotel_rates.json on the same site).
     # com.jalal.dhaka-hotels (launchd, 5:00 AM, run_hotel_rates.sh) — the award
     # -points research behind the trip site's Stays table. Rostered 2026-08-06;
     # schedule_snapshot has always listed it, the fleet never watched it.
